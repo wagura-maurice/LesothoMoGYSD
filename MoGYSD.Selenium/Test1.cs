@@ -1,7 +1,11 @@
-﻿namespace MoGYSD.Selenium;
+using Microsoft.VisualStudio.TestTools.UnitTesting;
+using MoGYSD.Selenium.Pages;
+using MoGYSD.Selenium.Utils;
 
-[TestClass]
-public sealed class Test1
+namespace MoGYSD.Selenium.Tests
+{
+    [TestClass]
+    public class Test1 : TestBase
 {
     [TestMethod]
     public void Admin_Can_Login_Successfully()
@@ -34,3 +38,4 @@ public sealed class Test1
         }
     }
 }
+
