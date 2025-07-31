@@ -1,17 +1,21 @@
 // Utils/TestBase.cs
 using Microsoft.Extensions.Configuration;
+using Microsoft.VisualStudio.TestTools.UnitTesting;
 using OpenQA.Selenium;
 using OpenQA.Selenium.Chrome;
+using System;
+using System.IO;
 using WebDriverManager;
 using WebDriverManager.DriverConfigs.Impl;
+using OpenQA.Selenium.Support.UI;
 
 namespace MoGYSD.Selenium.Utils
 {
     public class TestBase : IDisposable
     {
-        protected IWebDriver Driver { get; private set; }
-        protected IConfiguration Configuration { get; }
-        protected string BaseUrl => Configuration["AppSettings:BaseUrl"];
+        protected IWebDriver Driver { get; private set; } = null!;
+        protected IConfiguration Configuration { get; } = null!;
+        protected string BaseUrl => Configuration["AppSettings:BaseUrl"] ?? throw new InvalidOperationException("BaseUrl is not configured in appsettings.json");
 
         public TestBase()
         {
@@ -54,14 +58,28 @@ namespace MoGYSD.Selenium.Utils
             }
         }
 
+        public TestContext? TestContext { get; set; }
+
         protected void TakeScreenshot(string testName)
         {
-            var screenshot = ((ITakesScreenshot)Driver).GetScreenshot();
-            var fileName = $"{DateTime.Now:yyyyMMddHHmmss}_{testName}.png";
-            var filePath = Path.Combine(TestContext.CurrentContext.TestDirectory, "Screenshots", fileName);
-            Directory.CreateDirectory(Path.GetDirectoryName(filePath));
-            screenshot.SaveAsFile(filePath);
-            TestContext.AddTestAttachment(filePath);
+            try
+            {
+                var screenshot = ((ITakesScreenshot)Driver).GetScreenshot();
+                var fileName = $"{DateTime.Now:yyyyMMddHHmmss}_{testName}.png";
+                var directory = Path.Combine(AppContext.BaseDirectory, "Screenshots");
+                Directory.CreateDirectory(directory);
+                var filePath = Path.Combine(directory, fileName);
+screenshot.SaveAsFile(filePath);
+                
+                if (TestContext != null)
+                {
+                    TestContext.AddResultFile(filePath);
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Failed to take screenshot: {ex.Message}");
+            }
         }
     }
 }

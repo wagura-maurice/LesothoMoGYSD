@@ -1,5 +1,7 @@
 // Utils/TestHelper.cs
 using OpenQA.Selenium;
+using OpenQA.Selenium.Support.UI;
+using System;
 
 namespace MoGYSD.Selenium.Utils
 {
@@ -21,8 +23,17 @@ namespace MoGYSD.Selenium.Utils
         public static void WaitForAjax(this IWebDriver driver, int timeoutSecs = 10)
         {
             var wait = new WebDriverWait(driver, TimeSpan.FromSeconds(timeoutSecs));
-            wait.Until(driver => (bool)((IJavaScriptExecutor)driver)
-                .ExecuteScript("return jQuery.active == 0"));
+            wait.Until(driver => 
+            {
+                try
+                {
+                    return (bool)((IJavaScriptExecutor)driver).ExecuteScript("return jQuery.active == 0");
+                }
+                catch
+                {
+                    return true; // In case jQuery is not available
+                }
+            });
         }
     }
 }
