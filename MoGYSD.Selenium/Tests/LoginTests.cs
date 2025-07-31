@@ -16,9 +16,9 @@ namespace MoGYSD.Selenium.Tests
             loginPage.Navigate();
 
             // Act
-            loginPage.Login(
-                Configuration["AppSettings:AdminUsername"],
-                Configuration["AppSettings:AdminPassword"]);
+            var username = Configuration["AppSettings:AdminUsername"] ?? throw new InvalidOperationException("AdminUsername is not configured");
+            var password = Configuration["AppSettings:AdminPassword"] ?? throw new InvalidOperationException("AdminPassword is not configured");
+            loginPage.Login(username, password);
 
             // Assert
             var dashboardPage = new DashboardPage(Driver, BaseUrl);
