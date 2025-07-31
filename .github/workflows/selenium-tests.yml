@@ -81,13 +81,15 @@ jobs:
 
     # Chrome and ChromeDriver are now installed in the previous step
       
-    - name: Install which command
-      run: sudo apt-get update && sudo apt-get install -y which
-
+    - name: Install core utilities
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y coreutils procps
+        
     - name: Run tests
       working-directory: MoGYSD.Selenium
       env:
-        PATH: ${{ env.PATH }}:/opt/chrome:/usr/local/bin
+        PATH: /usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/opt/chrome:/usr/local/bin
         CHROME_PATH: /opt/chrome/chrome
         CHROMEWEBDRIVER: /usr/local/bin
       run: |
@@ -95,12 +97,23 @@ jobs:
         echo "PATH: $PATH"
         echo "CHROME_PATH: $CHROME_PATH"
         echo "CHROMEWEBDRIVER: $CHROMEWEBDRIVER"
-        echo "=== Binaries ==="
-        ls -la /opt/chrome/chrome
-        ls -la /usr/local/bin/chromedriver
-        echo "=== Versions ==="
-        /opt/chrome/chrome --version
-        chromedriver --version
+        
+        echo "=== Chrome Version ==="
+        if [ -f "$CHROME_PATH" ]; then
+          $CHROME_PATH --version
+          ls -la $CHROME_PATH
+        else
+          echo "Chrome not found at $CHROME_PATH"
+        fi
+        
+        echo "=== ChromeDriver Version ==="
+        if command -v chromedriver &> /dev/null; then
+          chromedriver --version
+          which chromedriver
+        else
+          echo "ChromeDriver not found in PATH"
+        fi
+        
         echo "=== Running Tests ==="
         dotnet test --no-build --verbosity normal --configuration Release --logger "console;verbosity=normal"
       
