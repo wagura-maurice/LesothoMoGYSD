@@ -30,51 +30,71 @@ namespace MoGYSD.Selenium.Utils
             // In TestBase.cs constructor, update the Chrome options setup:
             var options = new ChromeOptions();
             
-            // Basic arguments
-            options.AddArgument("--no-sandbox");
-            options.AddArgument("--disable-dev-shm-usage");
-            options.AddArgument("--disable-gpu");
-            options.AddArgument("--disable-extensions");
-            options.AddArgument("--disable-notifications");
-            options.AddArgument("--remote-debugging-port=0"); // Use random port
-            options.AddArgument("--disable-software-rasterizer");
-            options.AddArgument("--disable-features=VizDisplayCompositor");
-            options.AddArgument("--disable-blink-features=AutomationControlled");
-            options.AddArgument("--disable-background-networking");
-            options.AddArgument("--disable-background-timer-throttling");
-            options.AddArgument("--disable-backgrounding-occluded-windows");
-            options.AddArgument("--disable-breakpad");
-            options.AddArgument("--disable-client-side-phishing-detection");
-            options.AddArgument("--disable-default-apps");
-            options.AddArgument("--disable-hang-monitor");
-            options.AddArgument("--disable-popup-blocking");
-            options.AddArgument("--disable-prompt-on-repost");
-            options.AddArgument("--disable-sync");
-            options.AddArgument("--disable-web-resources");
-            options.AddArgument("--enable-automation");
-            options.AddArgument("--metrics-recording-only");
-            options.AddArgument("--no-first-run");
-            options.AddArgument("--password-store=basic");
-            options.AddArgument("--use-mock-keychain");
-            options.AddArgument("--single-process");
-            options.AddArgument("--disable-renderer-backgrounding");
-            options.AddArgument("--disable-renderer-throttling");
-            options.AddArgument("--remote-allow-origins=*");
+            // Basic stability arguments
+            options.AddArguments(new List<string>
+            {
+                "--no-sandbox",
+                "--disable-dev-shm-usage",
+                "--disable-gpu",
+                "--disable-extensions",
+                "--disable-notifications",
+                "--remote-debugging-port=0",
+                "--disable-software-rasterizer",
+                "--disable-blink-features=AutomationControlled",
+                "--disable-background-networking",
+                "--disable-background-timer-throttling",
+                "--disable-backgrounding-occluded-windows",
+                "--disable-breakpad",
+                "--disable-client-side-phishing-detection",
+                "--disable-default-apps",
+                "--disable-hang-monitor",
+                "--disable-popup-blocking",
+                "--disable-prompt-on-repost",
+                "--disable-sync",
+                "--metrics-recording-only",
+                "--no-first-run",
+                "--password-store=basic",
+                "--use-mock-keychain",
+                "--disable-renderer-backgrounding",
+                "--disable-renderer-throttling",
+                "--remote-allow-origins=*",
+                "--disable-features=IsolateOrigins,site-per-process",
+                "--disable-ipc-flooding-protection",
+                "--disable-logging",
+                "--log-level=3",
+                "--output=/dev/null"
+            });
 
             // Headless mode configuration
             if (bool.Parse(Configuration["AppSettings:Headless"] ?? "true"))
             {
-                options.AddArgument("--headless=new");
-                options.AddArgument("--window-size=1920,1080");
-                options.AddArgument("--disable-gpu-sandbox");
-                options.AddArgument("--no-zygote");
+                options.AddArguments(new List<string>
+                {
+                    "--headless=new",
+                    "--window-size=1920,1080",
+                    "--disable-gpu-sandbox",
+                    "--no-zygote",
+                    "--no-sandbox-and-elevated"
+                });
+            }
+            else
+            {
+                options.AddArgument("--start-maximized");
             }
 
-            // Set up ChromeDriver service
+            // Set up ChromeDriver service with logging
             var service = ChromeDriverService.CreateDefaultService();
             service.HideCommandPromptWindow = true;
             service.EnableVerboseLogging = true;
+            service.LogPath = "chromedriver.log";
             service.EnableAppendLog = true;
+            
+            // Add environment variables if needed
+            var envVars = new System.Collections.Generic.Dictionary<string, object>
+            {
+                ["DISPLAY"] = ":99",
+                ["DBUS_SESSION_BUS_ADDRESS"] = "/dev/null"
+            };
 
             try
             {
@@ -106,7 +126,16 @@ namespace MoGYSD.Selenium.Utils
                 // Configure timeouts
                 Driver.Manage().Timeouts().PageLoad = TimeSpan.FromSeconds(60);
                 Driver.Manage().Timeouts().ImplicitWait = TimeSpan.FromSeconds(10);
-                Driver.Manage().Window.Maximize();
+                
+                // Set window size instead of maximize which can be flaky in CI
+                try 
+                {
+                    Driver.Manage().Window.Size = new System.Drawing.Size(1920, 1080);
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Warning: Could not set window size: {ex.Message}");
+                }
             }
             catch (Exception ex)
             {
