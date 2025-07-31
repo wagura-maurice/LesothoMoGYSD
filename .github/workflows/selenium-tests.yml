@@ -30,7 +30,6 @@ jobs:
       uses: actions/setup-dotnet@v4
       with:
         dotnet-version: ${{ env.DOTNET_VERSION }}
-        cache: true
       
     - name: Install Chrome
       uses: browser-actions/setup-chrome@v1
@@ -50,35 +49,18 @@ jobs:
           }
         }
         EOF
-        
-    - name: Setup ChromeDriver
-      uses: nanasess/setup-chromedriver@v2
-      with:
-        # Optional: ensure the installed ChromeDriver version matches the installed Chrome
-        # This step handles the ChromeDriver setup automatically
-        matching-chromedriver-version: true
 
     - name: Install dependencies
       working-directory: MoGYSD.Selenium
-      run: dotnet restore
-      
-    - name: Build
-      working-directory: MoGYSD.Selenium
-      run: dotnet build --no-restore --configuration Release
-      
-    - name: Test with logging
-      working-directory: MoGYSD.Selenium
       run: |
-        mkdir -p TestResults
-        dotnet test --no-build --configuration Release \
-          --logger "console;verbosity=detailed" \
-          --logger "trx;LogFileName=test-results.trx" \
-          --results-directory TestResults \
-          --collect:"XPlat Code Coverage"
+        dotnet restore --no-cache
+        dotnet build --no-restore --configuration Release
+      
+    - name: Run tests
+      working-directory: MoGYSD.Selenium
+      run: dotnet test --no-build --configuration Release --verbosity normal --logger "console;verbosity=detailed"
       env:
-        # Required for Chrome to find ChromeDriver
         PATH: ${{ env.PATH }}:/usr/local/share/chromedriver-linux64
-        # Required for Chrome to run in container
         CHROMEWEBDRIVER: /usr/local/share/chromedriver-linux64
       
     - name: Upload test results
@@ -86,16 +68,5 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: test-results
-        path: |
-          MoGYSD.Selenium/TestResults/**/*.trx
-          MoGYSD.Selenium/TestResults/**/*.cobertura.xml
-          MoGYSD.Selenium/TestResults/**/coverage.json
-        retention-days: 7
-      
-    - name: Upload screenshots on failure
-      if: failure()
-      uses: actions/upload-artifact@v4
-      with:
-        name: test-screenshots
-        path: MoGYSD.Selenium/TestResults/**/Screenshots/*
+        path: MoGYSD.Selenium/TestResults/**/*
         retention-days: 7
