@@ -1,0 +1,61 @@
+﻿@using MoGYSD.ViewModels.Missa.Programmes 
+@using System.ComponentModel.DataAnnotations
+
+<MudDialog>
+    <TitleContent>
+        <MudText Typo="Typo.h6">
+            <MudIcon Icon="@(OVCBConfig.Id == 0 ? Icons.Material.Filled.Add : Icons.Material.Filled.Edit)" Class="mr-3 mb-n1" />
+            @(OVCBConfig.Id == 0 ? "Add New OVC-B Configuration" : "Edit OVC-B Configuration")
+        </MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudForm @ref="_form" Model="@OVCBConfig" ValidationDelay="0">
+            <MudGrid>
+                <MudItem xs="12">
+                    <FacilityTypeAutocomplete Variant="Variant.Outlined" Label="Facility Type"
+                                              For="@(() => OVCBConfig.FacilityTypeId)"
+                                              @bind-Value="OVCBConfig.FacilityTypeId"
+                                              Required="true" />
+                </MudItem>
+                <MudItem xs="12">
+                    <GradeAutoComplete Variant="Variant.Outlined" Label="Grade"
+                                       For="@(() => OVCBConfig.GradeId)"
+                                       @bind-Value="OVCBConfig.GradeId"
+                                       Required="true" />
+                </MudItem>
+                <MudItem xs="12">
+                    <SystemCodeAutocomplete Variant="Variant.Outlined" Label="Fee Type"
+                                            For="@(() => OVCBConfig.FeeTypeId)"
+                                            @bind-Value="OVCBConfig.FeeTypeId"
+                                            ParentCode="FeeType" Required="true" />
+                </MudItem>
+                <MudItem xs="12">
+                    <MudTextField Variant="Variant.Outlined" Label="Fee Amount (Loti)" @bind-Value="OVCBConfig.FeeAmount" For="@(() => OVCBConfig.FeeAmount)" Required="true" Adornment="Adornment.End" AdornmentText="LSL" InputType="InputType.Number" Format="N2" />
+                </MudItem>               
+             
+            </MudGrid>
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel" Variant="Variant.Filled" Color="Color.Secondary">Close</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Submit">Save</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] MudBlazor.IMudDialogInstance MudDialog { get; set; }
+    [Parameter] public OVCBConfigurationFormViewModel OVCBConfig { get; set; } = new();
+
+    private MudBlazor.MudForm _form;
+
+    private void Cancel() => MudDialog.Cancel();
+
+    private async Task Submit()
+    {
+        await _form.Validate();
+        if (_form.IsValid)
+        {
+            MudDialog.Close(MudBlazor.DialogResult.Ok(OVCBConfig));
+        }
+    }
+}

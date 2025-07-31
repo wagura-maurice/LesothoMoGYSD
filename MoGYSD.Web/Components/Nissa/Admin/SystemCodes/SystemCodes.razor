@@ -1,0 +1,131 @@
+﻿@page "/admin/systemcodes"
+@using MoGYSD.Business.Models.Nissa.Admin
+@using MoGYSD.Business.Persistence
+
+<PageTitle>System Codes</PageTitle>
+
+<MudGrid Class="mb-3" AlignItems="Center" Justify="Justify.SpaceBetween">
+    <MudItem xs="12" md="6">
+        <MudText Typo="Typo.h2" Class="font-weight-bold"><b>System Codes</b></MudText>
+        <MudText>
+            Enables the creation, updating, and referencing of system codes.
+        </MudText>
+    </MudItem>
+    <MudItem xs="12" md="6" Class="d-flex justify-end">
+        <MudBreadcrumbs Items="_breadcrumbItems" Class="custom-breadcrumb" />
+    </MudItem>
+</MudGrid>
+
+<MudExpansionPanels Elevation="1" Class="mt-2 mb-2">
+    <MudExpansionPanel Text="Expand to apply search filter">
+        <MudItem md="6">
+            <MudTextField Variant="Variant.Outlined" @bind-Value="_filter" Label="Search by Name" Class="mb-2" />
+        </MudItem>
+
+        <div class="d-flex justify-content-between">
+            <MudButton Variant="Variant.Filled" Color="Color.Secondary" OnClick="OnClearClicked" Size="Size.Small">
+                Clear
+            </MudButton>
+
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="OnSearchClicked" Size="Size.Small">
+                Search
+            </MudButton>
+        </div>
+    </MudExpansionPanel>
+</MudExpansionPanels>
+
+<MudPaper Class="pa-4">
+    @* <MudButton StartIcon="@Icons.Material.Filled.Add" Class="pull-right top-add-button mb-2 mt-2" Variant="Variant.Filled"
+               OnClick="AddNew" DropShadow="true" Color="Color.Primary">Add New</MudButton> *@
+
+    <MudDataGrid T="SystemCode" Items="Elements" Bordered="true" Dense="true" RowsPerPage="20">
+        <ToolBarContent>
+            <MudText><b>Total System Code(s): @Elements.Count()</b></MudText>
+        </ToolBarContent>
+        <Columns>
+            <PropertyColumn Property="x => x.Id" Title="#" />
+            <PropertyColumn Property="x => x.Description" Title="List Name" />
+            <TemplateColumn Title="View">
+                <CellTemplate>
+                    <MudStack Row="true" Spacing="1" AlignItems="AlignItems.Center">
+                        <MudIconButton Class="table-action-item" Icon="@Icons.Material.Filled.Visibility" Color="Color.Secondary" OnClick="@(() => View(context.Item.Id))" />
+                    </MudStack>
+                </CellTemplate>
+            </TemplateColumn>
+        </Columns>
+        <PagerContent>
+            <MudDataGridPager T="SystemCode" />
+        </PagerContent>
+    </MudDataGrid>
+</MudPaper>
+
+@code {
+    private IEnumerable<SystemCode> Elements = new List<SystemCode>();
+    private string? _filter;
+
+    private List<BreadcrumbItem> _breadcrumbItems =
+    [
+        new("Home", href: "/", icon: Icons.Material.Filled.Home),
+        new("Settings", href: "/", icon: Icons.Material.Filled.AdminPanelSettings),
+        new("System Codes", href: null, disabled: true, icon: Icons.Material.Filled.Memory)
+    ];
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Init(null);
+    }
+
+    private async Task OnSearchClicked()
+    {
+        await Init(_filter);
+    }
+
+    private async Task OnClearClicked()
+    {
+        _filter = null;
+        await Init(null);
+    }
+
+    private async Task Init(string? name = null)
+    {
+        try
+        {
+            var query = _context.SystemCodes.AsNoTracking();
+
+            if (!string.IsNullOrEmpty(name))
+            {
+                query = query.Where(d => d.Code.Contains(name));
+            }
+
+            Elements = await query.ToListAsync();
+
+        }
+        catch (Exception ex)
+        {
+            LoadingService.Hide();
+            Snackbar.Add($"An unexpected error occurred: {(ex.InnerException is null ? ex.Message : ex.InnerException.Message)}", Severity.Error, config => { config.RequireInteraction = true; });
+            return;
+        }
+    }
+
+    private async Task View(int id)
+    {
+        Navigation.NavigateTo($"/admin/system-code/{id}");
+    }
+
+    private async Task Edit(SystemCode model)
+    {
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Medium, FullWidth = true };
+        var parameters = new DialogParameters
+        {
+            { "Model", model }
+        };
+        var dialogRef = await DialogService.ShowAsync<CreateEditCode>("Edit System Code", parameters, options);
+        var state = await dialogRef.Result;
+        if (state is not null && !state.Canceled)
+        {
+            await Init();
+        }
+    }
+
+}

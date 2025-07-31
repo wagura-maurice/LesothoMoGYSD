@@ -1,0 +1,211 @@
+﻿@page "/Account/Login"
+
+@layout PublicLayout
+@using System.ComponentModel.DataAnnotations
+@using System.Text.Json;
+@using System.Web
+@using BlazorCaptcha
+@using Microsoft.AspNetCore.Authentication
+@using Microsoft.AspNetCore.Components.Server.ProtectedBrowserStorage
+@using Microsoft.AspNetCore.Identity
+@using MoGYSD.Business.Models.Nissa.UserManagement
+
+@using MoGYSD.Business.Persistence
+@using MoGYSD.Services
+@using MoGYSD.Web.Components.Layout
+
+@inject IUserService UserService
+@inject SignInManager<ApplicationUser> SignInManager
+@inject ILogger<Login> Logger
+@inject NavigationManager NavigationManager
+@inject IdentityRedirectManager RedirectManager
+@inject ProtectedSessionStorage SessionStorage
+
+
+<PageTitle>Login </PageTitle>
+
+<h2 class="form-title">Login</h2>
+<section>
+    <StatusMessage Message="@errorMessage" />
+    <EditForm Model="Input" method="post" OnValidSubmit="LoginUser" OnInvalidSubmit="HandleInvalidSubmit" FormName="login">
+        <DataAnnotationsValidator />
+        <ValidationSummary class="text-danger" role="alert" />
+        <div class="form-floating mb-3">
+            <InputSelect id="optionSelect" class="form-select" @bind-Value="Input.System">
+                <option value="">-- Select --</option>
+                <option value="MISSA">MISSA</option>
+                <option value="NISSA">NISSA</option>
+            </InputSelect>
+        </div>
+
+        <div class="form-floating mb-3">
+            <InputText @bind-Value="Input.Email" id="Input.Email" class="form-control" autocomplete="username" aria-required="true" placeholder="name@example.com" />
+            <label for="Input.Email" class="form-label">Email</label>
+            <ValidationMessage For="() => Input.Email" class="text-danger" />
+        </div>
+        <div class="form-floating mb-3">
+            <InputText type="password" @bind-Value="Input.Password" id="Input.Password" class="form-control" autocomplete="current-password" aria-required="true" placeholder="password" />
+            <label for="Input.Password" class="form-label">Password</label>
+            <ValidationMessage For="() => Input.Password" class="text-danger" />
+        </div>
+        <div class="form-floating mb-3">
+            <Captcha @bind-CaptchaWord="@Captcha" CharNumber="@CaptchaLetters" />
+        </div>
+        <div class="mb-3 mt-3">
+            <InputText Placeholder="Input letters from the image above" @bind-Value="Input.EnteredCaptchaText" id="Input.Captcha" class="form-control" aria-required="true" />
+        </div>
+
+        @* <div class="checkbox mb-3">
+            <label class="form-label">
+                <InputCheckbox @bind-Value="Input.RememberMe" class="darker-border-checkbox form-check-input" />
+                Remember me
+            </label>
+        </div> *@
+        <div>
+            <button type="submit" class="w-100 btn btn-lg btn-primary">Log in</button>
+        </div>
+        <div>
+            <p>
+                <a href="Account/ForgotPassword">Forgot your password?</a>
+            </p>
+        </div>
+    </EditForm>
+</section>
+
+@code {
+    private string? errorMessage;
+    private bool isCaptchaEnabled = false;
+    private string Captcha = "";
+    private int CaptchaLetters = 4;
+
+    [CascadingParameter]
+    private HttpContext HttpContext { get; set; } = default!;
+
+    [SupplyParameterFromForm]
+    private InputModel Input { get; set; } = new();
+
+    [SupplyParameterFromQuery]
+    private string? ReturnUrl { get; set; } = null;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (HttpContext != null && HttpMethods.IsGet(HttpContext.Request.Method))
+        {
+            // Clear the existing external cookie to ensure a clean login process
+            await HttpContext.SignOutAsync(IdentityConstants.ExternalScheme);
+            RefreshCaptcha();
+
+        }
+    }
+
+    private void HandleInvalidSubmit(EditContext editContext)
+    {
+        RefreshCaptcha();
+    }
+
+    public async Task LoginUser()
+    {
+        // Retrieve Captcha from session
+        var sessionCaptcha = HttpContext.Session.GetString("CaptchaCode").ToLower();
+        if (!string.IsNullOrEmpty(sessionCaptcha) && Input.EnteredCaptchaText.ToLower() != sessionCaptcha)
+        {
+            isCaptchaEnabled = true;
+            errorMessage = "Error: Enter the letter from the image correctly.";
+            Captcha = BlazorCaptcha.Commun.Tools.GetCaptchaWord(CaptchaLetters);
+            // Store in session
+            HttpContext.Session.SetString("CaptchaCode", Captcha);
+            StateHasChanged();
+            return;
+        }
+        var user = await SignInManager.UserManager.FindByEmailAsync(Input.Email);
+        if(user is null)
+        {
+            errorMessage = "Error: Invalid email address.";
+            Captcha = BlazorCaptcha.Commun.Tools.GetCaptchaWord(CaptchaLetters);
+            HttpContext.Session.SetString("CaptchaCode", Captcha);
+            StateHasChanged();
+            return;
+        }
+        if(!user.IsActive)
+        {
+            errorMessage = "Error: User account is not active.";
+            Captcha = BlazorCaptcha.Commun.Tools.GetCaptchaWord(CaptchaLetters);
+            HttpContext.Session.SetString("CaptchaCode", Captcha);
+            StateHasChanged();
+            return;
+        }
+        var result = await SignInManager.PasswordSignInAsync(Input.Email, Input.Password, Input.RememberMe, lockoutOnFailure: false);
+        if (result.Succeeded)
+        {
+            HttpContext.Response.Cookies.Delete("CurrentSystem");
+            HttpContext.Response.Cookies.Append("CurrentSystem", Input.System, new CookieOptions
+            {
+                Path = "/",
+                HttpOnly = false,
+                Secure = true,
+                SameSite = SameSiteMode.Strict,
+                Expires = DateTimeOffset.UtcNow.AddHours(1)
+            });
+            // UserService.SystemBeingUsed = Input.System;
+            Logger.LogInformation("User logged in.");
+
+            if (user.IsChangePassword)
+            {
+                Navigation.NavigateTo("/security/userprofile", forceLoad: true);
+            }
+            else
+            {
+                Navigation.NavigateTo(ReturnUrl, forceLoad: true);                
+            }
+
+        }
+        else if (result.RequiresTwoFactor)
+        {
+            RedirectManager.RedirectTo(
+                "Account/LoginWith2fa",
+                new() { ["returnUrl"] = ReturnUrl, ["rememberMe"] = Input.RememberMe });
+        }
+        else if (result.IsLockedOut)
+        {
+            Logger.LogWarning("User account locked out.");
+            Navigation.NavigateTo("Account/Lockout");
+        }
+        else
+        {
+            errorMessage = "Error: Invalid password.";
+            Captcha = BlazorCaptcha.Commun.Tools.GetCaptchaWord(CaptchaLetters);
+            HttpContext.Session.SetString("CaptchaCode", Captcha);
+            StateHasChanged();
+            return;
+        }        
+    }
+
+    private void RefreshCaptcha()
+    {
+        isCaptchaEnabled = true;
+        Captcha = BlazorCaptcha.Commun.Tools.GetCaptchaWord(CaptchaLetters);
+        // Store in session
+        HttpContext.Session.SetString("CaptchaCode", Captcha);        
+    }
+
+    private sealed class InputModel
+    {
+        [Required]
+        [EmailAddress]
+        public string Email { get; set; } = "";
+
+        [Required]
+        [DataType(DataType.Password)]
+        public string Password { get; set; } = "";
+
+        [Display(Name = "Remember me?")]
+        public bool RememberMe { get; set; }
+
+        [Required(ErrorMessage = "Kindly select MISSA or NISSA to login")]
+        public string? System { get; set; }
+
+        [Required(ErrorMessage = "Kindly enter captcha")]
+        public string EnteredCaptchaText { set; get; }
+
+    }
+}

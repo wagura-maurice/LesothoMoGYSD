@@ -1,0 +1,360 @@
+﻿@using MoGYSD.Business.Models.Nissa.HouseHoldListings
+@using MoGYSD.ViewModels.Nissa.HouseHoldListings
+@using MoGYSD.Web.Components.HouseHoldListings.CBCActivities
+
+<MudDialog Class="blur dialog-background" TitleClass="blur dialog-background-title" ContentClass="dialog-background-surface py-10" ActionsClass="dialog-background-surface">
+    <DialogContent>
+        <MudForm @ref="form" Class="d-flex flex-column gap-2">
+            <MudGrid>
+                <MudItem xs="12" sm="6">
+                    <DistrictAutocomplete Variant="Variant.Outlined" Label="District"
+                                          Required="true"
+                                          For="@(() => DistrictId)"
+                                          Value="DistrictId"
+                                          ValueChanged="OnDistrictChanged">
+                    </DistrictAutocomplete>
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <HHListingPlanAutocomplete Label="HH Listing Plan Name" Variant="Variant.Outlined"
+                                               Required="true"
+                                               For="@(() => Model.HHListingPlanId)"
+                                               Value="Model.HHListingPlanId"
+                                               ValueChanged="OnHHListingPlanSelected"
+                                                DistrictId="DistrictId">
+                    </HHListingPlanAutocomplete>
+                </MudItem>
+
+                <MudItem xs="12" sm="6">
+                    <CommunityCouncilAutocompleteExclude Variant="Variant.Outlined"
+                                                    Required="true"
+                                                    Label="Community Council"
+                                                    For="@(() => Model.CommunityCouncilId)"
+                                                    Value="Model.CommunityCouncilId"
+                                                    IsCascading="true"
+                                                    ValueChanged="OnCommunityCouncilSelected"
+                                                    DistrictId="DistrictId"
+                                                    ExcludedCommunityCouncilIds="ExcludedCCIds">
+
+                    </CommunityCouncilAutocompleteExclude>
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudTextField Variant="Variant.Outlined" T="int" @bind-Value="Model.TotalNumberofCBCParticipants"
+                            For="@(() => Model.TotalNumberofCBCParticipants)" 
+                            Label="Total HH Participants" 
+                            ReadOnly="true"
+                            Class="mb-2" />
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <PartnersAutocomplete Label="Responsible Organisation" Variant="Variant.Outlined"
+                                                  For="@(() => Model.PartnerId)"
+                                                    Required="true"
+                                                  @bind-Value="Model.PartnerId">
+
+                    </PartnersAutocomplete>
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <ContactPersonsAutocomplete Label="Responsible Person" Variant="Variant.Outlined" IsCascading="true"
+                                                  For="@(() => Model.ContactPersonId)"
+                                                  @bind-Value="Model.ContactPersonId"
+                                                Required="true"
+                                                PartnerId=" Model.PartnerId">
+                    </ContactPersonsAutocomplete>
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudDatePicker Variant="Variant.Outlined"  @bind-Date="Model.DateCBCConducted"
+                                   Label="Date of CBC "
+                                   Required="true"
+                                   For="@(() => Model.DateCBCConducted)" MinDate="DateTime.Today" />
+                </MudItem>
+                
+
+
+                <!-- Info / Warning Messages -->
+                <MudItem xs="12">
+                    @if (Model.CommunityCouncilId == null)
+                    {
+                        <MudText Typo="Typo.subtitle2" Color="Color.Error" Class="mt-2">
+                            Please select a Community Council to view available villages.
+                        </MudText>
+                    }
+                    else if (Villages == null || !Villages.Any())
+                    {
+                        <MudText Typo="Typo.subtitle2" Color="Color.Warning" Class="mt-2">
+                            No villages found for the selected Community Council.
+                        </MudText>
+                    }
+                </MudItem>
+
+                <!-- Checkbox Activity List -->
+                @if (Villages?.Any() == true)
+                {
+                    <MudItem xs="12">
+                        <MudText Typo="Typo.h4" Class="mt-4 mb-2"><b>Villages</b></MudText>
+                        <MudGrid Spacing="2">
+                            @foreach (var village in Villages)
+                            {
+                                <MudItem xs="12" sm="6" lg="3" @key="village.Id">
+                                    <MudCheckBox @bind-Value="village.IsSelected"
+                                                 Label="@village.Name" />
+                                </MudItem>
+
+                            }
+                        </MudGrid>
+                    </MudItem>
+                }
+
+            </MudGrid>
+
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        @if (isBusy == false)
+        {
+            <MudButton OnClick="Cancel"
+                       Variant="Variant.Text"
+                       Size="Size.Small"
+                       Class="ml-0">Cancel</MudButton>
+            <MudButton OnClick="SubmitForm" Color="Color.Primary" Variant="Variant.Filled" Disabled="@((Villages == null || !Villages.Any()))"
+                       Size="Size.Small">Submit</MudButton>            
+        }
+        else
+        {
+            <div class="w-100 d-flex justify-content-center align-items-center" style="min-height: 40px;">
+                <MudProgressCircular Color="Color.Primary" Size="Size.Small" Indeterminate="true" />
+            </div>
+        }
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter]
+    private IMudDialogInstance Dialog { get; set; }
+    [Parameter] public CbcActivitiesViewModel Model { get; set; }
+    private MudForm form;
+    private void Cancel() => Dialog.Cancel();
+    private int? DistrictId;
+    private List<int> ExcludeCCs = new();
+    private List<VillageSelect> Villages = new();
+    private List<int> ExcludedCCIds;
+    private bool isBusy;
+    private int StatusId;
+
+    protected override async Task OnInitializedAsync()
+    {
+        StatusId = await _context.SystemCodeDetailsView.AsNoTracking().Where(x => x.Code == "Open" && x.ParentCode == "Status").Select(x => x.Id).FirstOrDefaultAsync();
+        if (Model.Id > 0)
+        {
+            DistrictId = Model.DistrictId;
+
+            var selectedVillage = await _context.CbcActivityVillages
+                 .Where(h => h.CbcActivityId == Model.Id)
+                 .Select(v => v.VillageId)
+                 .ToListAsync();
+
+            if (selectedVillage != null)
+            {
+                var newVillages = await _context.Villages
+                   .Where(a => a.CommunityCouncilId == Model.CommunityCouncilId)
+                   .Select(a => new VillageSelect
+                   {
+                       Id = a.Id,
+                       Name = a.Name,
+                       IsSelected = false // default, will update below
+                   })
+                   .ToListAsync();
+
+                foreach (var v in newVillages)
+                {
+                    v.IsSelected = selectedVillage.Contains(v.Id);
+                }
+
+                Villages = newVillages;
+            }
+        }
+    }
+
+    private async Task OnCommunityCouncilSelected(int? selectedId)
+    {
+        Model.CommunityCouncilId = selectedId;
+        Villages.Clear();
+
+        if (selectedId.HasValue)
+        {
+            var newVillages = await _context.Villages
+                .Where(a => a.CommunityCouncilId == selectedId.Value)
+                .Select(a => new VillageSelect
+                {
+                    Id = a.Id,
+                    Name = a.Name,
+                })
+                .ToListAsync();
+
+            // Preserve IsSelected state from the old list
+            foreach (var v in newVillages)
+            {
+                var existing = Villages.FirstOrDefault(x => x.Id == v.Id);
+                if (existing != null)
+                {
+                    v.IsSelected = existing.IsSelected;
+                }
+            }
+
+            Villages = newVillages;
+            StateHasChanged();
+        }
+
+    }
+
+    private async Task OnHHListingPlanSelected(int? selectedId)
+    {
+        using var context = _dbContextFactory.CreateDbContext();
+        Model.HHListingPlanId = selectedId;
+        Model.CommunityCouncilId = null;
+        if (selectedId.HasValue)
+        {
+            ExcludedCCIds = await context.CbcActivitiesView.Where(a => a.HHListingPlanId == selectedId).Select(c => c.CommunityCouncilId).ToListAsync();
+            var selectedPlan = await context.HHListingPlans
+                .Where(a => a.Id == selectedId.Value)
+                .Select(d => d.DistrictRegistrationPlanId)
+                .FirstOrDefaultAsync();
+
+            var isCBCRequired = await context.CCRegistrationActivityView
+                .Where(a => a.DistrictRegistrationPlanId == selectedPlan && a.ActivityName.Contains("Community-based categorization") && a.IsRequired == true)
+                .AnyAsync();
+
+            if(!isCBCRequired)
+            {
+                Snackbar.Add("CBC activity is not required for the selected HH Listing Plan.", Severity.Warning);
+                Model.HHListingPlanId = null;
+                return;
+            }
+
+            // Model.TotalNumberofCBCParticipants = await context.HHListings.Where(a => a.HHListingPlanId == selectedId).CountAsync();
+
+            // foreach (var item in Villages)
+            // {
+            //     item.TotalNumberofCBCParticipants = await context.HHListings.Where(a => a.HHListingPlanId == selectedId && a.VillageId == item.Id).CountAsync();
+            // }
+        }
+    }
+
+    private async Task SubmitForm()
+    {
+        await form.Validate();
+
+        if (form.IsValid)
+        {
+            var selectedVillages = Villages.Where(v => v.IsSelected).ToList();
+
+            if(selectedVillages.Count == 0)
+            {
+                Snackbar.Add("Please select atleast one village.", Severity.Error);
+            }
+            else
+            {
+                try
+            {
+                isBusy = true;
+
+                using var context = _dbContextFactory.CreateDbContext();
+
+                if (Model.Id > 0 && Model.StatusId == StatusId)
+                {
+                    // Delete existing CbcActivity records related to this Model.Id
+                    var existingLinks = await context.CbcActivityVillages
+                        .Where(a => a.CbcActivityId == Model.Id)
+                        .ToListAsync();
+
+                    context.CbcActivityVillages.RemoveRange(existingLinks);
+
+                    var existingActivities = await context.CbcActivities.Where(a => a.Id == Model.Id).FirstOrDefaultAsync();
+
+                    existingActivities.DateCBCConducted = Model.DateCBCConducted.Value;
+                    existingActivities.ContactPersonId = Model.ContactPersonId.Value;
+                    existingActivities.PartnerId = Model.PartnerId.Value;
+
+                    var entities = selectedVillages
+                        .Select(village => new CbcActivityVillage
+                        {
+                            CbcActivityId = Model.Id,
+                            VillageId = village.Id
+                        })
+                        .ToList();
+
+                    await context.CbcActivityVillages.AddRangeAsync(entities);
+
+                    await context.SaveChangesAsync();
+                }
+                else
+                {
+                    var newEntity = _mapper.Map<CbcActivity>(Model);
+                    newEntity.CreatedById = UserProfileService.UserId;
+                    newEntity.CreatedOn = DateTime.Now;
+                    newEntity.StatusId = StatusId;
+                    await context.CbcActivities.AddAsync(newEntity);
+                    await context.SaveChangesAsync();
+
+                    // Insert new records for each selected village
+                    var entities = selectedVillages
+                        .Select(village => new CbcActivityVillage
+                        {
+                            CbcActivityId = newEntity.Id,
+                            VillageId = village.Id
+                        })
+                        .ToList();
+
+                    await context.CbcActivityVillages.AddRangeAsync(entities);
+                    await context.SaveChangesAsync();
+
+                }
+
+
+                isBusy = false;
+                Dialog.Close(DialogResult.Ok(true));
+
+                Snackbar.Add($"CBC activity {(Model.Id > 0 ? "updated" : "saved")} successfully", Severity.Success);
+            }
+            catch (Exception ex)
+            {
+                isBusy = false;
+                var errorMsg = ex.InnerException?.Message ?? ex.Message;
+                Snackbar.Add($"An unexpected error occurred: {errorMsg}", Severity.Error, config =>
+                {
+                    config.RequireInteraction = true;
+                });
+            }                
+            }
+
+        }
+        else
+        {
+            Snackbar.Add("Please fill in all required fields.", Severity.Error);
+        }
+    }
+
+    private async Task OnDistrictChanged(int? districtId)
+    {
+        if (districtId == null || districtId == 0)
+        {
+            // Clear all dependent fields when district is cleared
+            DistrictId = null;
+            Model.CommunityCouncilId = null;
+            Model.HHListingPlanId = null;
+            Model.TotalNumberofCBCParticipants = 0;
+            Villages.Clear();
+        }
+        else
+        {
+            // Only clear constituency if the district actually changed
+            if (DistrictId != districtId)
+            {
+                Model.CommunityCouncilId = null;
+                Model.HHListingPlanId = null;
+                Model.TotalNumberofCBCParticipants = 0;
+                Villages.Clear();
+            }
+           DistrictId = districtId;
+        }
+        await InvokeAsync(StateHasChanged);
+    }
+}

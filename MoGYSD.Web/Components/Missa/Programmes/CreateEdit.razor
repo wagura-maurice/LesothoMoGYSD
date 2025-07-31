@@ -1,0 +1,1939 @@
+﻿@page "/programmes/add"
+@page "/programmes/edit/{Id:int}"
+
+@using System.ComponentModel.DataAnnotations
+@using System.Globalization
+@using AutoMapper
+@using Microsoft.EntityFrameworkCore
+@using MoGYSD.Business.Models.Missa.ProgrammeConfiguration
+@using MoGYSD.Business.Models.Nissa.Admin
+@using MoGYSD.Business.Persistence
+@using MoGYSD.Business.Views.Missa.Programmes
+@using MoGYSD.Services
+@using MoGYSD.ViewModels.Missa.Programmes 
+
+@using MoGYSD.Business.Models.Missa.Setups 
+
+
+<PageTitle>@(Id.HasValue ? "Edit Programme" : "Create Programme")</PageTitle>
+<MudGrid Class="mb-3" AlignItems="Center" Justify="Justify.SpaceBetween">
+    <MudItem xs="12" md="6">
+        <MudText Typo="Typo.h2" Class="font-weight-bold"><b>@HeaderText</b></MudText>
+    </MudItem>
+    <MudItem xs="12" md="6" Class="d-flex justify-end">
+        <MudBreadcrumbs Items="_breadcrumbItems" Class="custom-breadcrumb" />
+    </MudItem>
+</MudGrid>
+<MudPaper Elevation="3">
+    <MudTabs @bind-ActivePanelIndex="ActiveTab" KeepPanelsAlive="true" Outlined="true" Rounded="true" PanelClass="pa-4" ApplyEffectsToContainer="true">
+
+        <MudTabPanel Text="Programme Details">
+            <MudForm @ref="programmeForm" Model="@Model" ValidationDelay="0">
+                <MudGrid Spacing="3">
+                    <MudItem xs="12" sm="6" md="3">
+                        <MudTextField Variant="Variant.Outlined" Label="Programme Code" @bind-Value="Model.Code" For="@(() => Model.Code)" Required="true" />
+                    </MudItem>
+                    <MudItem xs="12" sm="6" md="3">
+                        <MudTextField Variant="Variant.Outlined" Label="Programme Name" @bind-Value="Model.Name" For="@(() => Model.Name)" Required="true" />
+                    </MudItem>
+
+                    <MudItem xs="12" sm="6" md="3">
+                        <SystemCodeAutocomplete Variant="Variant.Outlined" Label="Assistance Unit"
+                                                For="@(() => Model.AssistanceUnitId)"
+                                                @bind-Value="Model.AssistanceUnitId"
+                                                ParentCode="AssistanceUnit">
+                        </SystemCodeAutocomplete>
+                    </MudItem>
+                    <MudItem xs="12" sm="6" md="3">
+                        <SystemCodeAutocomplete Variant="Variant.Outlined" Label="Benefit Type"
+                                                For="@(() => Model.ProgramTypeId)"
+                                                @bind-Value="Model.ProgramTypeId"
+                                                ParentCode="ProgramType">
+                        </SystemCodeAutocomplete>
+                    </MudItem>
+
+                    <MudItem xs="12" sm="6" md="3">
+                        <SystemMultiSelectAutoComplete Variant="Variant.Outlined" SelectedValues="Model.PaymentModesAllowedIds"
+                                                       SelectedValuesChanged="@OnPaymentModesChanged"
+                                                       Label="Payment Modes Allowed"
+                                                       ParentCode="PaymentMode" />
+                    </MudItem>
+
+                    <MudItem xs="12" sm="6" md="3">
+                        <MudTextField Variant="Variant.Outlined" Label="Number Of Proxies Allowed" @bind-Value="Model.ProxiesAllowed" For="@(() => Model.ProxiesAllowed)" Required="true" />
+                    </MudItem>
+
+                    <MudItem xs="12" sm="6" md="3">
+                        <LookupAutocomplete Label="Delivery Frequency"
+                                            For="@(() => Model.PaymentFrequencyId)"
+                                            @bind-Value="Model.PaymentFrequencyId"
+                                            Items="PaymentFrequencyOptions" />
+                    </MudItem>
+
+                    @if (Model.Code?.Trim().ToUpper() != "CGP" && Model.Code?.Trim().ToUpper() != "OVC-B")
+                    {
+                        <MudItem xs="12" sm="6" md="3">
+                            <MudTextField Variant="Variant.Outlined" Label="Payment Amount (Loti)" @bind-Value="Model.Amount" For="@(() => Model.Amount)" Required="true" Adornment="Adornment.End" AdornmentText="LSL" Format="N2" InputClass="text-start" InputType="InputType.Number" />
+                        </MudItem>
+                    }
+
+                    <MudItem xs="12" sm="6" md="4">
+                        <MudColorPicker Label="Programme Color Scheme"
+                                        @bind-Value="_color"
+                                        DisableAlpha="true"
+                                        ShowTextField="true"
+                                        Required="true" />
+                        <MudValidationMessage For="@(() => Model.ColourScheme)" />
+                    </MudItem>
+                    <MudItem xs="12" sm="6" md="3" Style="display:none">
+                        <MudSwitch T="bool" @bind-Checked="Model.IsActive" Color="Color.Primary" Label="Is Active" Disabled="true" />
+                    </MudItem>
+
+                    <MudItem xs="12" sm="6" md="4">
+                        <SystemCodeAutocomplete Variant="Variant.Outlined" Label="Proof Of Lifespan Type"
+                                                For="@(() => Model.ProofOfLifeSpanId)"
+                                                Value="Model.ProofOfLifeSpanId"
+                                                ValueChanged="OnProofOfLifeTypeChanged"
+                                                ParentCode="ProofOfLifeSpan">
+                        </SystemCodeAutocomplete>
+                    </MudItem>
+                    <MudItem xs="12" sm="6" md="4">
+                        <MudTextField Variant="Variant.Outlined" Label="Proof Of Life Duration" @bind-Value="Model.ProofOfLifeSpan" For="@(() => Model.ProofOfLifeSpan)" Required="true" InputType="InputType.Number" />
+                    </MudItem>
+
+                    <MudItem xs="12" Class="d-flex justify-space-between mt-4">
+                        <MudButton Variant="Variant.Filled" Color="Color.Secondary" OnClick="BackToList" Class="me-2">Back</MudButton>
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveProgrammeDetailsAndProceed" StartIcon="@Icons.Material.Filled.Save">
+                            @(Model.Id > 0 ? "Update & Next" : "Save & Next")
+                        </MudButton>
+                    </MudItem>
+                </MudGrid>
+            </MudForm>
+        </MudTabPanel>
+
+        <MudTabPanel Text="Programme TopUp" Disabled="@(Model.Id == 0)">
+            <MudText Typo="Typo.h6" GutterBottom="true" Class="mb-3" Style="background-color: var(--mud-palette-grey-lighten-4); padding: 8px 16px; border-radius: 4px;">
+                Programme Topup Amount Details
+            </MudText>
+
+            <MudTable Items="@Model.TopUps" Dense="true" Hover="true" Bordered="false" Striped="true" Breakpoint="Breakpoint.Sm"
+                      Class="mb-4">
+                <HeaderContent>
+                    <MudTh>Topup Name</MudTh>
+                    <MudTh>Amount (LSL)</MudTh>
+                    <MudTh>Status</MudTh>
+                    <MudTh Class="d-flex justify-end">Actions</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="Topup Name">@context.Name</MudTd>
+                    <MudTd DataLabel="Amount">@context.Amount.ToString("N2")</MudTd>
+                    <MudTd DataLabel="Status">
+                        @if (context.IsActive)
+                        {
+                            <MudChip T="string" Icon="@Icons.Material.Filled.CheckCircle" Color="Color.Success" Variant="Variant.Text">Active</MudChip>
+                        }
+                        else
+                        {
+                            <MudChip T="string" Icon="@Icons.Material.Filled.Cancel" Color="Color.Error" Variant="Variant.Text">Inactive</MudChip>
+                        }
+                    </MudTd>
+                    <MudTd Class="d-flex justify-end">
+                        <MudMenu Icon="@Icons.Material.Filled.MoreVert" AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.TopRight">
+                            <MudMenuItem OnClick="async () => await EditTopUp(context)">
+                                <MudIcon Icon="@Icons.Material.Filled.Edit" Class="me-2" /> Edit
+                            </MudMenuItem>
+                            @if (context.Id != 0) 
+                            {
+                                @if (context.IsActive)
+                                {
+                                    <MudMenuItem OnClick="async () => await ToggleTopUpActivationInDbAsync(context, false)">
+                                        <MudIcon Icon="@Icons.Material.Filled.ToggleOff" Color="Color.Error" Class="me-2" /> Deactivate
+                                    </MudMenuItem>
+                                }
+                                else
+                                {
+                                    <MudMenuItem OnClick="async () => await ToggleTopUpActivationInDbAsync(context, true)">
+                                        <MudIcon Icon="@Icons.Material.Filled.ToggleOn" Color="Color.Success" Class="me-2" /> Activate
+                                    </MudMenuItem>
+                                }
+                            }
+                            <MudMenuItem OnClick="async () => await RemoveTopUp(context)">
+                                <MudIcon Icon="@Icons.Material.Filled.DeleteOutline" Color="Color.Error" Class="me-2" /> Delete
+                            </MudMenuItem>
+                        </MudMenu>
+                    </MudTd>
+                </RowTemplate>
+                <NoRecordsContent>
+                    <MudText>No topups added yet.</MudText>
+                </NoRecordsContent>
+            </MudTable>
+
+            <div class="d-flex justify-end">
+                <MudButton Variant="Variant.Filled" Color="Color.Secondary" OnClick="AddTopUp" StartIcon="@Icons.Material.Filled.Add" Class="mt-0 mb-4 rounded-pill">
+                    Add TopUp
+                </MudButton>
+            </div>
+
+            <MudItem xs="12" Class="d-flex justify-space-between mt-4">
+                <MudButton Variant="Variant.Filled" Color="Color.Secondary" OnClick="@(() => ActiveTab = 0)" Class="me-2">Back to Details</MudButton>
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="ProceedToBenefitRulesOrOVCBTab" StartIcon="@Icons.Material.Filled.ArrowForward">
+                    Next
+                </MudButton>
+            </MudItem>
+        </MudTabPanel>
+
+        <MudTabPanel Text="Programme Benefit Rules" Disabled="@(Model.Id == 0)"> 
+            <MudText Typo="Typo.h6" GutterBottom="true" Class="mb-3"
+                     Style="background-color: var(--mud-palette-grey-lighten-4); padding: 8px 16px; border-radius: 4px;">
+                Define Programme Benefit Rules
+            </MudText>
+
+            <MudTable Items="@Model.BenefitRule" Dense="true" Hover="true" Bordered="false" Striped="true" Breakpoint="Breakpoint.Sm"
+                      Class="mb-4">
+                <HeaderContent>
+                    <MudTh>Min HH Members</MudTh>
+                    <MudTh>Max HH Members</MudTh>
+                    <MudTh>Benefit Amount (LSL)</MudTh>
+                    <MudTh>Status</MudTh>
+                    <MudTh Class="d-flex justify-end">Actions</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="Min HH Members">@context.MinHHMembers</MudTd>
+                    <MudTd DataLabel="Max HH Members">@context.MaxHHMembers</MudTd>
+                    <MudTd DataLabel="Benefit Amount">@context.Amount.ToString("N2")</MudTd>
+                    <MudTd DataLabel="Status">
+                        @if (context.IsActive)
+                        {
+                            <MudChip T="string" Icon="@Icons.Material.Filled.CheckCircle" Color="Color.Success" Variant="Variant.Text">Active</MudChip>
+                        }
+                        else
+                        {
+                            <MudChip T="string" Icon="@Icons.Material.Filled.Cancel" Color="Color.Error" Variant="Variant.Text">Inactive</MudChip>
+                        }
+                    </MudTd>
+                    <MudTd Class="d-flex justify-end">
+                        <MudMenu Icon="@Icons.Material.Filled.MoreVert" AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.TopRight">
+                            <MudMenuItem OnClick="async () => await EditBenefitRule(context)">
+                                <MudIcon Icon="@Icons.Material.Filled.Edit" Class="me-2" /> Edit
+                            </MudMenuItem>
+                            @if (context.Id != 0)
+                            {
+                                @if (context.IsActive)
+                                {
+                                    <MudMenuItem OnClick="async () => await ToggleBenefitAsync(context, false)">
+                                        <MudIcon Icon="@Icons.Material.Filled.ToggleOff" Color="Color.Error" Class="me-2" /> Deactivate
+                                    </MudMenuItem>
+                                }
+                                else
+                                {
+                                    <MudMenuItem OnClick="async () => await ToggleBenefitAsync(context, true)">
+                                        <MudIcon Icon="@Icons.Material.Filled.ToggleOn" Color="Color.Success" Class="me-2" /> Activate
+                                    </MudMenuItem>
+                                }
+                            }
+                            <MudMenuItem OnClick="async () => await RemoveBenefitRule(context)">
+                                <MudIcon Icon="@Icons.Material.Filled.DeleteOutline" Color="Color.Error" Class="me-2" /> Delete
+                            </MudMenuItem>
+                        </MudMenu>
+                    </MudTd>
+                </RowTemplate>
+                <NoRecordsContent>
+                    <MudText>No benefit rules added yet.</MudText>
+                </NoRecordsContent>
+            </MudTable>
+
+            <div class="d-flex justify-end">
+                <MudButton Variant="Variant.Filled"
+                           Color="Color.Secondary"
+                           OnClick="AddBenefitRule"
+                           StartIcon="@Icons.Material.Filled.Add"
+                           Class="mt-0 mb-4 rounded-pill">
+                    Add Benefit Rule
+                </MudButton>
+            </div>
+
+           <MudItem xs="12" Class="d-flex justify-space-between mt-4">
+    <MudButton Variant="Variant.Filled"
+               Color="Color.Secondary"
+               OnClick="@(() => ActiveTab = 1)"
+               Class="me-2">
+        Back to TopUps
+    </MudButton>
+    <MudButton Variant="Variant.Filled"
+               Color="Color.Primary"
+               OnClick="ProceedToOVCBIfApplicableOrArrears"
+               StartIcon="@Icons.Material.Filled.ArrowForward">
+        Next
+    </MudButton>
+</MudItem>
+
+        </MudTabPanel>
+
+        <MudTabPanel Text="OVC-B Configurations" Disabled="@(Model.Id == 0 || Model.Code?.Trim().ToUpper() != "OVC-B")"> 
+            <MudText Typo="Typo.h6" GutterBottom="true" Class="mb-3" Style="background-color: var(--mud-palette-grey-lighten-4); padding: 8px 16px; border-radius: 4px;">
+                Define OVC-B Programme Fees
+            </MudText>
+
+          
+            <MudGrid Class="mb-4">
+                <MudItem xs="12" sm="6" md="4">
+                    <MudSelect T="int?" Label="Filter by Financial Year" @bind-Value="_selectedOVCBFiscalYearId" Variant="Variant.Outlined"
+                               Clearable="true" OnClearButtonClick="OnOVCBFiscalYearFilterClear" 
+                               @bind-Value:after="OnOVCBFiscalYearFilterChanged">                    
+                        @foreach (var fy in _financialYearsForOVCB)
+                        {
+                            <MudSelectItem T="int?" Value="fy.Id">@fy.Name</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>           
+            </MudGrid>
+
+         
+            <MudTable Items="@FilteredAndPagedOVCBConfigurations" Dense="true" Hover="true" Bordered="false" Striped="true" Breakpoint="Breakpoint.Sm"
+                      Class="mb-4">
+                <HeaderContent>
+                    <MudTh>Facility Type</MudTh>
+                    <MudTh>Grade</MudTh>
+                    <MudTh>Fee Type</MudTh>
+                    <MudTh>Fee Amount (LSL)</MudTh>
+                    <MudTh>Financial Year</MudTh>
+                    <MudTh>Status</MudTh>
+                    <MudTh Class="d-flex justify-end">Actions</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="Facility Type">@context.FacilityTypeName</MudTd>
+                    <MudTd DataLabel="Grade">@context.GradeName</MudTd>
+                    <MudTd DataLabel="Fee Type">@context.FeeTypeName</MudTd>
+                    <MudTd DataLabel="Fee Amount">@context.FeeAmount.ToString("N2")</MudTd>
+                    <MudTd DataLabel="Financial Year">@context.FinYearName</MudTd>
+                    <MudTd DataLabel="Status">
+                        @if (context.Status)
+                        {
+                            <MudChip T="string" Icon="@Icons.Material.Filled.CheckCircle" Color="Color.Success" Variant="Variant.Text">Active</MudChip>
+                        }
+                        else
+                        {
+                            <MudChip T="string" Icon="@Icons.Material.Filled.Cancel" Color="Color.Error" Variant="Variant.Text">Inactive</MudChip>
+                        }
+                    </MudTd>
+                    <MudTd Class="d-flex justify-end">
+                        <MudMenu Icon="@Icons.Material.Filled.MoreVert" AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.TopRight">
+                            <MudMenuItem OnClick="async () => await EditOVCBConfiguration(context)">
+                                <MudIcon Icon="@Icons.Material.Filled.Edit" Class="me-2" /> Edit
+                            </MudMenuItem>
+                            @if (context.Id != 0)
+                            {
+                                @if (context.Status)
+                                {
+                                    <MudMenuItem OnClick="async () => await ToggleOVCBsync(context, false)">
+                                        <MudIcon Icon="@Icons.Material.Filled.ToggleOff" Color="Color.Error" Class="me-2" /> Deactivate
+                                    </MudMenuItem>
+                                }
+                                else
+                                {
+                                    <MudMenuItem OnClick="async () => await ToggleOVCBsync(context, true)">
+                                        <MudIcon Icon="@Icons.Material.Filled.ToggleOn" Color="Color.Success" Class="me-2" /> Activate
+                                    </MudMenuItem>
+                                }
+                            }
+                            <MudMenuItem OnClick="async () => await RemoveOVCBConfiguration(context)">
+                                <MudIcon Icon="@Icons.Material.Filled.DeleteOutline" Color="Color.Error" Class="me-2" /> Delete
+                            </MudMenuItem>
+                        </MudMenu>
+                    </MudTd>
+                </RowTemplate>
+                <NoRecordsContent>
+                    <MudText>No OVC-B configurations found for the selected financial year.</MudText>
+                </NoRecordsContent>
+            </MudTable>
+
+            @* OVC-B Pagination *@
+            @if (_totalOVCBPages > 1)
+            {
+                <MudPagination Class="d-flex justify-center mt-4"
+                               Count="@_totalOVCBPages"
+                               Selected="@(_currentOVCBPage + 1)"
+                               SelectedPageChanged="OnOVCBPageChanged"
+                               Color="Color.Primary" />
+            }
+
+            <div class="d-flex justify-end gap-2 mt-4 mb-4"> 
+                @* MODIFIED: Copy Configurations Button now calls new method *@
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="ConfirmAndCopyOVCBConfigurations" StartIcon="@Icons.Material.Filled.ContentCopy" Class="rounded-pill">
+                    Copy Configurations
+                </MudButton>
+                <MudButton Variant="Variant.Filled" Color="Color.Secondary" OnClick="AddOVCBConfiguration" StartIcon="@Icons.Material.Filled.Add" Class="rounded-pill">
+                    Add OVC-B Configuration
+                </MudButton>
+            </div>
+
+            <MudItem xs="12" Class="d-flex justify-space-between mt-4">
+                <MudButton Variant="Variant.Filled" Color="Color.Secondary" OnClick="@(() => ActiveTab = 2)" 
+                           Class="me-2">
+                    Back to Benefit Rules
+                </MudButton>
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="ProceedToArrears" StartIcon="@Icons.Material.Filled.ArrowForward">
+                    Next
+                </MudButton>
+            </MudItem>
+        </MudTabPanel>
+
+        <MudTabPanel Text="Programme Arrears" Disabled="@(Model.Id == 0)"> 
+            <MudText Typo="Typo.h6" GutterBottom="true" Class="mb-3" Style="background-color: var(--mud-palette-grey-lighten-4); padding: 8px 16px; border-radius: 4px;">
+                Define Programme Arrears Rules
+            </MudText>
+
+            <MudTable Items="@Model.ArrearsConfigurations" Dense="true" Hover="true" Bordered="false" Striped="true" Breakpoint="Breakpoint.Sm"
+                      Class="mb-4">
+                <HeaderContent>
+                    <MudTh>Maximum Cycles</MudTh>
+                    <MudTh>Form of Penalty</MudTh>
+                    <MudTh>Accruals After Penalty</MudTh>
+                    <MudTh>Accruals Over Fiscal Year</MudTh>
+                    <MudTh>Status</MudTh>
+                    <MudTh Class="d-flex justify-end">Actions</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="Maximum Cycles">@context.MaximumCycles</MudTd>
+                    <MudTd DataLabel="Form of Penalty">@context.PenaltyDescription</MudTd>
+                    <MudTd DataLabel="Accruals After Penalty" CellClass="fit">
+                         <MudText Style="@($"{GetStatusStyle(context.AccruedAfterPenalty)} display:inline-block; padding:4px; border-radius:6px;")">
+        @(context.AccruedAfterPenalty ? "Yes" : "No")
+    </MudText>
+                    </MudTd>
+
+                    <MudTd DataLabel="Accruals Over Fiscal Year" CellClass="fit">
+                        <MudText Style="@($"{GetStatusStyle(context.ArrearsOverYear)} display:inline-block; padding:4px; border-radius:6px;")">
+                            @(context.ArrearsOverYear ? "Yes" : "No")
+                        </MudText>
+                    </MudTd>
+
+                    <MudTd DataLabel="Status">
+                        @if (context.IsActive)
+                        {
+                            <MudChip T="string" Icon="@Icons.Material.Filled.CheckCircle" Color="Color.Success" Variant="Variant.Text">Active</MudChip>
+                        }
+                        else
+                        {
+                            <MudChip T="string" Icon="@Icons.Material.Filled.Cancel" Color="Color.Error" Variant="Variant.Text">Inactive</MudChip>
+                        }
+                    </MudTd>
+                    <MudTd Class="d-flex justify-end">
+                        <MudMenu Icon="@Icons.Material.Filled.MoreVert" AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.TopRight">
+                            <MudMenuItem OnClick="async () => await EditArrears(context)">
+                                <MudIcon Icon="@Icons.Material.Filled.Edit" Class="me-2" /> Edit
+                            </MudMenuItem>
+                            @if (context.Id != 0) 
+                            {
+                                @if (context.IsActive)
+                                {
+                                    <MudMenuItem OnClick="async () => await ToggleArrearsActivationAsync(context, false)">
+                                        <MudIcon Icon="@Icons.Material.Filled.ToggleOff" Color="Color.Error" Class="me-2" /> Deactivate
+                                    </MudMenuItem>
+                                }
+                                else
+                                {
+                                    <MudMenuItem OnClick="async () => await ToggleArrearsActivationAsync(context, true)">
+                                        <MudIcon Icon="@Icons.Material.Filled.ToggleOn" Color="Color.Success" Class="me-2" /> Activate
+                                    </MudMenuItem>
+                                }
+                            }
+                            <MudMenuItem OnClick="async () => await RemoveArrears(context)">
+                                <MudIcon Icon="@Icons.Material.Filled.DeleteOutline" Color="Color.Error" Class="me-2" /> Delete
+                            </MudMenuItem>
+                        </MudMenu>
+                    </MudTd>
+                </RowTemplate>
+                <NoRecordsContent>
+                    <MudText>No arrears configurations added yet.</MudText>
+                </NoRecordsContent>
+            </MudTable>
+
+            <div class="d-flex justify-end">
+                <MudButton Variant="Variant.Filled" Color="Color.Secondary" OnClick="AddArrears" StartIcon="@Icons.Material.Filled.Add" Class="mt-0 mb-4 rounded-pill">
+                    Add Arrears Configuration
+                </MudButton>
+            </div>
+
+            <MudItem xs="12" Class="d-flex justify-space-between mt-4">
+                <MudButton Variant="Variant.Filled" Color="Color.Secondary"
+                           OnClick="@(() => ActiveTab = (Model.Code?.Trim().ToUpper() == "OVC-B" ? 3 : 2))"
+                           Class="me-2">
+                    Back to @(Model.Code?.Trim().ToUpper() == "OVC-B" ? "OVC-B Configurations" : "Benefit Rules")
+                </MudButton>
+                <MudButton Variant="Variant.Filled" Color="Color.Success" OnClick="FinalSaveAndFinish" StartIcon="@Icons.Material.Filled.DoneAll">
+                    @(Id.HasValue ? "Update & Finish" : "Create & Finish")
+                </MudButton>
+            </MudItem>
+        </MudTabPanel>
+
+    </MudTabs>
+</MudPaper>
+
+@code {
+    [Parameter] public int? Id { get; set; }
+
+    private ProgrammeViewModel Model { get; set; } = new();
+    private MudForm programmeForm;
+    private int _activeTab = 0;
+    private List<LookupItemViewModel> PaymentFrequencyOptions = new();
+    private string HeaderText = "Programme Configuration";
+    private List<BreadcrumbItem> _breadcrumbItems;
+
+    private int? _annualProofOfLifeId;
+    private int? _fourYearRecertProofOfLifeId;
+    private MudBlazor.Utilities.MudColor _color
+    {
+        get
+        {
+            if (!string.IsNullOrEmpty(Model.ColourScheme) &&
+                MudBlazor.Utilities.MudColor.TryParse(Model.ColourScheme, out var parsedColor))
+            {
+                return parsedColor;
+            }
+            return new MudBlazor.Utilities.MudColor("#2196F3");
+        }
+        set
+        {
+            if (value != null)
+            {
+                Model.ColourScheme = value.ToString(MudBlazor.Utilities.MudColorOutputFormats.Hex);
+            }
+        }
+    }
+
+    // OVC-B Pagination & Filter Variables
+    private int _currentOVCBPage = 0; 
+    private int _ovcbPageSize = 10;
+    private int _totalOVCBItems = 0;
+    private int? _selectedOVCBFiscalYearId; 
+    private List<LookupItemViewModel> _financialYearsForOVCB = new(); 
+
+    // Variables for current active financial year
+    private int _currentActiveFinancialYearId;
+    private string _currentActiveFinancialYearName = "N/A";
+    // ADDED: Variables for previous financial year
+    private int _previousFinancialYearId;
+    private string _previousFinancialYearName = "N/A";
+
+
+    private Task OnPaymentModesChanged(IEnumerable<int?> values)
+    {
+        Model.PaymentModesAllowedIds = values.ToList();
+        return Task.CompletedTask;
+    }
+
+
+    protected override async Task OnInitializedAsync()
+    {
+        PaymentFrequencyOptions = await FetchPaymentFrequenciesLookupValuesAsync();
+    }
+
+
+    private async Task<List<LookupItemViewModel>> FetchPaymentFrequenciesLookupValuesAsync()
+    {
+        LoadingService.Show();
+        try
+        {
+            return await _context.Set<PaymentFrequencyView>()
+                .Where(pf => pf.IsActive)
+                .OrderBy(pf => pf.Id)
+                .Select(pf => new LookupItemViewModel
+                {
+                    Id = pf.Id,
+                    Name = pf.Name
+                })
+                .ToListAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error fetching lookups for payment frequencies: {ex.Message}", Severity.Warning);
+            return new List<LookupItemViewModel>();
+        }
+        finally
+        {
+            LoadingService.Hide();
+        }
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        await base.OnParametersSetAsync();
+
+        LoadingService.Show();
+        _annualProofOfLifeId = await GetSystemCodeDetailId("ProofOfLifeSpan", "Annual");
+        _fourYearRecertProofOfLifeId = await GetSystemCodeDetailId("ProofOfLifeSpan", "4 Years Recertification");
+
+        // Fetch all financial years, ordered from latest to oldest for easy selection of previous year
+        _financialYearsForOVCB = await _context.FinancialYears
+                                                .OrderByDescending(fy => fy.StartDate) // Ensures latest year is first
+                                                .Select(fy => new LookupItemViewModel { Id = fy.Id, Name = fy.Name })
+                                                .ToListAsync();
+
+        // Determine the current active financial year
+        var currentActiveFinancialYear = await _context.FinancialYears
+                                                        .Where(fy => fy.IsActive)
+                                                        .OrderByDescending(fy => fy.StartDate)
+                                                        .FirstOrDefaultAsync();
+        if (currentActiveFinancialYear != null)
+        {
+            _currentActiveFinancialYearId = currentActiveFinancialYear.Id;
+            _currentActiveFinancialYearName = currentActiveFinancialYear.Name;
+
+            // Determine the previous financial year
+            var currentYearIndex = _financialYearsForOVCB.FindIndex(fy => fy.Id == _currentActiveFinancialYearId);
+            if (currentYearIndex != -1 && (currentYearIndex + 1) < _financialYearsForOVCB.Count)
+            {
+                _previousFinancialYearId = _financialYearsForOVCB[currentYearIndex + 1].Id;
+                _previousFinancialYearName = _financialYearsForOVCB[currentYearIndex + 1].Name;
+            } else {
+                _previousFinancialYearId = 0; // Indicate no valid previous year
+                _previousFinancialYearName = "N/A (No previous year found)";
+            }
+        } else {
+            _currentActiveFinancialYearId = 0; // No active year found
+            _currentActiveFinancialYearName = "N/A (No active year found)";
+            _previousFinancialYearId = 0;
+            _previousFinancialYearName = "N/A (No previous year found)";
+        }
+
+
+        if (Id.HasValue && Id.Value > 0)
+        {
+            var programmeEntity = await _context.Set<Programmes>()
+                                        .Include(p => p.EligibilityCriteria)
+                                        .Include(p => p.TopUps)
+                                        .Include(p => p.BenefitRule)
+                                        .Include(p => p.PaymentModesAllowed)
+                                        .Include(p => p.OVCBConfigurations) 
+                                        .Include(p => p.ArrearsConfigurations)
+                                        .AsNoTracking()
+                                        .FirstOrDefaultAsync(p => p.Id == Id.Value);
+            if (programmeEntity != null)
+            {
+                Model = _mapper.Map<ProgrammeViewModel>(programmeEntity);
+
+                // Properly map OVCBConfigurations from entity to ViewModel list
+                Model.OVCBConfigurations = programmeEntity.OVCBConfigurations
+                    .Select(entityConfig => new OVCBConfigurationFormViewModel
+                    {
+                        Id = entityConfig.Id,
+                        ProgrammeId = entityConfig.ProgrammeId,
+                        FacilityTypeId = entityConfig.FacilityTypeId,
+                        GradeId = entityConfig.GradeId,
+                        FeeTypeId = entityConfig.FeeTypeId,
+                        FeeAmount = entityConfig.FeeAmount,
+                        FinYearId = entityConfig.FinYearId,
+                        Status = entityConfig.Status
+                    }).ToList();
+
+                // Populate lookup names for display in tables
+                await PopulateLookupNamesForDisplay();
+                
+                if (programmeEntity.PaymentModesAllowed != null && programmeEntity.PaymentModesAllowed.Any())
+                {
+                    Model.PaymentModesAllowedIds = programmeEntity.PaymentModesAllowed
+                                                               .Select(pm => (int?)pm.Id)
+                                                               .ToList();
+                }
+                else
+                {
+                    Model.PaymentModesAllowedIds = new List<int?>();
+                }
+                
+                // Set initial OVC-B filter to the current active financial year by default
+                _selectedOVCBFiscalYearId = _currentActiveFinancialYearId;
+            }
+            else
+            {
+                Snackbar.Add("Programme not found.", Severity.Error);
+                Navigation.NavigateTo("/programmes");
+            }
+        }
+        else
+        {
+            Model = new ProgrammeViewModel();
+            Model.IsActive = true;
+        }
+
+        // Ensure all child collections are initialized for new programs
+        Model.EligibilityCriteria ??= new List<EligibilityCriteriaViewModel>();
+        Model.TopUps ??= new List<TopUpViewModel>();
+        Model.BenefitRule ??= new List<BenefitRuleViewModel>();
+        Model.OVCBConfigurations ??= new List<OVCBConfigurationFormViewModel>(); 
+        Model.ArrearsConfigurations ??= new List<ArrearsConfigurationViewModel>(); 
+
+        BuildBreadcrumbs();
+        LoadingService.Hide();
+    }
+
+    private async Task PopulateLookupNamesForDisplay()
+    {
+        // OVC-B Configurations
+        if (Model.OVCBConfigurations?.Any() == true)
+        {
+            var facilityTypeIds = Model.OVCBConfigurations.Where(c => c.FacilityTypeId.HasValue).Select(c => c.FacilityTypeId.Value).Distinct().ToList();
+            var gradeIds = Model.OVCBConfigurations.Where(c => c.GradeId.HasValue).Select(c => c.GradeId.Value).Distinct().ToList();
+            var feeTypeIds = Model.OVCBConfigurations.Where(c => c.FeeTypeId.HasValue).Select(c => c.FeeTypeId.Value).Distinct().ToList();
+            var finYearIds = Model.OVCBConfigurations.Where(c => c.FinYearId.HasValue).Select(c => c.FinYearId.Value).Distinct().ToList();
+            var facilityTypeNames = await _context.FacilityTypes.Where(f => facilityTypeIds.Contains(f.Id)).ToDictionaryAsync(f => f.Id, f => f.Name);          
+            var gradeNames = await _context.Grades.Where(g => gradeIds.Contains(g.Id)).ToDictionaryAsync(g => g.Id, g => g.Code);         
+            var feeTypeNames = await _context.SystemCodeDetails.Where(scd => scd.SystemCode.Code == "FeeType" && feeTypeIds.Contains(scd.Id)).ToDictionaryAsync(scd => scd.Id, scd => scd.Name);
+            var finYearNames = await _context.FinancialYears.Where(fy => finYearIds.Contains(fy.Id)).ToDictionaryAsync(fy => fy.Id, fy => fy.Name);
+
+            foreach (var config in Model.OVCBConfigurations)
+            {
+                if (config.FacilityTypeId.HasValue && facilityTypeNames.TryGetValue(config.FacilityTypeId.Value, out var name))
+                    config.FacilityTypeName = name;
+                if (config.GradeId.HasValue && gradeNames.TryGetValue(config.GradeId.Value, out var nameCode)) 
+                    config.GradeName = nameCode;
+                if (config.FeeTypeId.HasValue && feeTypeNames.TryGetValue(config.FeeTypeId.Value, out var feeName))
+                    config.FeeTypeName = feeName;
+                if (config.FinYearId.HasValue && finYearNames.TryGetValue(config.FinYearId.Value, out var finName))
+                    config.FinYearName = finName;
+            }
+        }
+
+        // Arrears Configurations
+        if (Model.ArrearsConfigurations?.Any() == true)
+        {
+            var penaltyIds = Model.ArrearsConfigurations.Where(a => a.PenaltyId.HasValue).Select(a => a.PenaltyId.Value).Distinct().ToList();
+            var penaltyNames = await _context.SystemCodeDetails.Where(scd => scd.SystemCode.Code == "FormOfPenalty" && penaltyIds.Contains(scd.Id)).ToDictionaryAsync(scd => scd.Id, scd => scd.Name);
+
+            foreach (var arrears in Model.ArrearsConfigurations)
+            {
+                if (arrears.PenaltyId.HasValue && penaltyNames.TryGetValue(arrears.PenaltyId.Value, out var name))
+                    arrears.PenaltyDescription = name;
+            }
+        }
+    }
+
+
+    // --- Programme Details Tab Actions ---
+    private async Task SaveProgrammeDetailsAndProceed()
+    {
+        await programmeForm.Validate();
+        if (!programmeForm.IsValid)
+        {
+            Snackbar.Add("Please correct validation errors in Programme Details.", Severity.Error);
+            _activeTab = 0;
+            return;
+        }
+
+        LoadingService.Show();
+        try
+        {
+            bool codeExists = await _context.Set<Programmes>()
+                .AnyAsync(p => p.Code == Model.Code && p.Id != Model.Id);
+
+            if (codeExists)
+            {
+                Snackbar.Add($"A program with the code '{Model.Code}' already exists.", Severity.Warning);
+                return;
+            }
+
+            if (Model.ProofOfLifeSpanId.HasValue)
+            {
+                if (!Model.ProofOfLifeSpan.HasValue || Model.ProofOfLifeSpan.Value <= 0)
+                {
+                    Snackbar.Add("Please provide a valid duration for the selected Proof of Life.", Severity.Error);
+                    return;
+                }
+                if (Model.ProofOfLifeSpanId == _annualProofOfLifeId && Model.ProofOfLifeSpan.Value != 1)
+                {
+                    Snackbar.Add("For 'Annual' proof of life, the duration must be 1.", Severity.Error);
+                    return;
+                }
+                if (Model.ProofOfLifeSpanId == _fourYearRecertProofOfLifeId && Model.ProofOfLifeSpan.Value != 4)
+                {
+                    Snackbar.Add("For '4 years recertification', the duration must be 4.", Severity.Error);
+                    return;
+                }
+            }
+
+            Programmes programmeEntity;
+            bool isNew = Model.Id == 0;
+
+            if (isNew)
+            {
+                programmeEntity = _mapper.Map<Programmes>(Model);
+                programmeEntity.CreatedOn = DateTime.UtcNow;
+                // You would typically get the CreatedById from your authentication service
+                // programmeEntity.CreatedById = _authService.GetCurrentUserId();
+                programmeEntity.ModifiedOn = DateTime.UtcNow;
+                // programmeEntity.ModifiedById = _authService.GetCurrentUserId();
+                await _context.Set<Programmes>().AddAsync(programmeEntity);
+            }
+            else
+            {
+                programmeEntity = await _context.Set<Programmes>()
+                    .Include(p => p.PaymentModesAllowed)
+                    .FirstOrDefaultAsync(p => p.Id == Model.Id);
+
+                if (programmeEntity == null)
+                {
+                    Snackbar.Add("Programme not found for update.", Severity.Error);
+                    return;
+                }
+
+                _mapper.Map(Model, programmeEntity);
+            }
+
+            if (!string.IsNullOrWhiteSpace(programmeEntity.Code))
+            {
+                programmeEntity.Code = programmeEntity.Code.ToUpper();
+            }
+            if (!string.IsNullOrWhiteSpace(programmeEntity.Name))
+            {
+                TextInfo textInfo = CultureInfo.CurrentCulture.TextInfo;
+                programmeEntity.Name = textInfo.ToTitleCase(programmeEntity.Name.ToLower());
+            }
+
+            programmeEntity.ModifiedOn = DateTime.UtcNow;
+            // programmeEntity.ModifiedById = _authService.GetCurrentUserId();
+
+            // Handle PaymentModesAllowed (this logic is correct)
+            if (!isNew)
+            {
+                programmeEntity.PaymentModesAllowed.Clear();
+            }
+
+            if (Model.PaymentModesAllowedIds?.Any() == true)
+            {
+                var selectedPaymentModes = await _context.Set<SystemCodeDetail>()
+                    .Where(x => Model.PaymentModesAllowedIds.Contains(x.Id))
+                    .ToListAsync();
+                programmeEntity.PaymentModesAllowed = selectedPaymentModes;
+            }
+
+            await _context.SaveChangesAsync();
+
+            if (isNew)
+            {
+                Id = programmeEntity.Id; // Set the Id for subsequent tabs
+            }
+            Model.Id = programmeEntity.Id; // Update ViewModel Id
+            Model.Code = programmeEntity.Code; // Update ViewModel Code
+
+            Snackbar.Add("Programme details saved. Proceed to next step.", Severity.Success);
+
+            ActiveTab = 1; // Always goes to TopUps next
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error saving program details: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            LoadingService.Hide();
+        }
+    }
+
+    // --- TopUp Tab Actions (Index 1) ---
+
+    private async Task AddTopUp()
+    {
+        var parameters = new DialogParameters { ["TopUp"] = new TopUpViewModel { IsActive = true, ProgrammeId = Model.Id } };
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Small, FullWidth = true };
+        var dialog = DialogService.Show<AddEditTopUpDialog>("Add New TopUp", parameters, options);
+        var result = await dialog.Result;
+
+        if (!result.Canceled)
+        {
+            var newTopUpVm = result.Data as TopUpViewModel;
+            if (newTopUpVm != null)
+            {
+                LoadingService.Show();
+                try
+                {
+                    var topUpEntity = _mapper.Map<TopUps>(newTopUpVm);
+                    topUpEntity.ProgrammeId = Model.Id;
+                    topUpEntity.CreatedOn = DateTime.UtcNow;
+                    // topUpEntity.CreatedById = _authService.GetCurrentUserId();
+                    topUpEntity.ModifiedOn = DateTime.UtcNow;
+                    // topUpEntity.ModifiedById = _authService.GetCurrentUserId();
+                    await _context.Set<TopUps>().AddAsync(topUpEntity);
+                    await _context.SaveChangesAsync();
+
+                    newTopUpVm.Id = topUpEntity.Id; // Update the ViewModel with the new DB ID
+                    Model.TopUps.Add(newTopUpVm);
+                    Snackbar.Add("TopUp added successfully.", Severity.Success);
+                }
+                catch (Exception ex)
+                {
+                    Snackbar.Add($"Error adding TopUp: {ex.Message}", Severity.Error);
+                }
+                finally
+                {
+                    LoadingService.Hide();
+                    StateHasChanged();
+                }
+            }
+        }
+    }
+
+    private async Task EditTopUp(TopUpViewModel topUpToEdit)
+    {
+        // Clone the object to avoid direct mutation while editing
+        var topUpClone = _mapper.Map<TopUpViewModel>(topUpToEdit);
+        var parameters = new DialogParameters { ["TopUp"] = topUpClone };
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Small, FullWidth = true };
+        var dialog = DialogService.Show<AddEditTopUpDialog>("Edit TopUp", parameters, options);
+        var result = await dialog.Result;
+
+        if (!result.Canceled)
+        {
+            var updatedTopUpVm = result.Data as TopUpViewModel;
+            if (updatedTopUpVm != null)
+            {
+                LoadingService.Show();
+                try
+                {
+                    var dbTopUp = await _context.Set<TopUps>().FindAsync(updatedTopUpVm.Id);
+                    if (dbTopUp != null)
+                    {
+                        _mapper.Map(updatedTopUpVm, dbTopUp);
+                        dbTopUp.ModifiedOn = DateTime.UtcNow;
+                        // dbTopUp.ModifiedById = Model.ModifiedById; // Get from auth service
+                        await _context.SaveChangesAsync();
+
+                        // Update the original item in the local list
+                        _mapper.Map(updatedTopUpVm, topUpToEdit); // Update properties of the original VM
+                        Snackbar.Add("TopUp updated successfully.", Severity.Success);
+                    }
+                    else
+                    {
+                        Snackbar.Add("TopUp not found in database.", Severity.Error);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Snackbar.Add($"Error updating TopUp: {ex.Message}", Severity.Error);
+                }
+                finally
+                {
+                    LoadingService.Hide();
+                    StateHasChanged();
+                }
+            }
+        }
+    }
+
+    private async Task RemoveTopUp(TopUpViewModel topUpToRemove)
+    {
+        var result = await DialogService.ShowMessageBox(
+            "Confirm Deletion",
+            new MarkupString($"Are you sure you want to delete the TopUp '<b>{topUpToRemove.Name}</b>'?"),
+            yesText: "Delete", cancelText: "Cancel");
+
+        if (result == true)
+        {
+            LoadingService.Show();
+            try
+            {
+                var dbTopUp = await _context.Set<TopUps>().FindAsync(topUpToRemove.Id);
+                if (dbTopUp != null)
+                {
+                    _context.Set<TopUps>().Remove(dbTopUp);
+                    await _context.SaveChangesAsync();
+                    Model.TopUps.Remove(topUpToRemove);
+                    Snackbar.Add("TopUp deleted successfully.", Severity.Success);
+                }
+                else
+                    Snackbar.Add("TopUp not found in database.", Severity.Error);
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add($"Error deleting TopUp: {ex.Message}", Severity.Error);
+            }
+            finally
+            {
+                LoadingService.Hide();
+                StateHasChanged();
+            }
+        }
+    }
+
+    private async Task ToggleTopUpActivationInDbAsync(TopUpViewModel topUpToToggle, bool newStatus)
+    {
+        if (topUpToToggle.Id == 0)
+        {
+            Snackbar.Add("Please save the Top-Up first before changing its status.", Severity.Info);
+            return;
+        }
+
+        string actionText = newStatus ? "activate" : "deactivate";
+        var result = await DialogService.ShowMessageBox(
+            title: $"Confirm {actionText}",
+            markupMessage: new MarkupString($"Are you sure you want to <b>{actionText}</b> the Topup '<b>{topUpToToggle.Name}</b>'?"),
+            yesText: $"Yes, {actionText}",
+            cancelText: "Cancel"
+        );
+
+        if (result != true) return;
+
+        LoadingService.Show();
+        try
+        {
+            var dbTopUp = await _context.Set<TopUps>().FindAsync(topUpToToggle.Id);
+            if (dbTopUp == null)
+            {
+                Snackbar.Add("Could not find the Topup record to update.", Severity.Error);
+                return;
+            }
+
+            dbTopUp.IsActive = newStatus;
+            dbTopUp.ModifiedOn = DateTime.UtcNow;
+            // dbTopUp.ModifiedById = Model.ModifiedById; // Get from auth service
+            await _context.SaveChangesAsync();
+
+            topUpToToggle.IsActive = newStatus; // Update local VM
+            Snackbar.Add($"Topup '{topUpToToggle.Name}' has been {actionText}d.", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error updating status: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            LoadingService.Hide();
+            StateHasChanged();
+        }
+    }
+
+    private void ProceedToBenefitRulesOrOVCBTab() 
+    {
+        ActiveTab = 2; 
+    }
+
+
+    // --- Benefit Rules Tab Actions (Index 2) ---
+
+    private async Task AddBenefitRule()
+    {
+        var parameters = new DialogParameters { ["BenefitRule"] = new BenefitRuleViewModel { IsActive = true, ProgrammeId = Model.Id} };
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Small, FullWidth = true };
+        var dialog = DialogService.Show<AddEditBenefitRuleDialog>("Add New Benefit Rule", parameters, options);
+        var result = await dialog.Result;
+
+        if (!result.Canceled)
+        {
+            var newBenefitRuleVm = result.Data as BenefitRuleViewModel;
+            if (newBenefitRuleVm != null)
+            {
+                LoadingService.Show();
+                try
+                {
+                   if (newBenefitRuleVm.MaxHHMembers < newBenefitRuleVm.MinHHMembers || 
+                    newBenefitRuleVm.MaxHHMembers > 30 || 
+                    newBenefitRuleVm.MinHHMembers > 30)
+                {
+                    Snackbar.Add("Minimum and Maximum HH members must not exceed 30, and Maximum must be greater than or equal to Minimum.", Severity.Error);
+                    return;
+                }
+
+
+                    var benefitRuleEntity = _mapper.Map<BenefitRule>(newBenefitRuleVm);
+                    benefitRuleEntity.ProgrammeId = Model.Id;
+                    benefitRuleEntity.CreatedOn = DateTime.UtcNow;
+                    // benefitRuleEntity.CreatedById = _authService.GetCurrentUserId();
+                    benefitRuleEntity.ModifiedOn = DateTime.UtcNow;
+                    // benefitRuleEntity.ModifiedById = _authService.GetCurrentUserId();
+                    await _context.Set<BenefitRule>().AddAsync(benefitRuleEntity);
+                    await _context.SaveChangesAsync();
+
+                    newBenefitRuleVm.Id = benefitRuleEntity.Id; // Update the ViewModel with the new DB ID
+                    Model.BenefitRule.Add(newBenefitRuleVm);
+                    Snackbar.Add("Benefit Rule added successfully.", Severity.Success);
+                }
+                catch (Exception ex)
+                {
+                    Snackbar.Add($"Error adding Benefit Rule: {ex.Message}", Severity.Error);
+                }
+                finally
+                {
+                    LoadingService.Hide();
+                    StateHasChanged();
+                }
+            }
+        }
+    }
+
+    private async Task EditBenefitRule(BenefitRuleViewModel benefitRuleToEdit)
+    {
+        var benefitRuleClone = _mapper.Map<BenefitRuleViewModel>(benefitRuleToEdit);
+        var parameters = new DialogParameters { ["BenefitRule"] = benefitRuleClone };
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Small, FullWidth = true };
+        var dialog = DialogService.Show<AddEditBenefitRuleDialog>("Edit Benefit Rule", parameters, options);
+        var result = await dialog.Result;
+
+        if (!result.Canceled)
+        {
+            var updatedBenefitRuleVm = result.Data as BenefitRuleViewModel;
+            if (updatedBenefitRuleVm != null)
+            {
+                LoadingService.Show();
+                try
+                {
+                    if (updatedBenefitRuleVm.MaxHHMembers < updatedBenefitRuleVm.MinHHMembers ||
+                    updatedBenefitRuleVm.MaxHHMembers > 30 || 
+                    updatedBenefitRuleVm.MinHHMembers > 30)
+                {
+                    Snackbar.Add("Minimum and Maximum HH members must not exceed 30, and Maximum must be greater than or equal to Minimum.", Severity.Error);
+                    return;
+                }
+
+                    var dbBenefitRule = await _context.Set<BenefitRule>().FindAsync(updatedBenefitRuleVm.Id);
+                    if (dbBenefitRule != null)
+                    {
+                        _mapper.Map(updatedBenefitRuleVm, dbBenefitRule);
+                        dbBenefitRule.ModifiedOn = DateTime.UtcNow;
+                        // dbBenefitRule.ModifiedById = Model.ModifiedById; // Get from auth service
+                        await _context.SaveChangesAsync();
+
+                        // Update the original item in the local list
+                        _mapper.Map(updatedBenefitRuleVm, benefitRuleToEdit);
+                        Snackbar.Add("Benefit Rule updated successfully.", Severity.Success);
+                    }
+                    else
+                    {
+                        Snackbar.Add("Benefit Rule not found in database.", Severity.Error);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Snackbar.Add($"Error updating Benefit Rule: {ex.Message}", Severity.Error);
+                }
+                finally
+                {
+                    LoadingService.Hide();
+                    StateHasChanged();
+                }
+            }
+        }
+    }
+
+    private async Task RemoveBenefitRule(BenefitRuleViewModel benefitRuleToRemove)
+    {
+        var result = await DialogService.ShowMessageBox(
+            "Confirm Deletion",
+            new MarkupString($"Are you sure you want to delete this Benefit Rule (Min: <b>{benefitRuleToRemove.MinHHMembers}</b>, Max: <b>{benefitRuleToRemove.MaxHHMembers}</b>)?"),
+            yesText: "Delete", cancelText: "Cancel");
+
+        if (result == true)
+        {
+            LoadingService.Show();
+            try
+            {
+                var dbBenefitRule = await _context.Set<BenefitRule>().FindAsync(benefitRuleToRemove.Id);
+                if (dbBenefitRule != null)
+                {
+                    _context.Set<BenefitRule>().Remove(dbBenefitRule);
+                    await _context.SaveChangesAsync();
+                    Model.BenefitRule.Remove(benefitRuleToRemove);
+                    Snackbar.Add("Benefit Rule deleted successfully.", Severity.Success);
+                }
+                else
+                {
+                    Snackbar.Add("Benefit Rule not found in database.", Severity.Error);
+                }
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add($"Error deleting Benefit Rule: {ex.Message}", Severity.Error);
+            }
+            finally
+            {
+                LoadingService.Hide();
+                StateHasChanged();
+            }
+        }
+    }
+
+    private async Task ToggleBenefitAsync(BenefitRuleViewModel benefitToggle, bool newStatus)
+    {
+        if (benefitToggle.Id == 0)
+        {
+            Snackbar.Add("Please save the benefit rule first before changing its status.", Severity.Info);
+            return;
+        }
+
+        string actionText = newStatus ? "activate" : "deactivate";
+        var result = await DialogService.ShowMessageBox(
+            title: $"Confirm {actionText}",
+            markupMessage: new MarkupString($"Are you sure you want to <b>{actionText}</b> this Benefit Rule?"),
+            yesText: $"Yes, {actionText}",
+            cancelText: "Cancel"
+        );
+
+        if (result != true) return;
+
+        LoadingService.Show();
+        try
+        {
+            var dbBenefit = await _context.Set<BenefitRule>().FindAsync(benefitToggle.Id);
+            if (dbBenefit == null)
+            {
+                Snackbar.Add("Could not find the benefit rule record to update.", Severity.Error);
+                return;
+            }
+
+            dbBenefit.IsActive = newStatus;
+            dbBenefit.ModifiedOn = DateTime.UtcNow;          
+            await _context.SaveChangesAsync();
+
+            benefitToggle.IsActive = newStatus; 
+            Snackbar.Add($"Benefit rule has been {actionText}d.", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error updating status: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            LoadingService.Hide();
+            StateHasChanged();
+        }
+    }
+
+    private void ProceedToOVCBIfApplicableOrArrears() 
+    {
+        ActiveTab = string.Equals(Model.Code?.Trim(), "OVC-B", StringComparison.OrdinalIgnoreCase) ? 3 : 4;
+    }
+
+
+    // --- OVC-B Tab Actions (Index 3) ---
+
+    // OVC-B Pagination & Filter Logic
+    private IEnumerable<OVCBConfigurationFormViewModel> FilteredAndPagedOVCBConfigurations
+    {
+        get
+        {
+            if (Model.OVCBConfigurations == null) return Enumerable.Empty<OVCBConfigurationFormViewModel>();
+
+            var filtered = Model.OVCBConfigurations
+                                .Where(c => !_selectedOVCBFiscalYearId.HasValue || c.FinYearId == _selectedOVCBFiscalYearId.Value)
+                                .OrderByDescending(c => c.FinYearName) 
+                                .ThenBy(c => c.FacilityTypeName);
+
+            _totalOVCBItems = filtered.Count();
+            return filtered.Skip(_currentOVCBPage * _ovcbPageSize).Take(_ovcbPageSize);
+        }
+    }
+
+    private int _totalOVCBPages => (int)Math.Ceiling((double)_totalOVCBItems / _ovcbPageSize);
+
+    private void OnOVCBPageChanged(int page)
+    {
+        _currentOVCBPage = page - 1; 
+        StateHasChanged();
+    }
+
+    private void OnOVCBFiscalYearFilterChanged()
+    {       
+        _currentOVCBPage = 0;
+        StateHasChanged();
+    }
+    private void OnOVCBFiscalYearFilterClear(MouseEventArgs args) 
+    {
+        _selectedOVCBFiscalYearId = null;
+        _currentOVCBPage = 0; 
+        StateHasChanged();
+    }
+    private async Task AddOVCBConfiguration()
+    {
+        var parameters = new DialogParameters { ["OVCBConfig"] = new OVCBConfigurationFormViewModel { Status = true, ProgrammeId = Model.Id } };
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Small, FullWidth = true };
+        var dialog = DialogService.Show<AddEditOVCBConfigDialog>("Add New OVC-B Configuration", parameters, options);
+        var result = await dialog.Result;
+
+        if (!result.Canceled)
+        {
+            var newOVCBConfigVm = result.Data as OVCBConfigurationFormViewModel;
+            if (newOVCBConfigVm != null)
+            {
+                LoadingService.Show();
+                try
+                {
+                    // Ensure FinYearId is set to the current active financial year when adding
+                    if (_currentActiveFinancialYearId == 0)
+                    {
+                        Snackbar.Add("No active financial year found. Cannot add OVC-B configuration.", Severity.Error);
+                        return;
+                    }
+                    newOVCBConfigVm.FinYearId = _currentActiveFinancialYearId;
+
+                    var ovcbConfigEntity = _mapper.Map<OVCBConfiguration>(newOVCBConfigVm);
+                    ovcbConfigEntity.ProgrammeId = Model.Id;
+                    ovcbConfigEntity.CreatedOn = DateTime.UtcNow;                 
+                    ovcbConfigEntity.ModifiedOn = DateTime.UtcNow;  
+                    // ovcbConfigEntity.FinYearId is already set from newOVCBConfigVm.FinYearId
+                    await _context.Set<OVCBConfiguration>().AddAsync(ovcbConfigEntity);
+                    await _context.SaveChangesAsync();
+
+                    // Reload all OVC-B configurations to refresh table with filter/pagination
+                    await ReloadOVCBConfigurations(); 
+                    Snackbar.Add("OVC-B Configuration added successfully.", Severity.Success);
+                }
+                catch (Exception ex)
+                {
+                    Snackbar.Add($"Error adding OVC-B Configuration: {ex.Message}", Severity.Error);
+                }
+                finally
+                {
+                    LoadingService.Hide();
+                    StateHasChanged();
+                }
+            }
+        }
+    }
+
+    private async Task EditOVCBConfiguration(OVCBConfigurationFormViewModel ovcbConfigToEdit)
+    {
+        var ovcbConfigClone = _mapper.Map<OVCBConfigurationFormViewModel>(ovcbConfigToEdit);
+        var parameters = new DialogParameters { ["OVCBConfig"] = ovcbConfigClone };
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Small, FullWidth = true };
+        var dialog = DialogService.Show<AddEditOVCBConfigDialog>("Edit OVC-B Configuration", parameters, options);
+        var result = await dialog.Result;
+
+        if (!result.Canceled)
+        {
+            var updatedOVCBConfigVm = result.Data as OVCBConfigurationFormViewModel;
+            if (updatedOVCBConfigVm != null)
+            {
+                LoadingService.Show();
+                try
+                {
+                    var dbOVCBConfig = await _context.Set<OVCBConfiguration>().FindAsync(updatedOVCBConfigVm.Id);
+                    if (dbOVCBConfig != null)
+                    {
+                        _mapper.Map(updatedOVCBConfigVm, dbOVCBConfig);
+                        dbOVCBConfig.ModifiedOn = DateTime.UtcNow;                   
+                        await _context.SaveChangesAsync();
+
+                        // Update the original item in the local list and repopulate display names
+                        _mapper.Map(updatedOVCBConfigVm, ovcbConfigToEdit);
+                        await PopulateSingleOVCBConfigLookupNames(ovcbConfigToEdit);
+                        Snackbar.Add("OVC-B Configuration updated successfully.", Severity.Success);
+                    }
+                    else
+                    {
+                        Snackbar.Add("OVC-B Configuration not found in database.", Severity.Error);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Snackbar.Add($"Error updating OVC-B Configuration: {ex.Message}", Severity.Error);
+                }
+                finally
+                {
+                    LoadingService.Hide();
+                    StateHasChanged();
+                }
+            }
+        }
+    }
+
+    private async Task RemoveOVCBConfiguration(OVCBConfigurationFormViewModel ovcbConfigToRemove)
+    {
+        var result = await DialogService.ShowMessageBox(
+            "Confirm Deletion",
+            new MarkupString($"Are you sure you want to delete this OVC-B configuration (Facility: <b>{ovcbConfigToRemove.FacilityTypeName}</b>, Grade: <b>{ovcbConfigToRemove.GradeName}</b>)?"),
+            yesText: "Delete", cancelText: "Cancel");
+
+        if (result == true)
+        {
+            LoadingService.Show();
+            try
+            {
+                var dbOVCBConfig = await _context.Set<OVCBConfiguration>().FindAsync(ovcbConfigToRemove.Id);
+                if (dbOVCBConfig != null)
+                {
+                    _context.Set<OVCBConfiguration>().Remove(dbOVCBConfig);
+                    await _context.SaveChangesAsync();
+                    // Reload all OVC-B configurations to refresh table with filter/pagination
+                    await ReloadOVCBConfigurations(); 
+                    Snackbar.Add("OVC-B Configuration deleted successfully.", Severity.Success);
+                }
+                else
+                {
+                    Snackbar.Add("OVC-B Configuration not found in database.", Severity.Error);
+                }
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add($"Error deleting OVC-B Configuration: {ex.Message}", Severity.Error);
+            }
+            finally
+            {
+                LoadingService.Hide();
+                StateHasChanged();
+            }
+        }
+    }
+
+    private async Task ToggleOVCBsync(OVCBConfigurationFormViewModel ovcbToggle, bool newStatus)
+    {
+        if (ovcbToggle.Id == 0)
+        {
+            Snackbar.Add("Please save the OVC-B configuration first before changing its status.", Severity.Info);
+            return;
+        }
+
+        string actionText = newStatus ? "activate" : "deactivate";
+        var result = await DialogService.ShowMessageBox(
+            title: $"Confirm {actionText}",
+            markupMessage: new MarkupString($"Are you sure you want to <b>{actionText}</b> this OVC-B configuration?"),
+            yesText: $"Yes, {actionText}",
+            cancelText: "Cancel"
+        );
+
+        if (result != true) return;
+
+        LoadingService.Show();
+        try
+        {
+            var dbConfig = await _context.Set<OVCBConfiguration>().FindAsync(ovcbToggle.Id);
+            if (dbConfig == null)
+            {
+                Snackbar.Add("Could not find the OVC-B configuration record to update.", Severity.Error);
+                return;
+            }
+
+            dbConfig.Status = newStatus;
+            dbConfig.ModifiedOn = DateTime.UtcNow;
+            // dbConfig.ModifiedById = Model.ModifiedById; // Get from auth service
+            await _context.SaveChangesAsync();
+
+            // Update local VM. No full reload needed as this only changes status of an existing item.
+            ovcbToggle.Status = newStatus; 
+            Snackbar.Add($"OVC-B configuration has been {actionText}d.", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error updating status: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            LoadingService.Hide();
+            StateHasChanged();
+        }
+    }
+
+    private async Task PopulateSingleOVCBConfigLookupNames(OVCBConfigurationFormViewModel config)
+    {
+        if (config.FacilityTypeId.HasValue)
+        {
+            config.FacilityTypeName = (await _context.FacilityTypes.FindAsync(config.FacilityTypeId.Value))?.Name;
+        }
+        if (config.GradeId.HasValue)
+        {
+            config.GradeName = (await _context.Grades.FindAsync(config.GradeId.Value))?.Code; 
+        }
+        if (config.FeeTypeId.HasValue)
+        {
+            config.FeeTypeName = (await _context.SystemCodeDetails.Where(scd => scd.SystemCode.Code == "FeeType" && scd.Id == config.FeeTypeId.Value).FirstOrDefaultAsync())?.Name;
+        }
+        if (config.FinYearId.HasValue)
+        {
+            config.FinYearName = (await _context.FinancialYears.FindAsync(config.FinYearId.Value))?.Name;
+        }
+    }
+
+    private void ProceedToArrears() 
+    {
+        ActiveTab = 4; 
+    }
+
+   
+    private async Task ConfirmAndCopyOVCBConfigurations()
+    {
+        if (_currentActiveFinancialYearId == 0)
+        {
+            Snackbar.Add("Cannot perform copy operation: No active financial year is defined in the system. Please ensure an active financial year is set up.", Severity.Error);
+            return;
+        }
+
+        if (_previousFinancialYearId == 0 || _previousFinancialYearId == _currentActiveFinancialYearId)
+        {
+            Snackbar.Add($"No valid previous financial year found to copy from. (Current Active: {_currentActiveFinancialYearName}).", Severity.Warning);
+            return;
+        }
+
+        LoadingService.Show();
+        try
+        {
+            var existingConfigsInTargetYear = await _context.Set<OVCBConfiguration>()
+                                                            .Where(c => c.ProgrammeId == Model.Id && c.FinYearId == _currentActiveFinancialYearId)
+                                                            .AsNoTracking()
+                                                            .Select(c => new { c.FacilityTypeId, c.GradeId, c.FeeTypeId })
+                                                            .ToListAsync();
+
+            var configsToAttemptToCopy = await _context.Set<OVCBConfiguration>()
+                                                      .Where(c => c.ProgrammeId == Model.Id && c.FinYearId == _previousFinancialYearId)
+                                                      .AsNoTracking()
+                                                      .ToListAsync();
+
+            if (!configsToAttemptToCopy.Any())
+            {
+                Snackbar.Add($"No OVC-B configurations found for the source financial year ({_previousFinancialYearName}). Nothing to copy.", Severity.Info);
+                return;
+            }
+
+            var duplicateCandidates = configsToAttemptToCopy
+                .Where(sourceConfig => existingConfigsInTargetYear.Any(
+                    targetConfig => targetConfig.FacilityTypeId == sourceConfig.FacilityTypeId &&
+                                    targetConfig.GradeId == sourceConfig.GradeId &&
+                                    targetConfig.FeeTypeId == sourceConfig.FeeTypeId
+                ))
+                .ToList();
+
+            if (duplicateCandidates.Any())
+            {
+                Snackbar.Add($"Some configurations for '{_currentActiveFinancialYearName}' already exist (e.g., Facility Type, Grade, Fee Type combination). Only non-duplicate configurations will be copied. Please check manually if you need to update existing ones.", Severity.Warning);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error preparing copy operation: {ex.Message}", Severity.Error);
+            return;
+        }
+        finally
+        {
+            LoadingService.Hide();
+        }
+
+        var confirmationMessage = new MarkupString(
+            $"Are you sure you want to copy OVC-B configurations from <b>{_previousFinancialYearName}</b> to the current active financial year (<b>{_currentActiveFinancialYearName}</b>)? " +
+            "Only configurations with unique Facility Type, Grade, and Fee Type combinations for the target year will be added. Existing identical combinations will be skipped."
+        );
+
+        var confirmResult = await DialogService.ShowMessageBox(
+            "Confirm Copy Operation",
+            confirmationMessage,
+            yesText: "Yes, Copy",
+            cancelText: "Cancel"
+        );
+
+        if (confirmResult == true)
+        {
+            await CopyOVCBConfigurations(_previousFinancialYearId, _currentActiveFinancialYearId);
+        }
+        else
+        {
+            Snackbar.Add("Copy operation cancelled.", Severity.Info);
+        }
+    }
+
+    private async Task CopyOVCBConfigurations(int fromFinYearId, int toFinYearId)
+    {
+        LoadingService.Show();
+        try
+        {
+            var configsToCopy = await _context.Set<OVCBConfiguration>()
+                                              .Where(c => c.ProgrammeId == Model.Id && c.FinYearId == fromFinYearId)
+                                              .AsNoTracking()
+                                              .ToListAsync();
+
+            if (!configsToCopy.Any())
+            {
+                Snackbar.Add($"No OVC-B configurations found for the source financial year ({_previousFinancialYearName}).", Severity.Info);
+                return;
+            }
+
+            var existingCombinationsInTargetYear = await _context.Set<OVCBConfiguration>()
+                                                                 .Where(c => c.ProgrammeId == Model.Id && c.FinYearId == toFinYearId)
+                                                                 .Select(c => new { c.FacilityTypeId, c.GradeId, c.FeeTypeId })
+                                                                 .ToHashSetAsync();
+
+            var newConfigurations = new List<OVCBConfiguration>();
+            int skippedCount = 0;
+
+            foreach (var originalConfig in configsToCopy)
+            {
+                if (existingCombinationsInTargetYear.Contains(new { originalConfig.FacilityTypeId, originalConfig.GradeId, originalConfig.FeeTypeId }))
+                {
+                    skippedCount++;
+                    continue;
+                }
+
+                var newConfig = new OVCBConfiguration
+                {
+                    ProgrammeId = Model.Id,
+                    FacilityTypeId = originalConfig.FacilityTypeId,
+                    GradeId = originalConfig.GradeId,
+                    FeeTypeId = originalConfig.FeeTypeId,
+                    FeeAmount = originalConfig.FeeAmount,
+                    FinYearId = toFinYearId,
+                    Status = originalConfig.Status,
+                    CreatedOn = DateTime.UtcNow,
+                    ModifiedOn = DateTime.UtcNow,
+                };
+                newConfigurations.Add(newConfig);
+            }
+
+            if (newConfigurations.Any())
+            {
+                await _context.Set<OVCBConfiguration>().AddRangeAsync(newConfigurations);
+                await _context.SaveChangesAsync();
+
+                await ReloadOVCBConfigurations();
+                string skippedMessage = skippedCount > 0 ? $" ({skippedCount} duplicates skipped)." : "";
+                Snackbar.Add($"{newConfigurations.Count} OVC-B configurations copied from {_previousFinancialYearName} to {_currentActiveFinancialYearName} successfully{skippedMessage}.", Severity.Success);
+            }
+            else if (skippedCount > 0)
+            {
+                Snackbar.Add($"All {skippedCount} OVC-B configurations from {_previousFinancialYearName} already exist in {_currentActiveFinancialYearName} and were skipped.", Severity.Info);
+            }
+            else
+            {
+                Snackbar.Add("No configurations were copied. Check source year data or if all were duplicates.", Severity.Info);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error copying OVC-B configurations: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            LoadingService.Hide();
+            StateHasChanged();
+        }
+    }
+
+
+    private async Task ReloadOVCBConfigurations()
+    {
+        // Fetch OVCB configurations again from DB for the current program
+        var programmeEntity = await _context.Set<Programmes>()
+                                            .Include(p => p.OVCBConfigurations)
+                                            .AsNoTracking()
+                                            .FirstOrDefaultAsync(p => p.Id == Model.Id);
+
+        if (programmeEntity?.OVCBConfigurations != null)
+        {
+            Model.OVCBConfigurations = programmeEntity.OVCBConfigurations
+                .Select(entityConfig => new OVCBConfigurationFormViewModel
+                {
+                    Id = entityConfig.Id,
+                    ProgrammeId = entityConfig.ProgrammeId,
+                    FacilityTypeId = entityConfig.FacilityTypeId,
+                    GradeId = entityConfig.GradeId,
+                    FeeTypeId = entityConfig.FeeTypeId,
+                    FeeAmount = entityConfig.FeeAmount,
+                    FinYearId = entityConfig.FinYearId,
+                    Status = entityConfig.Status
+                }).ToList();
+
+            await PopulateLookupNamesForDisplay(); // Re-populate names for all loaded configs
+
+            _currentOVCBPage = 0; // Reset pagination to the first page
+            // Keep _selectedOVCBFiscalYearId as is, so if a filter was active, it remains.
+            // If you want to always reset to the latest year after a copy/add/delete:
+            // _selectedOVCBFiscalYearId = _currentActiveFinancialYearId; 
+        }
+        else
+        {
+            Model.OVCBConfigurations = new List<OVCBConfigurationFormViewModel>();
+        }
+    }
+
+
+    // --- Arrears Tab Actions (Index 4) ---
+
+    private async Task AddArrears()
+    {
+        var parameters = new DialogParameters { ["Arrears"] = new ArrearsConfigurationViewModel { IsActive=true, ProgrammeId = Model.Id } };
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Small, FullWidth = true };
+        var dialog = DialogService.Show<AddEditArrearsDialog>("Add New Arrears Configuration", parameters, options);
+        var result = await dialog.Result;
+
+        if (!result.Canceled)
+        {
+            var newArrearsVm = result.Data as ArrearsConfigurationViewModel;
+            if (newArrearsVm != null)
+            {
+                LoadingService.Show();
+                try
+                {
+                    var arrearsEntity = _mapper.Map<ArrearsConfiguration>(newArrearsVm);
+                    arrearsEntity.ProgrammeId = Model.Id;
+                    arrearsEntity.CreatedOn = DateTime.UtcNow;
+                    // arrearsEntity.CreatedById = _authService.GetCurrentUserId();
+                    arrearsEntity.ModifiedOn = DateTime.UtcNow;
+                    // arrearsEntity.ModifiedById = _authService.GetCurrentUserId();
+                    await _context.Set<ArrearsConfiguration>().AddAsync(arrearsEntity);
+                    await _context.SaveChangesAsync();
+
+                    newArrearsVm.Id = arrearsEntity.Id; // Update the ViewModel with the new DB ID
+                    // Populate display names for the newly added item
+                    if (newArrearsVm.PenaltyId.HasValue)
+                    {
+                        newArrearsVm.PenaltyDescription = (await _context.SystemCodeDetails.Where(scd => scd.SystemCode.Code == "FormOfPenalty" && scd.Id == newArrearsVm.PenaltyId.Value).FirstOrDefaultAsync())?.Name;
+                    }
+                    Model.ArrearsConfigurations.Add(newArrearsVm);
+                    Snackbar.Add("Arrears Configuration added successfully.", Severity.Success);
+                }
+                catch (Exception ex)
+                {
+                    Snackbar.Add($"Error adding Arrears Configuration: {ex.Message}", Severity.Error);
+                }
+                finally
+                {
+                    LoadingService.Hide();
+                    StateHasChanged();
+                }
+            }
+        }
+    }
+
+    private async Task EditArrears(ArrearsConfigurationViewModel arrearsToEdit)
+    {
+        var arrearsClone = _mapper.Map<ArrearsConfigurationViewModel>(arrearsToEdit);
+        var parameters = new DialogParameters { ["Arrears"] = arrearsClone };
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Small, FullWidth = true };
+        var dialog = DialogService.Show<AddEditArrearsDialog>("Edit Arrears Configuration", parameters, options);
+        var result = await dialog.Result;
+
+        if (!result.Canceled)
+        {
+            var updatedArrearsVm = result.Data as ArrearsConfigurationViewModel;
+            if (updatedArrearsVm != null)
+            {
+                LoadingService.Show();
+                try
+                {
+                    var dbArrears = await _context.Set<ArrearsConfiguration>().FindAsync(updatedArrearsVm.Id);
+                    if (dbArrears != null)
+                    {
+                        _mapper.Map(updatedArrearsVm, dbArrears);
+                        dbArrears.ModifiedOn = DateTime.UtcNow;
+                        // dbArrears.ModifiedById = Model.ModifiedById; // Get from auth service
+                        await _context.SaveChangesAsync();
+
+                        // Update the original item in the local list
+                        _mapper.Map(updatedArrearsVm, arrearsToEdit);
+                        // Repopulate display names for the updated item
+                        if (arrearsToEdit.PenaltyId.HasValue)
+                        {
+                            arrearsToEdit.PenaltyDescription = (await _context.SystemCodeDetails.Where(scd => scd.SystemCode.Code == "FormOfPenalty" && scd.Id == arrearsToEdit.PenaltyId.Value).FirstOrDefaultAsync())?.Name;
+                        }
+                        Snackbar.Add("Arrears Configuration updated successfully.", Severity.Success);
+                    }
+                    else
+                    {
+                        Snackbar.Add("Arrears Configuration not found in database.", Severity.Error);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Snackbar.Add($"Error updating Arrears Configuration: {ex.Message}", Severity.Error);
+                }
+                finally
+                {
+                    LoadingService.Hide();
+                    StateHasChanged();
+                }
+            }
+        }
+    }
+
+    private async Task RemoveArrears(ArrearsConfigurationViewModel arrearsToRemove)
+    {
+        var result = await DialogService.ShowMessageBox(
+            "Confirm Deletion",
+            new MarkupString($"Are you sure you want to delete this Arrears Configuration (Max Cycles: <b>{arrearsToRemove.MaximumCycles}</b>)?"),
+            yesText: "Delete", cancelText: "Cancel");
+
+        if (result == true)
+        {
+            LoadingService.Show();
+            try
+            {
+                var dbArrears = await _context.Set<ArrearsConfiguration>().FindAsync(arrearsToRemove.Id);
+                if (dbArrears != null)
+                {
+                    _context.Set<ArrearsConfiguration>().Remove(dbArrears);
+                    await _context.SaveChangesAsync();
+                    Model.ArrearsConfigurations.Remove(arrearsToRemove);
+                    Snackbar.Add("Arrears Configuration deleted successfully.", Severity.Success);
+                }
+                else
+                {
+                    Snackbar.Add("Arrears Configuration not found in database.", Severity.Error);
+                }
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add($"Error deleting Arrears Configuration: {ex.Message}", Severity.Error);
+            }
+            finally
+            {
+                LoadingService.Hide();
+                StateHasChanged();
+            }
+        }
+    }
+
+    private async Task ToggleArrearsActivationAsync(ArrearsConfigurationViewModel arrearsToggle, bool newStatus)
+    {
+        if (arrearsToggle.Id == 0)
+        {
+            Snackbar.Add("Please save the arrears configuration first before changing its status.", Severity.Info);
+            return;
+        }
+
+        string actionText = newStatus ? "activate" : "deactivate";
+        var result = await DialogService.ShowMessageBox(
+            title: $"Confirm {actionText}",
+            markupMessage: new MarkupString($"Are you sure you want to <b>{actionText}</b> this Arrears configuration?"),
+            yesText: $"Yes, {actionText}",
+            cancelText: "Cancel"
+        );
+
+        if (result != true) return;
+
+        LoadingService.Show();
+        try
+        {
+            var dbArrears = await _context.Set<ArrearsConfiguration>().FindAsync(arrearsToggle.Id);
+            if (dbArrears == null)
+            {
+                Snackbar.Add("Could not find the arrears configuration record to update.", Severity.Error);
+                return;
+            }
+
+            dbArrears.IsActive = newStatus;
+            dbArrears.ModifiedOn = DateTime.UtcNow;
+            // dbArrears.ModifiedById = Model.ModifiedById; // Get from auth service
+            await _context.SaveChangesAsync();
+
+            arrearsToggle.IsActive = newStatus; // Update local VM
+            Snackbar.Add($"Arrears configuration has been {actionText}d.", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error updating status: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            LoadingService.Hide();
+            StateHasChanged();
+        }
+    }
+
+
+    // --- Final Save ---
+    private void FinalSaveAndFinish()
+    {
+        Snackbar.Add("Programme configuration saved successfully! The programme is now fully configured.", Severity.Success);
+        Navigation.NavigateTo("/programmes");
+    }
+
+    private void BackToList()
+    {
+        Navigation.NavigateTo("/programmes");
+    }
+
+    private int ActiveTab
+    {
+        get => _activeTab;
+        set
+        {
+            if (_activeTab != value)
+            {
+                _activeTab = value;
+                BuildBreadcrumbs();
+            }
+        }
+    }
+
+    private async Task<int> GetSystemCodeDetailId(string systemCodeType, string valueName)
+    {
+        var systemCode = await _context.SystemCodes.AsNoTracking().FirstOrDefaultAsync(sc => sc.Code == systemCodeType);
+        if (systemCode == null) return 0;
+        var systemCodeDetail = await _context.SystemCodeDetails.AsNoTracking().FirstOrDefaultAsync(scd => scd.SystemCodeId == systemCode.Id && scd.Code == valueName);
+        return systemCodeDetail?.Id ?? 0;
+    }
+
+    private Func<int?, string> ValidateProofOfLifeDuration => (duration) =>
+    {
+        if (!Model.ProofOfLifeSpanId.HasValue || !duration.HasValue)
+        {
+            return null;
+        }
+
+        if (Model.ProofOfLifeSpanId == _annualProofOfLifeId && duration.Value != 1)
+        {
+            return "For 'Annual' proof of life, the duration must be 1.";
+        }
+
+        if (Model.ProofOfLifeSpanId == _fourYearRecertProofOfLifeId && duration.Value != 4)
+        {
+            return "For '4 years recertification', the duration must be 4.";
+        }
+        return null;
+    };
+
+    private async Task OnProofOfLifeTypeChanged(int? newId)
+    {
+        Model.ProofOfLifeSpanId = newId;
+        await programmeForm.Validate();
+    }
+
+    private void BuildBreadcrumbs()
+    {
+        var isOVCB = Model.Code?.Trim().ToUpper() == "OVC-B";
+
+        var pageTitle = Id.HasValue ? "Edit Programme Details" : "Create Programme Details";
+        var topupTitle = Id.HasValue ? "Edit Programme Topup" : "Create Programme Topup";
+        var benefitTitle = Id.HasValue ? "Edit Programme Benefit Rules" : "Create Programme Benefit Rules";
+        var ovcbConfigTitle = Id.HasValue ? "Edit OVC-B Configurations" : "Create OVC-B Configurations";
+        var arrearsTitle = Id.HasValue ? "Edit Programme Arrears" : "Create Programme Arrears";
+
+        _breadcrumbItems = new List<BreadcrumbItem>
+        {
+            new BreadcrumbItem("Home", href: "/", icon: Icons.Material.Filled.Home),
+            new("Settings", href: "/", icon: Icons.Material.Filled.Settings),
+            new BreadcrumbItem("Programme Configuration", href: "/programmes", icon: Icons.Material.Filled.LibraryBooks)
+        };
+
+        switch (ActiveTab)
+        {
+            case 0: // Details
+                _breadcrumbItems.Add(new BreadcrumbItem(pageTitle, href: null, disabled: true));
+                break;
+            case 1: // TopUps
+                _breadcrumbItems.Add(new BreadcrumbItem(pageTitle, href: $"/programmes/edit/{Id.Value}", disabled: Id == null));
+                _breadcrumbItems.Add(new BreadcrumbItem(topupTitle, href: null, disabled: true));
+                break;
+            case 2: // Benefit Rules
+                _breadcrumbItems.Add(new BreadcrumbItem(pageTitle, href: $"/programmes/edit/{Id.Value}", disabled: Id == null));
+                _breadcrumbItems.Add(new BreadcrumbItem(topupTitle, href: $"/programmes/edit/{Id.Value}", disabled: Id == null));
+                _breadcrumbItems.Add(new BreadcrumbItem(benefitTitle, href: null, disabled: true));
+                break;
+            case 3: // OVC-B Configurations (new position)
+                _breadcrumbItems.Add(new BreadcrumbItem(pageTitle, href: $"/programmes/edit/{Id.Value}", disabled: Id == null));
+                _breadcrumbItems.Add(new BreadcrumbItem(topupTitle, href: $"/programmes/edit/{Id.Value}", disabled: Id == null));
+                _breadcrumbItems.Add(new BreadcrumbItem(benefitTitle, href: $"/programmes/edit/{Id.Value}", disabled: Id == null));
+                _breadcrumbItems.Add(new BreadcrumbItem(ovcbConfigTitle, href: null, disabled: true));
+                break;
+            case 4: // Arrears (new position)
+                _breadcrumbItems.Add(new BreadcrumbItem(pageTitle, href: $"/programmes/edit/{Id.Value}", disabled: Id == null));
+                _breadcrumbItems.Add(new BreadcrumbItem(topupTitle, href: $"/programmes/edit/{Id.Value}", disabled: Id == null));
+                _breadcrumbItems.Add(new BreadcrumbItem(benefitTitle, href: $"/programmes/edit/{Id.Value}", disabled: Id == null));
+                if (isOVCB) // Only show OVC-B breadcrumb if applicable
+                {
+                    _breadcrumbItems.Add(new BreadcrumbItem(ovcbConfigTitle, href: $"/programmes/edit/{Id.Value}", disabled: Id == null));
+                }
+                _breadcrumbItems.Add(new BreadcrumbItem(arrearsTitle, href: null, disabled: true));
+                break;
+        }
+        }
+      private string GetStatusStyle(bool isActive)
+    {
+        return isActive
+            ? "background-color:#e6f4ea; color:#2e7d32; border: 1px solid #c8e6c9;"
+            : "background-color:#fcebea; color:#c62828; border: 1px solid #f5c6cb;";    
+    }
+}

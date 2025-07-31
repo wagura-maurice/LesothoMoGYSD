@@ -1,0 +1,79 @@
+﻿<MudExpansionPanel Text="Expand to apply search filter">
+    <MudGrid Class="py-2">
+        <MudItem xs="12" sm="6" md="3">
+            <MudTextField Variant="Variant.Outlined" @bind-Value="Filter.Name" Label="Search by Name" />
+        </MudItem>
+        <MudItem xs="12" sm="6" md="3">
+            <DistrictAutocomplete Variant="Variant.Outlined" Label="Search by District"
+                                  @bind-Value="Filter.DistrictId">
+            </DistrictAutocomplete>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="3">
+            <CommunityCouncilAutocomplete Variant="Variant.Outlined" Label="Search by Community Council" IsCascading="true"
+                                  @bind-Value="Filter.CommunityCouncilId" DistrictId="Filter.DistrictId">
+            </CommunityCouncilAutocomplete>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="3">
+            <VillageAutocomplete Label="Search by Village" Variant="Variant.Outlined" IsCascading="true"
+                                          @bind-Value="Filter.VillageId" CommunityCouncilId="Filter.CommunityCouncilId">
+            </VillageAutocomplete>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="3">
+            <SystemCodeAutocomplete Variant="Variant.Outlined" Label="Status"
+                                    ParentCode="Status"
+                                    @bind-Value="Filter.StatusId">
+            </SystemCodeAutocomplete>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="3">
+            <HHListingPlanAutocomplete Label="Search by HH Listing Plan" Variant="Variant.Outlined"
+                                    @bind-Value="Filter.HHListingPlanId" DistrictId="Filter.DistrictId">
+            </HHListingPlanAutocomplete>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="3">
+            <MudTextField Variant="Variant.Outlined" @bind-Value="Filter.HHHeadName"
+                          Label="Search by HH Head Name"
+                          Placeholder="Search by  HH Head Name..." />
+        </MudItem>
+
+        <MudItem xs="12">
+            <div class="d-flex justify-content-between mt-2">
+                <MudButton Variant="Variant.Filled"
+                           Color="Color.Secondary"
+                           StartIcon="@Icons.Material.Filled.Clear"
+                           OnClick="ClearFilter"
+                           Class="ml-2">
+                    Clear
+                </MudButton>
+                <MudButton Variant="Variant.Filled"
+                           Color="Color.Primary"
+                           StartIcon="@Icons.Material.Filled.Search"
+                           OnClick="OnFilter">
+                    Search
+                </MudButton>
+            </div>
+        </MudItem>
+    </MudGrid>
+</MudExpansionPanel>
+
+@code {
+    [Parameter] public HouseholdSearchFilter Filter { get; set; } = new();
+    [Parameter] public EventCallback OnFilterApplied { get; set; }
+
+    private async Task OnFilter()
+    {
+        await OnFilterApplied.InvokeAsync();
+    }
+    private async Task ClearFilter()
+    {
+        // Reset all filter properties to their default values
+        Filter.VillageId = null;
+        Filter.CommunityCouncilId = null;
+        Filter.DistrictId = null;
+        Filter.StatusId = null;
+        Filter.HHListingPlanId = null;
+        Filter.HHHeadName = null;
+        Filter.Name = string.Empty;
+
+        await OnFilterApplied.InvokeAsync();
+    }
+}

@@ -1,0 +1,75 @@
+﻿@using MoGYSD.Business.Persistence
+@using MoGYSD.Business.Views.Nissa.Admin
+@using MoGYSD.Web.Components.Autocompletes
+@using MoGYSD.Web.Components.DistrictRegistrations
+<MudExpansionPanel Text="Expand to apply search filter">
+    <MudGrid Class="mt-2">
+        <MudItem xs="12" sm="6" md="3">
+            <MudTextField Variant="Variant.Outlined" @bind-Value="Filter.Name" Label="Search by Name" />
+        </MudItem>
+
+        <MudItem xs="12" sm="6" md="3">
+            <SystemCodeAutocomplete Variant="Variant.Outlined" Label="Search by Status"
+                                    For="@(() => Filter.StatusId)"
+                                    @bind-Value="Filter.StatusId"
+                                    ParentCode="Status">
+            </SystemCodeAutocomplete>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="3">
+            <DistrictAutocomplete Variant="Variant.Outlined" Label="Search by District"
+                                    For="@(() => Filter.DistrictId)"
+                                  @bind-Value="Filter.DistrictId"
+                                  DistrictsWithPlans="@DistrictAccessLevelId">
+            </DistrictAutocomplete>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="3">
+            <MasterRegistrationAutocomplete Label="Search by Master Registration" Variant="Variant.Outlined"
+                                  For="@(() => Filter.MasterRegistrationPlanId)"
+                                    @bind-Value="Filter.MasterRegistrationPlanId">
+            </MasterRegistrationAutocomplete>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="3">
+            <MudTextField Variant="Variant.Outlined" T="decimal?" @bind-Value="Filter.ApprovedBudgetAmount" Format="N2" Label="Search by Approved Budget (LSL)" Adornment="Adornment.End"
+                          AdornmentText="LSL" />
+        </MudItem>
+        <MudItem xs="12">
+            <div class="d-flex justify-content-between mt-2">
+            <MudButton Variant="Variant.Filled"
+                       Color="Color.Secondary"
+                       StartIcon="@Icons.Material.Filled.Clear"
+                       OnClick="ClearFilter"
+                       Class="ml-2">
+                Clear
+            </MudButton>
+            <MudButton Variant="Variant.Filled"
+                       Color="Color.Primary"
+                       StartIcon="@Icons.Material.Filled.Search"
+                       OnClick="OnFilter">
+                Search
+            </MudButton>
+        </div>
+        </MudItem>
+    </MudGrid>
+</MudExpansionPanel>
+
+@code {
+    [Parameter] public DistrictRegistrationSearchFilter Filter { get; set; } = new();
+    [Parameter] public List<int> DistrictAccessLevelId { get; set; }
+    [Parameter] public EventCallback OnFilterApplied { get; set; }
+
+    private async Task OnFilter()
+    {
+        await OnFilterApplied.InvokeAsync();
+    }
+
+    private async Task ClearFilter()
+    {
+        Filter.MasterRegistrationPlanId = null;
+        Filter.DistrictId = null;
+        Filter.StatusId = null;
+        Filter.Name = null;
+        Filter.ApprovedBudgetAmount = null;
+        await OnFilterApplied.InvokeAsync();
+    }
+
+}

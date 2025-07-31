@@ -1,0 +1,261 @@
+﻿@page "/financialyear"
+@using MoGYSD.Business.Persistence
+@using MoGYSD.Business.Views.Missa.Setups
+@using MoGYSD.ViewModels.Missa.Setups
+@using MoGYSD.Business.Models.Missa.Setups 
+
+<MudGrid Class="mb-3" AlignItems="Center" Justify="Justify.SpaceBetween">
+    <MudItem xs="12" md="6">
+        <MudText Typo="Typo.h2" Class="font-weight-bold"><b>Financial Year</b></MudText>
+        <MudText>
+           Enables setting up and managing financial years for reporting and configurations.
+        </MudText>
+    </MudItem>
+    <MudItem xs="12" md="6" Class="d-flex justify-end">
+        <MudBreadcrumbs Items="_breadcrumbItems" Class="custom-breadcrumb" />
+    </MudItem>
+</MudGrid>
+
+<MudExpansionPanels>   
+    <SearchPanel Filter="@filterModel" OnFilterApplied="@ReloadTable" />
+</MudExpansionPanels>
+  
+<MudPaper Class="p-4">  
+    @if (UserProfileService.UserProfile.Contains("FINANCIAL YEAR:CREATE"))
+    {
+    <MudButton StartIcon="@Icons.Material.Filled.Add"
+               Class="pull-right top-add-button mb-2"
+               Variant="Variant.Filled"
+               OnClick="AddNewFinancialYear"
+               DropShadow="true"
+               Color="Color.Primary">
+        Add New Financial Year
+    </MudButton>
+    }
+
+    <MudDataGrid @ref="table" ServerData="@(LoadFinancialYearData)" T="FinancialYearView" Bordered="true" Striped="true" Hover="true" Dense="true" RowsPerPage="20">
+        <NoRecordsContent>
+            <MudText Typo="Typo.subtitle1" Class="my-4 text-muted text-center">
+                No financial years found. Try adjusting your filters.
+            </MudText>
+        </NoRecordsContent>
+        <ToolBarContent>
+            <MudText><b>Total Financial Years: @totalItems</b></MudText>
+        </ToolBarContent>
+        <Columns>
+            <PropertyColumn Property="x => x.Name" Title="Financial Year" />
+            <PropertyColumn Property="x => x.StartDate" Title="Start Date" Format="dd-MMM-yyyy" />
+            <PropertyColumn Property="x => x.EndDate" Title="End Date" Format="dd-MMM-yyyy" />
+            
+            <TemplateColumn Title="Active" HeaderClass="fit">
+                <CellTemplate>
+                    <MudText Style="@($"{GetStatusStyle(context.Item.IsActive)} display:block; padding:4px; border-radius:6px; width:100%; text-align: center;")">
+                        @(context.Item.IsActive ? "Yes" : "No")
+                    </MudText>
+                </CellTemplate>
+            </TemplateColumn>
+            <TemplateColumn Title="Actions">
+                <CellTemplate>
+                    <MudMenu Icon="@Icons.Material.Filled.MoreVert" Color="Color.Primary" Dense="true">
+                         @if (UserProfileService.UserProfile.Contains("FINANCIAL YEAR:VIEW"))
+                        {
+                            <MudMenuItem OnClick="@(() => ViewFinancialYearDetails(context.Item.Id))">
+                                <MudIcon Icon="@Icons.Material.Filled.Info" Class="me-2 text-primary" /> Details
+                            </MudMenuItem>
+                        }
+                        @if (UserProfileService.UserProfile.Contains("FINANCIAL YEAR:MODIFY"))
+                        {
+                             <MudMenuItem OnClick="@(() => EditFinancialYear(context.Item.Id))">
+                                <MudIcon Icon="@Icons.Material.Filled.Edit" Class="me-2" /> Edit
+                            </MudMenuItem>
+                        
+                            @if (context.Item.IsActive)
+                            {
+                                <MudMenuItem OnClick="@(() => ToggleActivation(context.Item.Id, context.Item.Name, false))">
+                                    <MudIcon Icon="@Icons.Material.Filled.ToggleOff" Color="Color.Error" Class="me-2" /> Deactivate
+                                </MudMenuItem>
+                            }
+                            else
+                            {
+                                <MudMenuItem OnClick="@(() => ToggleActivation(context.Item.Id, context.Item.Name, true))">
+                                    <MudIcon Icon="@Icons.Material.Filled.ToggleOn" Color="Color.Success" Class="me-2" /> Activate
+                                </MudMenuItem>
+                            }
+                        }
+                    </MudMenu>
+                </CellTemplate>
+            </TemplateColumn>
+        </Columns>
+        <PagerContent>
+            <MudDataGridPager T="FinancialYearView" PageSizes="@(new int[] { 5, 10, 20, 50 })" />
+        </PagerContent>
+    </MudDataGrid>
+</MudPaper>
+
+@code {
+  
+    private MudDataGrid<FinancialYearView> table = default!;
+    private FinancialSearchFilter filterModel = new(); 
+    private bool isLoading = false;
+    private int totalItems;
+    private List<BreadcrumbItem> _breadcrumbItems =
+     [
+        new("Home", href: "/", icon: Icons.Material.Filled.Home),   
+        new("Settings", href: "/", icon: Icons.Material.Filled.Settings),
+        new("Financial Years", href: null, disabled: true)
+     ];
+
+
+    private async Task<GridData<FinancialYearView>> LoadFinancialYearData(GridState<FinancialYearView> state)
+    {
+        isLoading = true;
+        try
+        {
+            if (_context == null)
+            {
+                Snackbar.Add("Database context is not available.", Severity.Error);
+                return new GridData<FinancialYearView> { Items = Enumerable.Empty<FinancialYearView>(), TotalItems = 0 };
+            }
+
+           
+            IQueryable<FinancialYearView> query = _context.FinancialYearView.AsNoTracking();
+          
+            if (!string.IsNullOrWhiteSpace(filterModel.Name))
+            {
+                query = query.Where(x => x.Name != null && x.Name.Contains(filterModel.Name));
+            }
+            if (filterModel.IsActive.HasValue)
+            {
+                query = query.Where(x => x.IsActive == filterModel.IsActive.Value);
+            }
+            
+         
+            query = query.OrderByDescending(p => p.StartDate);
+
+            totalItems = await query.CountAsync();
+
+            var items = await query
+                .Skip(state.Page * state.PageSize)
+                .Take(state.PageSize)
+                .ToListAsync();
+          
+            return new GridData<FinancialYearView>
+            {
+                Items = items,
+                TotalItems = totalItems
+            };
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine(ex.ToString());
+            Snackbar.Add($"Error loading financial years: {ex.Message}", Severity.Error);
+            return new GridData<FinancialYearView> { Items = Enumerable.Empty<FinancialYearView>(), TotalItems = 0 };
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task ReloadTable()
+    {
+        if (table != null)
+        {
+            await table.ReloadServerData();
+        }
+    }
+
+    private void ViewFinancialYearDetails(int id)
+    {
+        Navigation.NavigateTo($"/financialyear/view/{id}");
+    }
+
+    private void EditFinancialYear(int id)
+    {
+        Navigation.NavigateTo($"/financialyear/edit/{id}");
+    }
+
+    private async Task AddNewFinancialYear()
+    {
+        Navigation.NavigateTo("/financialyear/add");
+        await Task.CompletedTask;
+    }
+    
+    private string GetStatusStyle(bool isActive)
+    {
+        return isActive
+            ? "background-color:#e6f4ea; color:#2e7d32; border: 1px solid #c8e6c9;"
+            : "background-color:#fcebea; color:#c62828; border: 1px solid #f5c6cb;";
+    }
+    
+    private async Task ToggleActivation(int id, string name, bool activate)
+    {
+        string action = activate ? "Activate" : "Deactivate";
+        var parameters = new DialogParameters
+        {
+            { "ContentText", $"Are you sure you want to {action.ToLower()} the financial year '{name}'?" }
+        };
+
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.ExtraSmall };
+        var dialog = DialogService.Show<ConfirmDialog>($"{action} Financial Year", parameters, options);
+       
+        var result = await dialog.Result;
+        if (!result.Canceled)
+        {
+            await PerformToggleAsync(id, action);
+        }
+    }
+    
+    private async Task PerformToggleAsync(int id, string action)
+    {
+       
+        var financialYear = await _context.Set<FinancialYear>()
+                                          .FirstOrDefaultAsync(p => p.Id == id);
+
+        if (financialYear == null)
+        {
+            Snackbar.Add("Financial Year not found.", Severity.Error);
+            return;
+        }
+
+        try
+        {
+      if (action == "Activate")
+{
+    var existingActiveYear = await _context.FinancialYears
+        .FirstOrDefaultAsync(fy => fy.IsActive && fy.Id != id);
+
+    if (existingActiveYear != null)
+    {
+        Snackbar.Add($"Cannot activate this financial year. '{existingActiveYear.Name}' is currently active. Please deactivate it first.", Severity.Error);
+        return;
+    }
+}
+else if (action == "Deactivate")
+{
+  
+    var activeYearsCount = await _context.FinancialYears
+        .CountAsync(fy => fy.IsActive);
+
+    if (activeYearsCount == 1)
+    {
+        Snackbar.Add("You cannot deactivate as there must be one active financial year.", Severity.Error);
+        return;
+    }
+}
+
+            financialYear.IsActive = !financialYear.IsActive;
+            financialYear.ModifiedOn = DateTime.UtcNow;
+
+            _genericService.Update(financialYear);
+            await _context.SaveChangesAsync(); 
+            Snackbar.Add($"Financial Year '{financialYear.Name}' has been {action.ToLower()}d.", Severity.Success);
+            
+            await table.ReloadServerData();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error updating financial year: {ex.Message}", Severity.Error);
+        }
+    }
+}

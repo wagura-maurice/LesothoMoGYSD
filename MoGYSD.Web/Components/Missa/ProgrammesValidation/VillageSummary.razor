@@ -1,0 +1,350 @@
+﻿@page "/programcommunityvalidation/viewsummary/{Id:int}"
+@using Microsoft.EntityFrameworkCore
+@using MoGYSD.Business.Models.Nissa.Admin
+@using MoGYSD.Business.Models.Nissa.HouseHoldEnumerations
+@using MoGYSD.Business.Models.Missa.Validation
+@using MoGYSD.ViewModels.Missa.Programmes
+@using MoGYSD.Business.Persistence
+@using MoGYSD.Services
+
+@inject NavigationManager Navigation
+@inject ISnackbar Snackbar
+
+@if (_isLoading)
+{
+    <div class="d-flex justify-center pa-10">
+        <MudProgressCircular Color="Color.Primary" Indeterminate="true" />
+    </div>
+}
+else if (HeaderModel.Id > 0)
+{
+    <MudGrid Class="mb-3" AlignItems="Align.Center" Justify="Justify.SpaceBetween">
+        <MudItem xs="12" md="6">
+            <MudText Typo="Typo.h4" Class="font-weight-bold"><b>@HeaderText</b></MudText>
+        </MudItem>
+        <MudItem xs="12" md="6" Class="d-flex justify-start justify-sm-end">
+            <MudBreadcrumbs Items="_breadcrumbItems" Class="custom-breadcrumb" />
+        </MudItem>
+    </MudGrid>
+
+
+    <MudPaper Class="pa-4 pa-md-6 mb-6" Elevation="3">        
+
+        <MudText Typo="Typo.h5" Class="mb-4"><b>Villages Summary</b></MudText>
+        <MudDataGrid T="VillageSummaryViewModel" Items="@_villageSummaries" Bordered="true" Striped="true" Hover="true" Dense="true">
+            <Columns>
+                <PropertyColumn Property="x => x.VillageName" Title="Village Name" />
+                <TemplateColumn Title="Total Households">
+                    <CellTemplate>
+                        <MudText Color="Color.Info" Typo="Typo.body2" Style="font-weight: 500;">@context.Item.TotalHouseholds</MudText>
+                    </CellTemplate>
+                </TemplateColumn>
+                <TemplateColumn Title="Validated Households">
+                    <CellTemplate>
+                        <MudText Color="Color.Info" Typo="Typo.body2" Style="font-weight: 500;">@context.Item.ValidatedHouseholds</MudText>
+                    </CellTemplate>
+                </TemplateColumn>
+                <TemplateColumn Title="Pending Households">
+                    <CellTemplate>
+                        <MudText Color="Color.Info" Typo="Typo.body2" Style="font-weight: 500;">@context.Item.PendingHouseholds</MudText>
+                    </CellTemplate>
+                </TemplateColumn>
+                <TemplateColumn Title="Total HH Members">
+                    <CellTemplate>
+                        <MudText Color="Color.Info" Typo="Typo.body2" Style="font-weight: 500;">@context.Item.TotalMembers</MudText>
+                    </CellTemplate>
+                </TemplateColumn>
+
+                <TemplateColumn Title="Validated HH Members">
+                    <CellTemplate>
+                        <MudText Color="Color.Success" Typo="Typo.body2">@context.Item.ValidatedMembers</MudText>
+                    </CellTemplate>
+                </TemplateColumn>
+
+                <TemplateColumn Title="Pending Validation">
+                    <CellTemplate>
+                        <MudText Color="Color.Warning" Typo="Typo.body2">@context.Item.PendingMembers</MudText>
+                    </CellTemplate>
+                </TemplateColumn>                
+            </Columns>
+            <PagerContent>
+                <MudDataGridPager T="VillageSummaryViewModel" />
+            </PagerContent>
+        </MudDataGrid>
+    </MudPaper>
+
+
+   
+    <MudPaper Class="pa-4" Elevation="0">
+        <MudButton Variant="Variant.Filled"
+                   Color="Color.Secondary"
+                   OnClick="BackToList"
+                   StartIcon="@Icons.Material.Filled.ArrowBack">
+            Back
+        </MudButton>
+    </MudPaper>
+}
+else
+{
+    <MudAlert Severity="Severity.Error">The requested Validation List could not be found.</MudAlert>
+}
+
+
+@code {
+    [Parameter] public int Id { get; set; }
+
+    private enum ViewState { VillageList, HouseholdList }
+    private ViewState _currentView = ViewState.VillageList;
+
+    public class VillageSummaryViewModel
+    {
+        public int VillageId { get; set; }
+        public string VillageName { get; set; }
+        public int TotalHouseholds { get; set; }
+        public int ValidatedHouseholds { get; set; }
+        public int PendingHouseholds => TotalHouseholds - ValidatedHouseholds;
+        public int TotalMembers { get; set; }
+        public int ValidatedMembers { get; set; }
+        public int PendingMembers => TotalMembers - ValidatedMembers;
+    }
+
+    public class MemberValidationViewModel
+    {
+        public HouseholdMember Member { get; set; }
+        public ValidationDetail Detail { get; set; }
+    }
+
+    // --- State Variables ---
+    private ValidationListViewModel HeaderModel { get; set; } = new();
+    private bool _isLoading = true;
+    private string HeaderText = "Programme Community Validation";
+    private List<BreadcrumbItem> _breadcrumbItems = new();
+
+    // Village & Household List State
+    private List<VillageSummaryViewModel> _villageSummaries = new();
+    private MudDataGrid<Household> _householdGrid = default!;
+    private int? _selectedVillageId;
+    private string _selectedVillageName = string.Empty;
+    private Dictionary<int, (int validated, int total)> _householdProgressCache = new();
+    private string _householdSearchText = string.Empty;
+
+    // Household Details State (for right panel)
+    private Household _selectedHousehold;
+    private List<MemberValidationViewModel> _selectedHouseholdMemberVMs = new();
+    private bool _isLoadingMembers = false;
+
+    // Common data
+    private List<SystemCodeDetail> _validationStatuses = new();
+    private int _validatedStatusId;
+    private int _pendingStatusId;
+    private string _programmeName = "N/A";
+    private string _districtName = "N/A";
+    private string _communityCouncilName = "N/A";
+
+    protected override async Task OnInitializedAsync()
+    {
+        _isLoading = true;
+        var validationList = await _context.ValidationLists.AsNoTracking().FirstOrDefaultAsync(x => x.Id == Id);
+
+        if (validationList == null)
+        {
+            _isLoading = false;
+            return;
+        }
+
+        HeaderModel = _mapper.Map<ValidationListViewModel>(validationList);
+        await LoadDisplayNames();
+        await LoadRequiredData();
+        await LoadVillageSummaryList();
+
+        UpdateBreadcrumbs();
+        _isLoading = false;
+    }
+    private async Task LoadDisplayNames()
+    {
+     
+
+        if (HeaderModel.DistrictId > 0)
+        {
+            _districtName = await _context.Districts
+                .Where(d => d.Id == HeaderModel.DistrictId)
+                .Select(d => d.Name)
+                .FirstOrDefaultAsync() ?? "Not Found";
+        }
+
+        if (HeaderModel.CommunityCouncilId > 0)
+        {
+            _communityCouncilName = await _context.CommunityCouncils
+                .Where(cc => cc.Id == HeaderModel.CommunityCouncilId)
+                .Select(cc => cc.CommunityCouncilName)
+                .FirstOrDefaultAsync() ?? "Not Found";
+        }
+    }
+    private async Task LoadRequiredData()
+    {
+        var validationSystemCode = await _context.SystemCodes.AsNoTracking().FirstOrDefaultAsync(sc => sc.Code == "ValidationStatus");
+        if (validationSystemCode != null)
+        {
+            _validationStatuses = await _context.SystemCodeDetails.AsNoTracking().Where(scd => scd.SystemCodeId == validationSystemCode.Id).ToListAsync();
+            _validatedStatusId = _validationStatuses.FirstOrDefault(s => s.Code == "Validated")?.Id ?? 0;
+            _pendingStatusId = _validationStatuses.FirstOrDefault(s => s.Code == "Pending")?.Id ?? 0;
+        }
+    }
+
+    private async Task LoadVillageSummaryList()
+    {
+        if (HeaderModel.CommunityCouncilId <= 0)
+            return;
+
+        // 1. Get all villages in the community council
+        var villagesInCouncil = await _context.Villages
+            .Where(v => v.CommunityCouncilId == HeaderModel.CommunityCouncilId)
+            .OrderBy(v => v.Name)
+            .Select(v => new { v.Id, v.Name })
+            .ToListAsync();
+
+        var villageIds = villagesInCouncil.Select(v => v.Id).ToList();
+        if (!villageIds.Any())
+            return;
+
+        // 2. Get total household counts per village
+        var householdCounts = await _context.Households
+            .Where(h => villageIds.Contains(h.VillageId))
+            .GroupBy(h => h.VillageId)
+            .Select(g => new
+            {
+                VillageId = g.Key,
+                Count = g.Count()
+            })
+            .ToDictionaryAsync(x => x.VillageId, x => x.Count);
+
+        // 3. Get member and validated household stats
+        var memberStats = await _context.ValidationDetails
+            .Where(d => d.ValidationListId == Id &&
+                        villageIds.Contains(d.HouseholdMember.Household.VillageId))
+            .GroupBy(d => d.HouseholdMember.Household.VillageId)
+            .Select(g => new
+            {
+                VillageId = g.Key,
+                TotalMembers = g.Count(),
+                ValidatedMembers = g.Count(detail => detail.ValidationStatusId == _validatedStatusId),
+                ValidatedHouseholds = g.Where(detail => detail.ValidationStatusId == _validatedStatusId)
+                                       .Select(detail => detail.HouseholdMember.HouseholdId)
+                                       .Distinct()
+                                       .Count()
+            })
+            .ToDictionaryAsync(x => x.VillageId);
+
+        // 4. Combine all data into the view model list
+        _villageSummaries = villagesInCouncil.Select(v => new VillageSummaryViewModel
+        {
+            VillageId = v.Id,
+            VillageName = v.Name,
+            TotalHouseholds = householdCounts.GetValueOrDefault(v.Id, 0),
+            TotalMembers = memberStats.TryGetValue(v.Id, out var stats) ? stats.TotalMembers : 0,
+            ValidatedMembers = memberStats.TryGetValue(v.Id, out stats) ? stats.ValidatedMembers : 0,
+            ValidatedHouseholds = memberStats.TryGetValue(v.Id, out stats) ? stats.ValidatedHouseholds : 0
+        }).ToList();
+    }
+
+
+    private void UpdateBreadcrumbs()
+    {
+        bool isViewing = Id > 0;
+        var pageTitle = "View Programme Community Validation";
+
+        _breadcrumbItems = new List<BreadcrumbItem>
+        {
+            new BreadcrumbItem("Home", href: "/", icon: Icons.Material.Filled.Home),
+            new BreadcrumbItem("Programme Community Validation", href: "/programcommunityvalidation", icon: Icons.Material.Filled.People),
+            new BreadcrumbItem(pageTitle, href: null, disabled: true)
+        };
+    }
+
+    private void OnBreadcrumbClick(BreadcrumbItem item)
+    {
+        if (item.Href == $"/programcommunityvalidation/view/{Id}") BackToVillageList();
+    }
+
+    private void BackToList() => Navigation.NavigateTo("/programcommunityvalidation");
+
+    private void ShowHouseholdsForVillage(VillageSummaryViewModel village)
+    {
+        _selectedVillageId = village.VillageId;
+        _selectedVillageName = village.VillageName;
+        _currentView = ViewState.HouseholdList;
+        _selectedHousehold = null; // Clear any previously selected household
+        _selectedHouseholdMemberVMs.Clear();
+        UpdateBreadcrumbs();
+    }
+
+    private void BackToVillageList()
+    {
+        _currentView = ViewState.VillageList;
+        _selectedVillageId = null;
+        _selectedVillageName = string.Empty;
+        _householdSearchText = string.Empty;
+        _selectedHousehold = null;
+        UpdateBreadcrumbs();
+    }
+
+    private async Task SelectHouseholdForDetails(Household household)
+    {
+        _selectedHousehold = household;
+        _isLoadingMembers = true;
+        _selectedHouseholdMemberVMs.Clear();
+
+        var members = await _context.HouseholdMembers.AsNoTracking()
+            .Where(m => m.HouseholdId == household.Id)
+            .OrderBy(m => m.Surname).ThenBy(m => m.FirstName)
+            .ToListAsync();
+
+        if (members.Any())
+        {
+            var memberIds = members.Select(m => m.Id).ToList();
+            var details = await _context.ValidationDetails
+                .Where(d => d.ValidationListId == Id && memberIds.Contains(d.HouseholdMemberId))
+                .ToDictionaryAsync(d => d.HouseholdMemberId);
+
+            _selectedHouseholdMemberVMs = members.Select(m => new MemberValidationViewModel
+            {
+                Member = m,
+                Detail = details.GetValueOrDefault(m.Id) ?? new ValidationDetail { ValidationListId = this.Id, HouseholdMemberId = m.Id, ValidationStatusId = _pendingStatusId }
+            }).ToList();
+        }
+
+        _isLoadingMembers = false;
+    }
+
+
+    private async Task<GridData<Household>> LoadHouseholdData(GridState<Household> state)
+    {
+        if (!_selectedVillageId.HasValue) return new GridData<Household> { Items = Enumerable.Empty<Household>(), TotalItems = 0 };
+
+        IQueryable<Household> query = _context.Households.Include(h => h.Status).Include(h => h.HHListing).Where(h => h.VillageId == _selectedVillageId.Value);
+
+        if (!string.IsNullOrWhiteSpace(_householdSearchText))
+        {
+            query = query.Where(h => (h.HHListing.HHHeadFirstName + " " + h.HHListing.HHHeadSurname).Contains(_householdSearchText) || h.HHListing.NationalId.Contains(_householdSearchText));
+        }
+
+        var totalItems = await query.CountAsync();
+        var items = await query.Skip(state.Page * state.PageSize).Take(state.PageSize).ToListAsync();
+
+        var householdIdsOnPage = items.Select(i => i.Id).ToList();
+        var memberDetails = await _context.ValidationDetails.AsNoTracking().Where(d => d.ValidationListId == Id && householdIdsOnPage.Contains(d.HouseholdMember.HouseholdId)).GroupBy(d => d.HouseholdMember.HouseholdId).Select(g => new { HouseholdId = g.Key, Validated = g.Count(d => d.ValidationStatusId == _validatedStatusId), Total = g.Count() }).ToListAsync();
+        _householdProgressCache = memberDetails.ToDictionary(x => x.HouseholdId, x => (x.Validated, x.Total));
+
+        return new GridData<Household> { Items = items, TotalItems = totalItems };
+    }
+
+    private (double Percentage, string Text, Color Color) GetHouseholdValidationProgress(int householdId)
+    {
+        if (!_householdProgressCache.TryGetValue(householdId, out var progress)) return (0, "0/0", Color.Default);
+        var (validated, total) = progress;
+        if (total == 0) return (0, "0/0", Color.Default);
+        var percentage = (double)validated / total * 100;
+        var color = percentage < 50 ? Color.Error : percentage < 100 ? Color.Warning : Color.Success;
+        return (percentage, $"{validated}/{total}", color);
+    }
+}

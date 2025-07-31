@@ -1,0 +1,183 @@
+﻿@page "/grade/add"
+@page "/grade/edit/{Id:int}"
+
+@using MoGYSD.Business.Models.Missa.Setups
+@using MoGYSD.ViewModels.Missa.Setups
+@using MoGYSD.Business.Views.Missa.Setups
+
+<PageTitle>@(Id.HasValue ? "Edit Grade" : "Create Grade")</PageTitle>
+
+<MudGrid Class="mb-4" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween">
+    <MudItem xs="12" md="6">
+        <MudText Typo="Typo.h4" GutterBottom="false">@HeaderText</MudText>
+    </MudItem>
+    <MudItem xs="12" md="6" Class="d-flex justify-start justify-md-end">
+        <MudBreadcrumbs Items="_breadcrumbItems" Class="custom-breadcrumb" />
+    </MudItem>
+</MudGrid>
+
+<MudPaper Elevation="2" Class="pa-4">
+    <MudForm @ref="gradeForm" Model="@Model" @bind-IsValid="@_isFormValid">
+        <MudGrid Spacing="3">
+            <MudItem xs="12" sm="12">
+                <MudTextField @bind-Value="Model.Code"
+                              Label="Class/ Grade"
+                              For="@(() => Model.Code)"
+                              Variant="Variant.Outlined"
+                              Required="true"
+                              RequiredError="Grade code is required." />
+            </MudItem>       
+
+           
+
+            <MudItem xs="12" Class="d-flex justify-space-between mt-4">
+                <MudButton Variant="Variant.Filled"
+                           Color="Color.Secondary"
+                           OnClick="BackToList"
+                           Class="me-2">
+                    Back
+                </MudButton>
+
+                <MudButton Variant="Variant.Filled"
+                           Color="Color.Primary"
+                           OnClick="SaveAsync"                         
+                           Class="me-2">
+                    @if (_isWorking)
+                    {
+                        <MudProgressCircular Class="ms-n1" Size="Size.Small" Indeterminate="true" />
+                        <MudText Class="ms-2">Saving...</MudText>
+                    }
+                    else
+                    {
+                        <span>@(Model.Id > 0 ? "Update Class/ Grade" : "Save Class/ Grade")</span>
+                    }
+                </MudButton>
+            </MudItem>
+        </MudGrid>
+    </MudForm>
+</MudPaper>
+
+@code {
+    [Parameter]
+    public int? Id { get; set; }
+
+    private MudForm gradeForm = new();
+    private GradeViewModel Model { get; set; } = new();
+    private bool _isWorking = false;
+    private bool _isFormValid;
+    private string HeaderText = "Create Class/ Grade";
+    private List<BreadcrumbItem> _breadcrumbItems = new();
+    private FacilityView? selectedFacility;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (Id.HasValue && Id.Value > 0)
+        {
+            HeaderText = "Edit Class/ Grade";
+            var entity = await _context.Set<Grade>().AsNoTracking().FirstOrDefaultAsync(x => x.Id == Id.Value);
+
+            if (entity != null)
+            {
+                Model = _mapper.Map<GradeViewModel>(entity);
+
+            }
+            else
+            {
+                Snackbar.Add("Class/ Grade not found.", Severity.Error);
+                Navigation.NavigateTo("/grade");
+                return;
+            }
+        }
+        else
+        {
+            HeaderText = "Create Class/ Grade";
+            Model.IsActive = true;
+        }
+
+        SetupBreadcrumbs();
+    }
+
+    private void SetupBreadcrumbs()
+    {
+        var pageTitle = Id.HasValue ? "Edit Class/ Grade" : "Create Class/ Grade";
+        _breadcrumbItems =
+        [
+            new("Home", href: "/", icon: Icons.Material.Filled.Home),
+            new("Settings", href: "/settings", icon: Icons.Material.Filled.Settings),
+            new("Grades", href: "/grade"),
+            new(pageTitle, href: null, disabled: true)
+        ];
+    }
+
+    private async Task SaveAsync()
+    {
+        await gradeForm.Validate();
+        if (!_isFormValid)
+        {
+            Snackbar.Add("Please fix form errors before proceeding.", Severity.Error);
+            return;
+        }       
+
+        _isWorking = true;
+
+        try
+        {
+            bool isDuplicate = await _context.Set<Grade>()
+                .AnyAsync(g => g.Code.ToLower() == Model.Code.ToLower()                              
+                               && g.Id != Model.Id);
+            if (isDuplicate)
+            {
+                Snackbar.Add("This Class/ Grade code already exists", Severity.Error);
+                _isWorking = false;
+                return;
+            }
+
+            if (Model.Id > 0)
+            {
+                var entity = await _context.Set<Grade>().FindAsync(Model.Id);
+                if (entity != null)
+                {
+                    _mapper.Map(Model, entity);
+                    entity.ModifiedOn = DateTime.UtcNow;
+                    await _genericService.Update(entity);
+                    Snackbar.Add("Class/ Grade updated successfully.", Severity.Success);
+                    Navigation.NavigateTo("/grade");
+                }
+            }
+            else
+            {
+                var entity = _mapper.Map<Grade>(Model);
+                entity.CreatedOn = DateTime.UtcNow;
+                await _genericService.Add(entity);
+                await _context.SaveChangesAsync();
+                Snackbar.Add("Class/ Grade created successfully.", Severity.Success);
+                Navigation.NavigateTo("/grade");
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine(ex.ToString());
+            Snackbar.Add("An error occurred while saving the Class/ Grade.", Severity.Error);
+            return;
+        }
+        finally
+        {
+            _isWorking = false;
+        }
+    }
+
+    private async Task<IEnumerable<FacilityView>> SearchFacilities(string value)
+    {
+        if (string.IsNullOrEmpty(value))
+        {
+            return Enumerable.Empty<FacilityView>();
+        }
+
+        return await _context.FacilityView
+            .Where(f => f.FacilityName.Contains(value) || f.Code.Contains(value))
+            .Take(20)
+            .ToListAsync();
+    }
+
+    private void BackToList() => Navigation.NavigateTo("/grade");
+}

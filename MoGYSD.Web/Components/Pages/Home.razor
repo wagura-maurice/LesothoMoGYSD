@@ -1,0 +1,37 @@
+﻿@page "/"
+@using MoGYSD.Business.Persistence
+
+@inject IUserService UserService
+
+<PageTitle>Home</PageTitle>
+
+@if(UserService.SystemBeingUsed == "MISSA")
+{
+    <h1>MISSA Dashboard</h1>
+
+    <p>Welcome to your MISSA Dashboard.</p>
+    
+}
+else
+{
+    <h1>NISSA Dashboard</h1>
+
+    <p>NISSA dashboard report</p>
+}
+
+@code {
+    protected override void OnInitialized()
+    {
+        UserService.OnSystemChanged += HandleSystemChange;
+    }
+
+    private void HandleSystemChange()
+    {
+        InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose()
+    {
+        UserService.OnSystemChanged -= HandleSystemChange;
+    }
+}

@@ -1,0 +1,29 @@
+﻿@using MoGYSD.Business.Persistence
+@inject LoadingService LoadingService
+
+<MudProgressCircular Color="Color.Primary"
+                     Size="Size.Medium"
+                     Indeterminate="true"
+                     Class="position-fixed top-50 start-50 translate-middle"
+                     Style="z-index: 9999;"
+                     Visible="@IsLoading" />
+
+@code {
+    private bool IsLoading;
+
+    protected override void OnInitialized()
+    {
+        LoadingService.OnLoadingChanged += OnLoadingChanged;
+    }
+
+    private void OnLoadingChanged(bool isLoading)
+    {
+        IsLoading = isLoading;
+        StateHasChanged();
+    }
+
+    public void Dispose()
+    {
+        LoadingService.OnLoadingChanged -= OnLoadingChanged;
+    }
+}

@@ -1,0 +1,52 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>disable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Remove="Persistence\Data\20250627005904_householdmember.cs" />
+    <Compile Remove="Persistence\Data\20250627005904_householdmember.Designer.cs" />
+    <Compile Remove="Persistence\Data\20250627014905_householdrefactor.cs" />
+    <Compile Remove="Persistence\Data\20250627014905_householdrefactor.Designer.cs" />
+    <Compile Remove="Persistence\Data\20250629200349_rolesupdates.cs" />
+    <Compile Remove="Persistence\Data\20250629200349_rolesupdates.Designer.cs" />
+    <Compile Remove="Persistence\Data\20250701061216_documents.cs" />
+    <Compile Remove="Persistence\Data\20250701061216_documents.Designer.cs" />
+    <Compile Remove="Persistence\Data\20250701152254_userssource.cs" />
+    <Compile Remove="Persistence\Data\20250701152254_userssource.Designer.cs" />
+    <Compile Remove="Persistence\Data\20250701200334_census.cs" />
+    <Compile Remove="Persistence\Data\20250701200334_census.Designer.cs" />
+    <Compile Remove="Persistence\Data\20250702044808_CCRegistrationActivityrefactor.cs" />
+    <Compile Remove="Persistence\Data\20250702044808_CCRegistrationActivityrefactor.Designer.cs" />
+    <Compile Remove="Persistence\Data\20250703062309_HHplanArea.cs" />
+    <Compile Remove="Persistence\Data\20250703062309_HHplanArea.Designer.cs" />
+    <Compile Remove="Persistence\Data\20250703074659_UpdatedData.cs" />
+    <Compile Remove="Persistence\Data\20250703074659_UpdatedData.Designer.cs" />
+    <Compile Remove="Persistence\Data\20250703203838_CbcActivitiesView.cs" />
+    <Compile Remove="Persistence\Data\20250703203838_CbcActivitiesView.Designer.cs" />
+    <Compile Remove="Persistence\Data\20250704080759_removingactivities.cs" />
+    <Compile Remove="Persistence\Data\20250704080759_removingactivities.Designer.cs" />
+    <Compile Remove="Persistence\Data\20250704082651_keyoncensus.cs" />
+    <Compile Remove="Persistence\Data\20250704082651_keyoncensus.Designer.cs" />
+    <Compile Remove="Persistence\Data\20250705123253_roleaccesslevel.cs" />
+    <Compile Remove="Persistence\Data\20250705123253_roleaccesslevel.Designer.cs" />
+    <Compile Remove="Persistence\Data\20250706194052_mergeddata.cs" />
+    <Compile Remove="Persistence\Data\20250706194052_mergeddata.Designer.cs" />
+    <Compile Remove="Persistence\Data\ApplicationDbContextModelSnapshot.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.DataProtection.EntityFrameworkCore" Version="9.0.5" />
+    <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="9.0.5" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="9.0.5" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="9.0.5">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="Microsoft.Extensions.Identity.Core" Version="9.0.5" />
+  </ItemGroup>
+
+</Project>

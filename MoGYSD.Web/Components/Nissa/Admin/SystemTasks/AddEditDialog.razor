@@ -1,0 +1,82 @@
+﻿@using MoGYSD.Business.Models.Nissa.Admin
+@using MoGYSD.Business.Persistence
+<MudDialog Class="blur dialog-background" TitleClass="blur dialog-background-title" ContentClass="dialog-background-surface py-10" ActionsClass="dialog-background-surface">
+    <DialogContent>
+        <MudForm @ref="form">
+            <div class="form-group col-md-12">
+               <MudSelectExtended  Variant="Variant.Outlined" T="SystemTask" Label="Parent"
+                                   ItemCollection="items"
+                                   ToStringFunc="c => c?.Name"
+                                   SearchBox="true"
+                                   AnchorOrigin="Origin.BottomCenter"
+                                   SearchBoxAutoFocus="false"
+                                   @bind-Value="@SelectedParent"
+                                   SearchBoxClearable="true" />
+            </div>
+            <div class="col-md-12 form-group">
+                <MudTextField Variant="Variant.Outlined" @bind-Value="Model.Name" Label="Task Name" />
+            </div>
+            <div class="col-md-12 form-group">
+                <MudTextField Variant="Variant.Outlined" @bind-Value="Model.OrderNo" Label="Order No." />
+            </div>
+            <div class="form-group col-md-12">
+                <MudSwitch @bind-Value="Model.IsParent" Color="Color.Primary" Label="Is a Parent Task?" Class="mr-n2 mb-6" />
+            </div>
+        </MudForm>
+        @if (isBusy)
+        {
+            <MudProgressLinear Color="Color.Primary" Indeterminate="true" Class="my-0 mb-n4" />
+        }
+    </DialogContent>
+    <DialogActions>
+        @if (!isBusy)
+        {
+            <MudButton OnClick="Cancel">Cancel</MudButton>
+            <MudButton OnClick="SubmitForm" Color="Color.Primary">Submit</MudButton>
+        }
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter]
+    private IMudDialogInstance Dialog { get; set; }
+
+    [Parameter] public SystemTask Model { get; set; }
+    private List<SystemTask> items = new List<SystemTask>();
+    protected override async Task OnInitializedAsync()
+    {
+
+        items = await _context.SystemTasks.Where(i => i.IsParent == true).ToListAsync();
+        items.Insert(0, new SystemTask { Name = "Select", Id = null });
+
+        if (Model.Id > 0)
+        {
+            var task = _context.SystemTasks.Single(i => i.Id == Model.Id);
+            Model.ParentId = task.ParentId;
+            Model.Name = task.Name;
+            Model.OrderNo = task.OrderNo;
+            Model.IsParent = task.IsParent;
+        }
+        if (Model.ParentId != null)
+            SelectedParent = items.Single(i => i.Id == Model.ParentId);
+    }
+
+    private MudForm form;
+    private SystemTask? SelectedParent;
+    private void Cancel() => Dialog.Cancel();
+    bool isBusy;
+    private async Task SubmitForm()
+    {
+        await form.Validate();
+        if (form.IsValid)
+        {
+
+            isBusy = true;
+            if (SelectedParent != null)
+                Model.ParentId = SelectedParent.Id;
+            StateHasChanged();
+            Dialog.Close(Model);
+        }
+    }
+
+}

@@ -1,0 +1,207 @@
+﻿@page "/master/registration"
+@using MoGYSD.Business.Persistence
+@using MoGYSD.Business.Views.Nissa.MasterRegistrations
+
+
+<PageTitle>Master Registration Planning</PageTitle>
+
+<MudGrid Class="mb-3" AlignItems="Center" Justify="Justify.SpaceBetween">
+    <MudItem xs="12" md="6">
+        <MudText Typo="Typo.h2" Class="font-weight-bold"><b>Master Registration Plans</b></MudText>
+        <MudText>
+            Used to create and manage national master registration plan to coordinate all data collection activities for NISSA during each registration cycle.
+        </MudText>
+    </MudItem>
+    <MudItem xs="12" md="6" Class="d-flex justify-end">
+        <MudBreadcrumbs Items="_breadcrumbItems" Class="custom-breadcrumb" />
+    </MudItem>
+</MudGrid>
+
+<MudExpansionPanels>
+    <SearchPanel Filter="@filterModel"
+    OnFilterApplied="@ReloadTable" />
+</MudExpansionPanels>
+
+<MudPaper Class="p-4">
+    @if (UserProfileService.UserProfile.Contains("MASTER REGISTRATION PLANS:CREATE"))
+    {
+        <MudButton StartIcon="@Icons.Material.Filled.Add" Class="pull-right top-add-button mb-2" Variant="Variant.Filled"
+                   OnClick="AddNew" DropShadow="true" Color="Color.Primary">Add New</MudButton>
+    }
+
+    <MudDataGrid @ref="table" ServerData="@(LoadServerData)" T="MasterRegistrationView"  Bordered="true" Striped="true" Elevation="1" RowsPerPage="20">
+        <NoRecordsContent>
+            <MudText Typo="Typo.subtitle1" Class="my-4 text-muted text-center">
+                No Master Registration Plan found. Try adjusting your filters.
+            </MudText>
+        </NoRecordsContent>
+        <ToolBarContent>
+            <MudText><b>Total Master Registration Plan(s): @totalItems</b></MudText>
+        </ToolBarContent>
+        <Columns>
+            <PropertyColumn Property="x => x.MasterPlanName" Title="Master Registration Plan Name"/>
+            <PropertyColumn Property="x => x.DataCollectionTypeName" Title="Data Collection Approach"/>
+            <PropertyColumn Property="x => x.FinancialYear" Title="Financial Year"/>
+            <PropertyColumn Property="x => x.ApprovedBudgetAmount" Title="Budget (LSL)" Format="N2" CellStyle="text-align: right;" />
+            <PropertyColumn Property="x => x.EstimatedHHs" Title="Estimated HHs To Be Targeted" Format="N0" CellStyle="text-align: right;" />
+            <PropertyColumn Property="x => x.PlanTypeName" Title="Plan Type"/>
+            <PropertyColumn Property="x => x.PMTFormulaName" Title="PMT Formula"/>
+            <TemplateColumn Title="Status">
+                <CellTemplate>
+                    <MudText Style="@($"{GetStatusStyle(context.Item.StatusName)} display:block; padding:4px; border-radius:6px; width:100%; text-align: center;")">
+                        @context.Item.StatusName
+                    </MudText>
+                </CellTemplate>
+            </TemplateColumn>
+            <TemplateColumn Title="Actions">
+                <CellTemplate>
+                    <MudMenu Icon="@Icons.Material.Filled.MoreVert" Color="Color.Primary" Dense="true">
+                        @if (UserProfileService.UserProfile.Contains("MASTER REGISTRATION PLANS:VIEW"))
+                        {
+                            <MudMenuItem OnClick="@(() => ViewDetails(context.Item.Id))">
+                                <MudIcon Icon="@Icons.Material.Filled.Info" Class="me-2 text-primary"/> Details
+                            </MudMenuItem>                            
+                        }
+                        @if (context.Item.StatusName == "Open")
+                        {
+                            @if (UserProfileService.UserProfile.Contains("MASTER REGISTRATION PLANS:MODIFY"))
+                            {
+                                <MudMenuItem OnClick="@(() => EditPlan(context.Item.Id))">
+                                    <MudIcon Icon="@Icons.Material.Filled.Edit" Class="me-2"/> Edit
+                                </MudMenuItem>                                
+                            }
+
+                            <MudMenuItem OnClick="@(() => ViewDetails(context.Item.Id))">
+                                <MudIcon Icon="@Icons.Material.Filled.Send" Class="me-2 text-primary" /> Submit To Review
+                            </MudMenuItem>
+                        }
+                        @if (context.Item.StatusName == "Under Review")
+                        {
+                            @if (UserProfileService.UserProfile.Contains("MASTER REGISTRATION PLANS:APPROVE"))
+                            {
+                                <MudMenuItem OnClick="@(() => ViewDetails(context.Item.Id))">
+                                    <MudIcon Icon="@Icons.Material.Filled.Approval" Class="me-2 text-primary"/> Approve
+                                </MudMenuItem>                                
+                            }
+                        }
+                    </MudMenu>
+                </CellTemplate>
+            </TemplateColumn>
+        </Columns>
+        <PagerContent>
+            <MudDataGridPager T="MasterRegistrationView"/>
+        </PagerContent>
+    </MudDataGrid>
+</MudPaper>
+
+@code {
+    private List<MasterRegistrationView> masterRegistrations = new();
+    private MudDataGrid<MasterRegistrationView> table = default!;
+    private MasterRegistrationSearchFilter filterModel = new();
+    private bool isLoading = false;
+    private List<BreadcrumbItem> _breadcrumbItems =
+    [
+        new("Home", href: "/", icon: Icons.Material.Filled.Home),
+        new("Registration Planning", href: null, icon: Icons.Material.Filled.NextPlan),
+        new("Master Registration Plans", href: null, disabled: true, icon: Icons.Material.Filled.ManageAccounts)
+    ];
+    private int totalItems;
+
+    private async Task<GridData<MasterRegistrationView>> LoadServerData(GridState<MasterRegistrationView> state)
+    {
+
+        try
+        {
+            var query = _context.MasterRegistrationView.AsQueryable();
+
+            if (!string.IsNullOrWhiteSpace(filterModel.Name))
+                query = query.Where(x => x.MasterPlanName.Contains(filterModel.Name) || x.DataCollectionTypeName.Contains(filterModel.Name)
+                || x.PlanTypeName.Contains(filterModel.Name));
+
+            if (filterModel.StatusId > 0)
+                query = query.Where(x => x.StatusId == filterModel.StatusId);
+
+            if (filterModel.DataCollectionTypeId > 0)
+                query = query.Where(x => x.DataCollectionTypeId == filterModel.DataCollectionTypeId);
+
+            if (filterModel.PlanTypeId > 0)
+                query = query.Where(x => x.PlanTypeId == filterModel.PlanTypeId);
+
+            if (filterModel.PMTFormulaId > 0)
+                query = query.Where(x => x.PMTFormulaId == filterModel.PMTFormulaId);
+
+            totalItems = await query.CountAsync();
+
+            var items = await query
+                .Skip(state.Page * state.PageSize)
+                .Take(state.PageSize)
+                .ToListAsync();
+
+            return new GridData<MasterRegistrationView>
+            {
+                Items = items.OrderByDescending(d => d.Id).ToList(),
+                TotalItems = totalItems
+            };
+        }
+        catch (Exception ex)
+        {
+            LoadingService.Hide();
+            Snackbar.Add($"An unexpected error occurred: {(ex.InnerException is null ? ex.Message : ex.InnerException.Message)}", Severity.Error, config => { config.RequireInteraction = true; });
+            return new GridData<MasterRegistrationView>();
+        }
+
+    }
+
+    private async Task ReloadTable()
+    {
+        if (table is not null && !isLoading)
+        {
+            try
+            {
+                isLoading = true;
+                await table.ReloadServerData();
+            }
+            finally
+            {
+                isLoading = false;
+            }
+        }
+    }
+
+    private string GetStatusStyle(string? status)
+    {
+        return status switch
+        {
+            "Open" => "background-color:#f5f5f5; color:#616161; border: 1px solid #e0e0e0;",
+            "Under Review" => "background-color:#fff8e1; color:#f9a825; border: 1px solid #ffecb3;",
+            "Approved" => "background-color:#e6f4ea; color:#2e7d32; border: 1px solid #c8e6c9;",
+            "In Progress" => "background-color:#e3f2fd; color:#1565c0; border: 1px solid #90caf9;",
+            "Closed" => "background-color:#fff3e0; color:#ef6c00; border: 1px solid #ffe0b2;",
+            "Rejected" => "background-color:#fdecea; color:#c62828; border: 1px solid #f5c6cb;",
+            _ => "background-color:#eeeeee; color:#424242; border: 1px solid #bdbdbd;"
+        };
+    }
+
+    private void ViewDetails(int id)
+    {
+        Navigation.NavigateTo($"/master/registration/details/{id}");
+    }
+
+    private void EditPlan(int id)
+    {
+        Navigation.NavigateTo($"/master/addmaster/{id}");
+    }
+
+    private async Task AddNew()
+    {
+        Navigation.NavigateTo("/master/addmaster");
+    }
+
+    override protected async Task OnInitializedAsync()
+    {
+        if (!UserProfileService.UserProfile.Contains("MASTER REGISTRATION PLANS:VIEW"))
+        {
+            Navigation.NavigateTo("/AccessDenied");
+        }
+    }
+}

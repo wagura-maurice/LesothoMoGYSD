@@ -1,0 +1,378 @@
+﻿@using MoGYSD.Business.Models.Nissa.Admin
+@using MoGYSD.Business.Models.Nissa.HouseHoldEnumerations
+@using MoGYSD.Business.Views.HouseHoldListings
+@using MoGYSD.Business.Views.Nissa.Admin
+@using MoGYSD.ViewModels.Nissa.HouseholdEnumerations
+
+<MudDialog>
+    <DialogContent>
+        <MudForm @ref="_form">
+            <MudText Typo="Typo.h4"><b>Data Collection Type Name : @_HHListingPlanView?.DataCollectionTypeName</b></MudText>
+
+            <MudGrid>
+                <MudItem xs="12" sm="6">
+                    <MudTextField T="string" Label="Name" For="@(() => Model.Name)" @bind-Value="Model.Name" Variant="Variant.Outlined" Required="true" />
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <CommunityCouncilAutocompleteExclude Variant="Variant.Outlined"
+                                                         Label="Community Council"
+                                                         For="@(() => CommunityCouncilId)"
+                                                         Value="CommunityCouncilId"
+                                                         ValueChanged="OnCommunityCouncilSelect"
+                                                         DistrictId="@DistrictId"
+                                                         ExcludedCommunityCouncilIds="@ExcludedCommunityCouncilIds"
+                                                         Disabled="EditCommunityCouncilId > 0"/>
+                </MudItem>
+            </MudGrid>
+
+            <MudDivider Class="my-2" />
+            @if(CommunityCouncilId.HasValue)
+            {
+                <MudText Typo="Typo.subtitle1">Select Villages</MudText>
+
+                <MudGrid>
+                    @foreach (var village in AvailableVillages)
+                    {
+                        <MudItem xs="12" sm="6" md="4">
+                            <MudCheckBox T="bool"
+                                         Label="@village.Name"
+                                         Value="@Model.EnumerationAreaVillageIds.Contains(village.Id)"
+                                         ValueChanged="@(checkedValue => OnVillageToggled(village.Id, checkedValue))" />
+                        </MudItem>
+                    }
+                </MudGrid>
+
+                <MudText Typo="Typo.body2" Class="mt-2">
+                    Selected Villages: <strong>@Model.EnumerationAreaVillageIds.Count</strong>
+                </MudText>                
+            }
+        </MudForm>
+    </DialogContent>
+
+    <DialogActions>
+        @if(isBusy == false)
+        {
+            <MudButton OnClick="Cancel"
+                       Variant="Variant.Text"
+                       Size="Size.Small"
+                       Class="ml-0">Cancel</MudButton>
+            <MudButton OnClick="SubmitForm" Color="Color.Primary" Variant="Variant.Filled"
+                       Size="Size.Small">Save</MudButton>
+        }
+        else
+        {
+            <div class="w-100 d-flex justify-content-center align-items-center" style="min-height: 40px;">
+                <MudProgressCircular Color="Color.Primary" Size="Size.Small" Indeterminate="true" />
+            </div>
+        }
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance Dialog { get; set; }
+    [Parameter] public EnumerationAreaViewModel Model { get; set; }
+    // Used to fetch the enumeration plan which has HHListingPlanId used to fetch HHListingPlan which have the CC registraction Activity
+    [Parameter] public int HHEnumerationPlanId { get; set; }
+    [Parameter] public int HHListingPlanId { get; set; }
+    [Parameter] public int EditCommunityCouncilId { get; set; }
+    // DistrictId is used to filter Community Councils and know which district the user is working in
+    [Parameter] public int DistrictId { get; set; }
+    public List<VillageView> AvailableVillages { get; set; } = new();
+    private int? CommunityCouncilId;
+    private HHListingPlanView _HHListingPlanView;
+    private List<int> ExcludedCommunityCouncilIds { get; set; } = new();
+    private List<int> CCsRegisteredIds { get; set; } = new();
+    private bool isBusy;
+    private MudForm _form;
+    //HHEnumerationPlanCC
+
+    private void Cancel() => Dialog.Cancel();
+
+    private void OnVillageToggled(int villageId, bool isChecked)
+    {
+        if (isChecked)
+        {
+            if (!Model.EnumerationAreaVillageIds.Contains(villageId))
+                Model.EnumerationAreaVillageIds.Add(villageId);
+        }
+        else
+        {
+            Model.EnumerationAreaVillageIds.Remove(villageId);
+        }
+    }
+
+    private async Task SubmitForm()
+    {
+        await _form.Validate();
+
+        if (_form.IsValid)
+        {
+            isBusy = true;
+            try
+            {
+                if(Model.Id > 0)
+                {
+                    // Update existing Enumeration Area
+                    var existingArea = await _context.EnumerationAreas
+                        .Include(e => e.EnumerationAreaVillages)
+                        .FirstOrDefaultAsync(e => e.Id == Model.Id);
+
+                    if (existingArea == null)
+                    {
+                        Snackbar.Add("Enumeration Area not found.", Severity.Error);
+                        return;
+                    }
+
+                    // Update area properties
+                    existingArea.Name = Model.Name;
+                    existingArea.ModifiedById = UserProfileService.UserId;
+                    existingArea.ModifiedOn = DateTime.Now;
+
+                    _context.EnumerationAreas.Update(existingArea);
+
+                    // --- Update EnumerationAreaVillages ---
+                    // Remove existing villages
+                    _context.EnumerationAreaVillages.RemoveRange(existingArea.EnumerationAreaVillages);
+
+                    // Add selected villages
+                    if (Model.EnumerationAreaVillageIds?.Any() == true)
+                    {
+                        var villagesToSave = Model.EnumerationAreaVillageIds.Select(villageId => new EnumerationAreaVillage
+                        {
+                            EnumerationAreaId = existingArea.Id,
+                            VillageId = villageId
+                        }).ToList();
+
+                        _context.EnumerationAreaVillages.AddRange(villagesToSave);
+                    }
+
+                    // --- Update HHEnumerationPlanCC records ---
+                    // Get existing related CC activity records
+                    var existingCCs = await _context.HHEnumerationPlanCCs
+                        .Where(p => p.HHEnumerationPlanId == HHEnumerationPlanId && p.CCId == CommunityCouncilId)
+                        .ToListAsync();
+
+                    // Remove them to avoid duplicates
+                    _context.HHEnumerationPlanCCs.RemoveRange(existingCCs);
+
+                    // Get new activities
+                    var activities = await _context.CCRegistrationActivityView
+                        .Where(a => CCsRegisteredIds.Contains(a.CCsRegisteredId) && a.CommunityCouncilId == CommunityCouncilId && a.IsRequired == true)
+                        .Select(a => a.Id)
+                        .ToListAsync();
+
+                    var itemsToSave = activities.Select(activityId => new HHEnumerationPlanCC
+                    {
+                        HHEnumerationPlanId = HHEnumerationPlanId,
+                        CCId = CommunityCouncilId ?? 0,
+                        CCRegistrationActivityId = activityId
+                    }).ToList();
+
+                    if (itemsToSave.Any())
+                    {
+                        await _context.HHEnumerationPlanCCs.AddRangeAsync(itemsToSave);
+                    }
+
+                    await _context.SaveChangesAsync();
+                    Snackbar.Add("Data Collection Area updated successfully.", Severity.Success);
+                }
+                else
+                {
+                    // Create and save the Enumeration Area
+                    var saveEnumerationArea = new EnumerationArea
+                    {
+                        Name = Model.Name,
+                        HHEnumerationPlanId = HHEnumerationPlanId,
+                        CreatedById = UserProfileService.UserId,
+                        CreatedOn = DateTime.Now,
+                    };
+
+                    _context.EnumerationAreas.Add(saveEnumerationArea);
+                    await _context.SaveChangesAsync(); // To get the generated ID
+
+                    // Save related villages (if any)
+                    if (Model.EnumerationAreaVillageIds?.Any() == true)
+                    {
+                        var villagesToSave = Model.EnumerationAreaVillageIds.Select(villageId => new EnumerationAreaVillage
+                        {
+                            EnumerationAreaId = saveEnumerationArea.Id,
+                            VillageId = villageId
+                        }).ToList();
+
+                        _context.EnumerationAreaVillages.AddRange(villagesToSave);
+                        await _context.SaveChangesAsync();
+                    }
+
+
+                    // Get activities related to the selected CC
+                    var activities = await _context.CCRegistrationActivityView
+                        .Where(a => CCsRegisteredIds.Contains(a.CCsRegisteredId) && a.CommunityCouncilId == CommunityCouncilId)
+                        .Select(a => a.Id)
+                        .ToListAsync();
+
+                    // Map to HHEnumerationPlanCC entities
+                    var itemsToSave = activities.Select(activityId => new HHEnumerationPlanCC
+                    {
+                        // Only include Id if you’re updating, otherwise omit or set to 0
+                        HHEnumerationPlanId = HHEnumerationPlanId,
+                        CCId = CommunityCouncilId ?? 0,
+                        CCRegistrationActivityId = activityId
+                    }).ToList();
+
+                    // Save all if any found
+                    if (itemsToSave.Any())
+                    {
+                        _genericService.AddRange(itemsToSave);
+                    }
+
+                    Snackbar.Add("Data Collection Area saved successfully.", Severity.Success);
+
+                }
+                Dialog.Close(DialogResult.Ok(true));
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add($"Error saving data: {ex.Message}", Severity.Error);
+                return;
+            }
+            finally
+            {
+                isBusy = false;
+            }
+
+        }
+        else
+        {
+            Snackbar.Add("Please fill in all required fields.", Severity.Error);
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Fetch HH Listing Plan
+        _HHListingPlanView = await _context.HHListingPlanView
+            .Where(h => h.Id == HHListingPlanId)
+            .FirstOrDefaultAsync();
+
+        if(EditCommunityCouncilId > 0)
+        {
+            var entity = await _context.EnumerationAreaView
+                .Where(cc => cc.HHEnumerationPlanId == HHEnumerationPlanId && cc.CommunityCouncilId == EditCommunityCouncilId)
+                .ToListAsync();
+
+            Model.Id = entity?.FirstOrDefault()?.Id ?? 0;
+            Model.Name = entity?.FirstOrDefault()?.HHEnumerationPlanName;
+            CommunityCouncilId = EditCommunityCouncilId;
+            Model.EnumerationAreaVillageIds = entity?.Select(v => v.VillageId).Distinct().ToList() ?? new List<int>();
+
+            AvailableVillages = await _context.Villages
+                .Where(v => v.CommunityCouncilId == EditCommunityCouncilId)
+                .Select(v => new VillageView { Id = v.Id, Name = v.Name })
+                .ToListAsync();
+        }
+
+        // Fetch excluded Community Councils based on the HHEnumerationPlanId
+        ExcludedCommunityCouncilIds = await GetAvailableCommunityCouncils(HHEnumerationPlanId, _HHListingPlanView?.DistrictRegistrationPlanId ?? 0);
+    }
+
+    public async Task<List<int>> GetAvailableCommunityCouncils(int hhEnumerationPlanId, int districtRegistrationPlanId)
+    {
+        if(Model.Id > 0)
+        {
+            // Get all community council IDs
+            var allCommunityCouncilIds = await _context.CommunityCouncils
+                .Select(cc => cc.Id)
+                .ToListAsync();
+
+            // Get community councils already registered in the district plan
+            var cCsRegistered = await _context.CCsRegisteredView
+                .Where(cc => cc.DistrictRegistrationPlanId == districtRegistrationPlanId)
+                .Select(cc => new
+                {
+                    CommunityCouncilId = cc.CommunityCouncilId,
+                    Id = cc.Id
+                })
+                .ToListAsync();
+
+            var communitycouncilInRegistered = cCsRegistered.Select(cc => cc.CommunityCouncilId).Distinct().ToList();
+            CCsRegisteredIds = cCsRegistered.Select(cc => cc.Id).Distinct().ToList();
+            // Get community councils already selected for this enumeration plan
+            var ccSelected = await _context.HHEnumerationPlanCCs
+                .Where(h => h.HHEnumerationPlanId == hhEnumerationPlanId)
+                .Select(h => h.CCId)
+                .ToListAsync();
+
+
+            // Get available community councils (not in either exclusion list)
+            var availableCouncils = allCommunityCouncilIds
+                .Where(cc => !communitycouncilInRegistered.Contains(cc))
+                .ToList();
+
+            // Combine the exclusion lists
+            var excludedIds = availableCouncils
+                .Concat(ccSelected)
+                .Distinct()
+                .ToList();
+
+            return excludedIds;
+        }
+        else
+        {            
+            // Get all community council IDs
+            var allCommunityCouncilIds = await _context.CommunityCouncils
+                .Select(cc => cc.Id)
+                .ToListAsync();
+
+            // Get community councils already registered in the district plan
+            var cCsRegistered = await _context.CCsRegisteredView
+                .Where(cc => cc.DistrictRegistrationPlanId == districtRegistrationPlanId)
+                .Select(cc => new
+                {
+                    CommunityCouncilId = cc.CommunityCouncilId,
+                    Id = cc.Id
+                })
+                .ToListAsync();
+
+            var communitycouncilInRegistered = cCsRegistered.Select(cc => cc.CommunityCouncilId).Distinct().ToList();
+            CCsRegisteredIds = cCsRegistered.Select(cc => cc.Id).Distinct().ToList();
+            // Get community councils already selected for this enumeration plan
+            var ccSelected = await _context.HHEnumerationPlanCCs
+                .Where(h => h.HHEnumerationPlanId == hhEnumerationPlanId)
+                .Select(h => h.CCId)
+                .ToListAsync();
+
+
+            // Get available community councils (not in either exclusion list)
+            var availableCouncils = allCommunityCouncilIds
+                .Where(cc => !communitycouncilInRegistered.Contains(cc))
+                .ToList();
+
+            // Combine the exclusion lists
+            var excludedIds = availableCouncils
+                .Concat(ccSelected)
+                .Distinct()
+                .ToList();
+
+            return excludedIds;
+        }
+    }
+
+    private async Task OnCommunityCouncilSelect(int? ccId)
+    {
+        CommunityCouncilId = ccId;
+
+        if(ccId.HasValue)
+        {            
+            AvailableVillages = await _context.Villages
+                .Where(v => v.CommunityCouncilId == ccId.Value)
+                .Select(v => new VillageView { Id = v.Id, Name = v.Name })
+                .ToListAsync();
+        }
+        else
+        {
+            // If no Community Council is selected, clear the available villages
+            AvailableVillages.Clear();
+        }
+    }
+
+}

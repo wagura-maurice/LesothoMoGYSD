@@ -1,0 +1,229 @@
+﻿@page "/household-listing-review"
+
+@using MoGYSD.Business.Views.HouseHoldListings
+@using MoGYSD.Web.Components.HouseHoldListings
+
+<PageTitle>Households Listings Review</PageTitle>
+
+<MudGrid Class="mb-3" AlignItems="Center" Justify="Justify.SpaceBetween">
+    <MudItem xs="12" md="6">
+        <MudText Typo="Typo.h2" Class="font-weight-bold"><b>Household Listings Review</b></MudText>
+        <MudText>
+            This module is used to display household listings captured from the NISSA mobile application, and to facilitate the review and approval of these listings.
+        </MudText>
+    </MudItem>
+    <MudItem xs="12" md="6" Class="d-flex justify-end">
+        <MudBreadcrumbs Items="_breadcrumbItems" Class="custom-breadcrumb" />
+    </MudItem>
+</MudGrid>
+
+<MudExpansionPanels>
+    <SeachPanel Filter="@filterModel"
+        OnFilterApplied="@ReloadTable" />
+</MudExpansionPanels>
+
+<MudPaper Class="p-4">
+    <MudDataGrid @ref="table" ServerData="@(LoadServerData)" T="HHListingView"  Bordered="true" Striped="true" Elevation="1" RowsPerPage="20">
+        <ToolBarContent>
+            <MudText><b>Total Household Listing(s): @totalItems</b></MudText>
+        </ToolBarContent>
+        <NoRecordsContent>
+            <MudText Typo="Typo.subtitle1" Class="my-4 text-muted text-center">
+                No Household Listings found. Try adjusting your filters.
+            </MudText>
+        </NoRecordsContent>
+        <Columns>            
+            <PropertyColumn Property="x => x.HHListingActivityName" Title="HH Listing Plan Name" />
+            <PropertyColumn Property="x => x.DistrictName" Title="District Name" />            
+            <PropertyColumn Property="x => x.CommunityCouncilName" Title="Community Council Name" />
+            <PropertyColumn Property="x => x.VillageName" Title="Village Name" />
+            <PropertyColumn Property="x => x.HHHeadFullName" Title="HH Head FullName" />
+            <PropertyColumn Property="x => x.NationalId" Title="National Id Number" />
+            <PropertyColumn Property="x => x.HHSize" Title="HH Size" Format="N0" CellStyle="text-align: right;" />
+            <TemplateColumn Title="Status">
+                <CellTemplate>
+                    <MudText Style="@($"{GetStatusStyle(context.Item.StatusName)} display:block; padding:4px; border-radius:4px; width:100%;")">
+                        @context.Item.StatusName
+                    </MudText>
+                </CellTemplate>
+            </TemplateColumn>            
+            <TemplateColumn Title="Actions">
+                <CellTemplate>
+                    <MudMenu Icon="@Icons.Material.Filled.MoreVert" Color="Color.Primary" Dense="true">
+                        @if (UserProfileService.UserProfile.Contains("HOUSEHOLD LISTING REVIEWS:VIEW"))
+                        {
+                            <MudMenuItem OnClick="@(() => ViewDetails(context.Item, true))">
+                                <MudIcon Icon="@Icons.Material.Filled.RemoveRedEye" Class="me-2" /> Details
+                            </MudMenuItem>                            
+                        }
+                        @if (context.Item.StatusName.Trim().ToLower() == "under review")
+                        {
+                            @if (UserProfileService.UserProfile.Contains("HOUSEHOLD LISTING REVIEWS:APPROVE"))
+                            {
+                                <MudMenuItem OnClick="@(() => ViewDetails(context.Item, false))">
+                                    <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Class="me-2 text-success" /> Approve
+                                </MudMenuItem>
+                            }
+                        }
+                        else if (context.Item.StatusName.Trim().ToLower() == "open")
+                        {
+                          
+                            @* <MudMenuItem OnClick="@(() => ViewDetails(context.Item))">
+                                <MudIcon Icon="@Icons.Material.Filled.Rule" Class="me-2 text-success" /> Send to review
+                            </MudMenuItem> *@
+                        }
+                        else if (context.Item.StatusName.Trim().ToLower() == "approved")
+                        {
+                            @if (UserProfileService.UserProfile.Contains("HOUSEHOLD LISTING REVIEWS:APPROVE"))
+                            {
+                                <MudMenuItem OnClick="@(() => ViewDetails(context.Item, false))">
+                                    <MudIcon Icon="@Icons.Material.Filled.Close" Class="me-2 text-danger" /> Close
+                                </MudMenuItem>
+                            }
+                        }
+                    </MudMenu>
+                </CellTemplate>
+            </TemplateColumn>
+        </Columns>
+        <PagerContent>
+            <MudDataGridPager T="HHListingView" />
+        </PagerContent>
+    </MudDataGrid>
+</MudPaper>
+
+@code {
+    private MudDataGrid<HHListingView> table = default!;
+    private HouseholdSearchFilter filterModel = new();
+    private bool isLoading = false;
+    private int totalItems;
+
+    private List<BreadcrumbItem> _breadcrumbItems =
+    [
+        new("Home", href: "/", icon: Icons.Material.Filled.Home),
+        new("Household Listing", href: "/", icon: Icons.Material.Filled.ViewList),
+        new("Household Listings Review", href: null, disabled: true, icon: Icons.Material.Filled.List)
+    ];
+
+    private async Task<GridData<HHListingView>> LoadServerData(GridState<HHListingView> state)
+    {
+        try
+        {
+            LoadingService.Show();
+
+            var query = _context.HHListingView.Where(a => a.StatusName != "Open").AsNoTracking().AsQueryable();
+
+            #region Filter Conditions
+            // Apply filters with null checks
+            if (!string.IsNullOrEmpty(filterModel.Name))
+                query = query.Where(x => x.HHHeadFullName.Contains(filterModel.Name) ||
+                x.DistrictName.Contains(filterModel.Name) ||
+                x.HHListingActivityName.Contains(filterModel.Name) ||
+                x.CommunityCouncilName.Contains(filterModel.Name) ||
+                x.VillageName.Contains(filterModel.Name));
+
+            if (filterModel.StatusId.HasValue && filterModel.StatusId > 0)
+                query = query.Where(x => x.StatusId == filterModel.StatusId);
+
+            if (filterModel.DistrictId.HasValue && filterModel.DistrictId > 0)
+                query = query.Where(x => x.DistrictId == filterModel.DistrictId);
+
+            if (filterModel.CommunityCouncilId.HasValue && filterModel.CommunityCouncilId > 0)
+                query = query.Where(x => x.CommunityCouncilId == filterModel.CommunityCouncilId);
+
+            if (filterModel.VillageId.HasValue && filterModel.VillageId > 0)
+                query = query.Where(x => x.VillageId == filterModel.VillageId);
+
+            if (filterModel.HHListingPlanId.HasValue && filterModel.HHListingPlanId > 0)
+                query = query.Where(x => x.HHListingPlanId == filterModel.HHListingPlanId);
+
+            if (!string.IsNullOrWhiteSpace(filterModel.HHHeadName))
+                query = query.Where(x => x.HHHeadFullName.ToLower().Contains(filterModel.HHHeadName.Trim().ToLower()));
+
+
+            #endregion Filter Conditions
+           
+            totalItems = await query.CountAsync();
+
+            // Apply default sorting
+            query = query.OrderByDescending(x => x.Id);
+
+            var items = await query
+                .Skip(state.Page * state.PageSize)
+                .Take(state.PageSize)
+                .ToListAsync();
+
+            LoadingService.Hide();
+
+            return new GridData<HHListingView>
+            {
+                Items = items,
+                TotalItems = totalItems
+            };
+        }
+        catch (Exception ex)
+        {
+            LoadingService.Hide();
+            Snackbar.Add($"An unexpected error occurred: {(ex.InnerException is null ? ex.Message : ex.InnerException.Message)}", Severity.Error, config => { config.RequireInteraction = true; });
+            return new GridData<HHListingView>();
+        }
+    }
+
+    private string GetStatusStyle(string? status)
+    {
+        return status switch
+        {
+            "Open" => "background-color:#f5f5f5; color:#616161; border: 1px solid #e0e0e0;",
+            "Under Review" => "background-color:#fff8e1; color:#f9a825; border: 1px solid #ffecb3;",
+            "Approved" => "background-color:#e6f4ea; color:#2e7d32; border: 1px solid #c8e6c9;",
+            "InProgress" => "background-color:#e3f2fd; color:#1565c0; border: 1px solid #90caf9;",
+            "Closed" => "background-color:#fff3e0; color:#ef6c00; border: 1px solid #ffe0b2;",
+            "Rejected" => "background-color:#fdecea; color:#c62828; border: 1px solid #f5c6cb;",
+            _ => "background-color:#eeeeee; color:#424242; border: 1px solid #bdbdbd;"
+        };
+    }
+
+    private async Task ViewDetails(HHListingView model, bool isView)
+    {
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Medium, FullWidth = true };
+        var parameters = new DialogParameters
+        {
+            { "Model", model },
+            { "IsView", isView }
+        };
+        var dialogRef = await DialogService.ShowAsync<View>("Household Listing Review Details", parameters, options);
+
+        var state = await dialogRef.Result;
+
+        if (state is not null && !state.Canceled)
+        {
+            await ReloadTable();
+        }
+    }
+
+    private async Task ReloadTable()
+    {
+        if (table is not null && !isLoading)
+        {
+            try
+            {
+                LoadingService.Show();
+                isLoading = true;
+                await table.ReloadServerData();
+                LoadingService.Hide();
+            }
+            finally
+            {
+                isLoading = false;
+            }
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!UserProfileService.UserProfile.Contains("HOUSEHOLD LISTING REVIEWS:VIEW"))
+        {
+            Navigation.NavigateTo("/AccessDenied");
+        }
+    }
+}
+

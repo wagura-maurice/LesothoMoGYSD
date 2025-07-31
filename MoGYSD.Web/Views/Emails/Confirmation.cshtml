@@ -1,0 +1,32 @@
+﻿@model MoGYSD.ViewModels.Email.ConfirmationEmail
+@{
+    Layout = "_Layout";
+}
+
+
+<p>
+    Dear @Model.FirstName,
+</p>
+
+
+<p>
+    Thank you for registering with us. Please confirm your email address by clicking the button below:
+</p>
+
+<p style="text-align: center; margin: 20px 0;">
+    <a href="@Model.ConfirmationLink" style="background-color: #4CAF50; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">
+        Confirm Email
+    </a>
+</p>
+
+<p>
+    If the button above doesn’t work, you can also copy and paste the link below into your browser:
+</p>
+
+<p>
+    <a href="@Model.ConfirmationLink">@Model.ConfirmationLink</a>
+</p>
+
+<p>
+    If you didn’t create an account with us, you can safely ignore this email.
+</p>

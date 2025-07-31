@@ -1,0 +1,28 @@
+﻿@model MoGYSD.ViewModels.Email.ActionMasterRegistrationEmail
+
+@{
+    Layout = "_Layout";
+}
+
+<p>Dear @Model.FirstName,</p>
+
+@if (Model.Action.Equals("Approved", StringComparison.OrdinalIgnoreCase))
+{
+    <p>
+        The <strong>Master Registration Plan</strong> has been <strong>approved</strong>. You may now proceed with the implementation steps on the NISSA MIS platform.
+    </p>
+}
+else if (Model.Action.Equals("Closed", StringComparison.OrdinalIgnoreCase))
+{
+    <p>
+        The <strong>Master Registration Plan</strong> has been <strong>closed</strong>. No further actions are required unless otherwise notified.
+    </p>
+}
+else if (Model.Action.Equals("Rejected", StringComparison.OrdinalIgnoreCase))
+{
+    <p>
+        The <strong>Master Registration Plan</strong> has been <strong>rejected and sent back</strong> for revisions by your supervisor. Please review the feedback and make the necessary changes in NISSA MIS platform.        
+    </p>
+    <p>@Model.Message</p>
+}
+

@@ -1,0 +1,222 @@
+﻿@page "/enrolment/events"
+@using MoGYSD.Business.Views.Missa.Enrolments
+@using MoGYSD.Business.ViewModels.Missa.Enrolments
+@using MoGYSD.Web.Components.Autocompletes
+@using MudBlazor
+
+
+
+<MudGrid Class="mb-3" AlignItems="Center" Justify="Justify.SpaceBetween">
+    <MudItem xs="12" md="6">
+        <MudText Typo="Typo.h2" Class="font-weight-bold"><b>Enrolment Events</b></MudText>
+        <MudText>
+            The module is used to create and manage enrolment events for various programmes.
+        </MudText>
+    </MudItem>
+    <MudItem xs="12" md="6" Class="d-flex justify-end">
+        <MudBreadcrumbs Items="_breadcrumbItems" Class="custom-breadcrumb" />
+    </MudItem>
+</MudGrid>
+
+<MudExpansionPanels>
+    <SearchPanel Filter="@filterModel"
+                 OnFilterApplied="@ReloadTable" />
+</MudExpansionPanels>
+
+<MudPaper Class="p-4 mt-4">
+
+
+    @if (UserProfileService.UserProfile.Contains("ENROLMENT EVENT:CREATE"))
+    {
+        <MudButton StartIcon="@Icons.Material.Filled.Add"
+                   Class="pull-right top-add-button mb-2"
+                   Variant="Variant.Filled"
+                   Color="Color.Primary"
+                   DropShadow="true"
+                   OnClick="AddNewEnrolmentEvent">
+            Add New Enrolment Event
+        </MudButton>
+    }
+
+    <MudDataGrid T="EnrolmentEventView" @ref="table"
+                 ServerData="LoadEnrolmentEventData"
+                 Bordered="true" Striped="true" Hover="true" Dense="true" RowsPerPage="20">
+
+        <ToolBarContent>
+            <MudText><b>Total Enrolment Events: @totalItems</b></MudText>
+        </ToolBarContent>
+
+        <NoRecordsContent>
+            <MudText Typo="Typo.subtitle1" Class="my-4 text-muted text-center">
+                No Enrolment Event Found. Try adjusting your filters.
+            </MudText>
+        </NoRecordsContent>
+
+        <Columns>
+            <PropertyColumn Property="x => x.StartDate" Title="Start Date" Format="dd-MMM-yyyy" />
+            <PropertyColumn Property="x => x.EndDate" Title="End Date" Format="dd-MMM-yyyy" />
+            <PropertyColumn Property="x => x.EnrolmentEventName" Title="Event Name" />
+            <PropertyColumn Property="x => x.ProgrammeName" Title="Programme" />
+            <PropertyColumn Property="x => x.DistrictName" Title="District" />
+            <PropertyColumn Property="x => x.CommunityCouncilName" Title="Community Council" />
+            <PropertyColumn Property="x => x.Quota" Title="Quota" />
+            <TemplateColumn Title="Actions">
+                <CellTemplate>
+
+                    <MudMenu Icon="@Icons.Material.Filled.MoreVert" Color="Color.Primary" Dense="true">
+                        @if (UserProfileService.UserProfile.Contains("ENROLMENT EVENT:VIEW"))
+                        {
+                            <MudMenuItem OnClick="@(() => EditEnrolmentEvent(context.Item.EnrolmentEventId))">
+                                <MudIcon Icon="@Icons.Material.Filled.Edit" Class="me-2" /> Edit
+                            </MudMenuItem>
+                            <MudMenuItem OnClick="@(() => ViewEnrolmentEvent(context.Item.EnrolmentEventId))">
+                                <MudIcon Icon="@Icons.Material.Filled.Info" Class="me-2 text-primary" /> View
+                            </MudMenuItem>
+                        }
+                    </MudMenu>
+
+                </CellTemplate>
+            </TemplateColumn>
+        </Columns>
+
+        <PagerContent>
+            <MudDataGridPager T="EnrolmentEventView" PageSizes="@(new int[] { 5, 10, 20, 50 })" />
+        </PagerContent>
+
+    </MudDataGrid>
+</MudPaper>
+
+
+@code {
+    private MudDataGrid<EnrolmentEventView> table = default!;
+    private bool isLoading = false;
+    private string searchTerm = string.Empty;
+    private EnrolmentEventSearchCriteria filterModel = new();
+    private int totalItems;
+    private List<BreadcrumbItem> _breadcrumbItems = new()
+    {
+        new("Home", href: "/", icon: Icons.Material.Filled.Home),
+        new("Enrolment Events", href: null, disabled: true)
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+    }
+
+    private async Task<GridData<EnrolmentEventView>> LoadEnrolmentEventData(GridState<EnrolmentEventView> state)
+    {
+        isLoading = true;
+        try
+        {
+            if (_context == null)
+            {
+                Snackbar.Add("Database context is not available.", Severity.Error);
+                return new GridData<EnrolmentEventView> { Items = Enumerable.Empty<EnrolmentEventView>(), TotalItems = 0 };
+            }
+
+            var query = _context.EnrolmentEventView.AsNoTracking();
+
+            if (!string.IsNullOrWhiteSpace(filterModel.EnrolmentEventName))
+            {
+                query = query.Where(x => x.EnrolmentEventName.Contains(filterModel.EnrolmentEventName)
+                                       || (x.ProgrammeName != null && x.ProgrammeName.Contains(filterModel.EnrolmentEventName)));
+            }
+            if (filterModel.ProgrammeId.HasValue)
+            {
+                query = query.Where(x => x.ProgrammeId == filterModel.ProgrammeId);
+            }
+            if (filterModel.DistrictId.HasValue)
+            {
+                query = query.Where(x => x.DistrictId == filterModel.DistrictId);
+            }
+            if (filterModel.CommunityCouncilId.HasValue)
+            {
+                query = query.Where(x => x.CommunityCouncilId == filterModel.CommunityCouncilId);
+            }
+            if (filterModel.VillageId.HasValue)
+            {
+                query = query.Where(x => x.VillageId == filterModel.VillageId);
+            }
+            if (filterModel.StartDate.HasValue)
+            {
+                query = query.Where(x => x.StartDate.HasValue && x.StartDate.Value.Date >= filterModel.StartDate.Value.Date);
+            }
+            if (filterModel.EndDate.HasValue)
+            {
+                query = query.Where(x => x.EndDate.HasValue && x.EndDate.Value.Date <= filterModel.EndDate.Value.Date);
+            }
+
+            if (!string.IsNullOrWhiteSpace(searchTerm))
+            {
+                var term = searchTerm.Trim().ToLower();
+                query = query.Where(x =>
+                    (x.EnrolmentEventName != null && x.EnrolmentEventName.ToLower().Contains(term)) ||
+                    (x.ProgrammeName != null && x.ProgrammeName.ToLower().Contains(term)) ||
+                    (x.DistrictName != null && x.DistrictName.ToLower().Contains(term)) ||
+                    (x.CommunityCouncilName != null && x.CommunityCouncilName.ToLower().Contains(term)) ||
+                    (x.VillageName != null && x.VillageName.ToLower().Contains(term)));
+            }
+
+            bool sortApplied = false;
+            if (state.SortDefinitions.Any())
+            {
+                var sortDef = state.SortDefinitions.First();
+                if (!string.IsNullOrWhiteSpace(sortDef.SortBy))
+                {
+                    query = sortDef.Descending
+                        ? query.OrderByDescending(x => EF.Property<object>(x, sortDef.SortBy))
+                        : query.OrderBy(x => EF.Property<object>(x, sortDef.SortBy));
+                    sortApplied = true;
+                }
+            }
+
+            if (!sortApplied)
+            {
+                query = query.OrderByDescending(x => x.EnrolmentEventId);
+            }
+
+            totalItems = await query.CountAsync();
+            var items = await query
+                .Skip(state.Page * state.PageSize)
+                .Take(state.PageSize)
+                .ToListAsync();
+
+            return new GridData<EnrolmentEventView>
+            {
+                Items = items,
+                TotalItems = totalItems
+            };
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading enrolment events: {ex.ToString()}");
+            Snackbar.Add($"Error loading enrolment events: {ex.Message}", Severity.Error);
+            return new GridData<EnrolmentEventView> { Items = Enumerable.Empty<EnrolmentEventView>(), TotalItems = 0 };
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task ReloadTable()
+    {
+        if (table is not null)
+            await table.ReloadServerData();
+    }
+
+    private async Task OnSearchKeyUp(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            await ReloadTable();
+        }
+    }
+
+    private void ViewEnrolmentEvent(int enrolmentEventId) => Navigation.NavigateTo($"/enrolment/events/view/{enrolmentEventId}");
+
+    private void EditEnrolmentEvent(int enrolmentEventId) => Navigation.NavigateTo($"/enrolment/events/edit/{enrolmentEventId}");
+
+    private void AddNewEnrolmentEvent() => Navigation.NavigateTo("/enrolment/events/add");
+
+}

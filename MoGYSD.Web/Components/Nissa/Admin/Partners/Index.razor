@@ -1,0 +1,439 @@
+﻿@page "/admin/partners"
+
+@using MoGYSD.Business.Models.Nissa.Admin
+@using MoGYSD.Business.Persistence
+@using MoGYSD.Business.Views.Nissa.Admin
+@using MoGYSD.ViewModels.Nissa.Administration
+@using MoGYSD.Web.Components.Autocompletes
+
+<PageTitle>Partners</PageTitle>
+
+<MudGrid Class="mb-3" AlignItems="Center" Justify="Justify.SpaceBetween">
+    <MudItem xs="12" md="6">
+        <MudText Typo="Typo.h2" Class="font-weight-bold"><b>Partners</b></MudText>
+        <MudText>            
+            Enables the creation, updating, and referencing of NISSA's partners.          
+        </MudText>
+    </MudItem>
+    <MudItem xs="12" md="6" Class="d-flex justify-end">
+        <MudBreadcrumbs Items="_breadcrumbItems" Class="custom-breadcrumb"/>
+    </MudItem>
+</MudGrid>
+
+<MudExpansionPanels Elevation="1" Class="mt-2 mb-2">
+    <MudExpansionPanel Text="Expand to apply search filter">
+        <MudGrid>
+            <MudItem xs="12" sm="6">
+                <LocalDistrictAutocomplete Label="Search by District Name" ResetValueOnEmptyText="true" Variant="Variant.Outlined"
+                                    @bind-Value="_quickFilterDistrict" />
+
+            </MudItem>
+            @if (_quickFilterDistrict == -1)
+            {
+                <MudItem xs="12" sm="6">
+                <MudTextField Variant="Variant.Outlined" Label="search by Other Location"
+                                @bind-Value="_quickFilterDistrictOthers" />
+
+
+                </MudItem>
+            }
+            <MudItem xs="12" sm="6">
+                <PartnersAutocomplete Label="Search by Partner Name" ResetValueOnEmptyText="true" Variant="Variant.Outlined"
+                                @bind-Value="_quickFilter" Class="mb-3" />
+
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <SystemCodeAutocomplete Variant="Variant.Outlined" Label="Search by Partner Type" @bind-Value="_quickFilterOrg"
+                                        ParentCode="OrganisationType" ResetValueOnEmptyText="true"
+                                        Class="mb-3" />
+
+            </MudItem>
+        </MudGrid>
+
+
+        <div class="d-flex justify-content-between mt-2">
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="OnClearClicked" Size="Size.Small">
+                Clear
+            </MudButton>
+
+            <MudButton Variant="Variant.Filled" Color="Color.Secondary" OnClick="OnSearchClicked" Size="Size.Small">
+                Search
+            </MudButton>
+
+        </div>
+    </MudExpansionPanel>
+</MudExpansionPanels>
+
+<MudPaper Class="pa-4">
+    @if (UserProfileService.UserProfile.Contains("PARTNERS:CREATE"))
+    {
+        <MudButton StartIcon="@Icons.Material.Filled.Add" Class="pull-right top-add-button mb-2 mt-2" Variant="Variant.Filled"
+                   OnClick="AddNew" DropShadow="true" Color="Color.Primary">Add Partner</MudButton>        
+    }
+
+    <MudDataGrid T="PartnerView" Items="data" Bordered="true" Dense="true" RowsPerPage="20">
+        <NoRecordsContent>
+            <MudText Typo="Typo.subtitle1" Class="my-4 text-muted text-center">
+                No Partner found. Try adjusting your filters.
+            </MudText>
+        </NoRecordsContent>
+        <ToolBarContent>
+            <MudText><b>Total Partner(s): @data.Count</b></MudText>
+        </ToolBarContent>
+        <Columns>
+            <PropertyColumn Property="x => x.DistrictName" Title="District Name" />
+            <PropertyColumn Property="x => x.OrgTypeName" Title="Partner Type" />
+            <PropertyColumn Property="x => x.PartnerName" Title="Partner Name" />
+           @*  <PropertyColumn Property="x => x.TelephoneNumber" Title="Telephone Number" /> *@
+            <PropertyColumn Property="x => x.EmailAddress" Title="Email Address" />
+            <TemplateColumn Title="Status" HeaderClass="fit">
+                <CellTemplate>
+                    <MudText Style=@($"{GetStatusStyle(context.Item.StatusName)} display:block; padding:4px; border-radius:6px; width:100%; text-align: center;")>
+                        @context.Item.StatusName
+                    </MudText>
+                </CellTemplate>
+            </TemplateColumn>
+            <TemplateColumn Title="Active">
+                <CellTemplate>
+                    <MudText Style="@($"{GetStatusStyle(context.Item.IsActive)} display:block; padding:4px; border-radius:6px; width:100%; text-align: center;")">
+                        @(context.Item.IsActive ? "Yes" : "No")
+                    </MudText>
+                </CellTemplate>
+            </TemplateColumn>
+            <TemplateColumn Title="Actions">
+                <CellTemplate>
+                    <MudMenu Icon="@Icons.Material.Filled.MoreVert" Color="Color.Primary" Dense="true">
+                        @if (UserProfileService.UserProfile.Contains("PARTNERS:CREATE"))
+                        {
+                            
+                        }
+                        <MudMenuItem OnClick="@(() => AddContactPerson(context.Item.Id))">
+                            <MudIcon Icon="@Icons.Material.Filled.Add" Class="me-2" /> Add Contact Person
+                        </MudMenuItem>
+                        @if (UserProfileService.UserProfile.Contains("PARTNERS:MODIFY"))
+                        {
+                            <MudMenuItem OnClick="@(() => Edit(context.Item))">
+                                <MudIcon Icon="@Icons.Material.Filled.Edit" Class="me-2" /> Edit
+                            </MudMenuItem>                            
+                        }
+                        @if (UserProfileService.UserProfile.Contains("PARTNERS:VIEW"))
+                        {
+                            <MudMenuItem OnClick="@(() => Detail(context.Item.Id))">
+                                <MudIcon Icon="@Icons.Material.Filled.Info" Class="me-2" /> Detail
+                            </MudMenuItem>                            
+                        }
+                        @if (UserProfileService.UserProfile.Contains("PARTNERS:ACTION"))
+                        {
+                            @if (context.Item.StatusName.Trim().ToLower() == "under review")
+                            {
+                                <MudMenuItem OnClick="@(() => Detail(context.Item.Id))">
+                                    <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Class="me-2 text-success" /> Approve
+                                </MudMenuItem>
+                            }
+                            else if (context.Item.StatusName.Trim().ToLower() == "open")
+                            {
+                                <MudMenuItem OnClick="@(() => Detail(context.Item.Id))">
+                                    <MudIcon Icon="@Icons.Material.Filled.Rule" Class="me-2 text-success" /> Send to review
+                                </MudMenuItem>
+                            }
+                            else if (context.Item.StatusName.Trim().ToLower() == "approved")
+                            {
+                                @if (UserProfileService.UserProfile.Contains("PARTNERS:APPROVE"))
+                                {
+                                    <MudMenuItem OnClick="@(() => Detail(context.Item.Id))">
+                                        <MudIcon Icon="@Icons.Material.Filled.Close" Class="me-2 text-danger" /> Close
+                                    </MudMenuItem>                                    
+                                }
+
+                                @if (context.Item.IsActive)
+                                {
+                                    <MudMenuItem OnClick="@(() => Deactivate(context.Item.Id, context.Item.PartnerName))">
+                                        <MudIcon Icon="@Icons.Material.Filled.ToggleOff" Class="me-2 text-error" /> Deactivate
+                                    </MudMenuItem>
+
+                                }
+                                else
+                                {
+                                    <MudMenuItem OnClick="@(() => Activate(context.Item.Id, context.Item.PartnerName))">
+                                        <MudIcon Icon="@Icons.Material.Filled.ToggleOn" Class="me-2 text-success" /> Activate
+                                    </MudMenuItem>
+                                }
+                            }                            
+                        }
+                    </MudMenu>
+                </CellTemplate>
+            </TemplateColumn>
+        </Columns>
+
+        <PagerContent>
+            <MudDataGridPager T="PartnerView" />
+        </PagerContent>
+    </MudDataGrid>
+</MudPaper>
+
+@code {
+    private List<PartnerView> data = new();
+    private int? _quickFilter;
+    private int? _quickFilterOrg;
+    private int? _quickFilterDistrict;
+    private string _quickFilterDistrictOthers = null!;
+
+    private List<BreadcrumbItem> _breadcrumbItems =
+    [
+        new("Home", href: "/", icon: Icons.Material.Filled.Home),
+        new("Settings", href: "/", icon: Icons.Material.Filled.Settings),
+        new("Partners", href: null, disabled: true, icon: Icons.Material.Filled.Groups)
+    ];
+
+    private async Task Init(int? _quickFilter = null, int? _quickFilterOrg = null, int? _quickFilterDistrict = null, string _quickFilterDistrictOthers = null)
+    {
+        try
+        {
+            var query = _context.PartnerView.AsNoTracking();
+
+            if (_quickFilter != null)
+            {
+                query = query.Where(d => d.Id == _quickFilter);
+            }
+
+            if (_quickFilterOrg != null)
+            {
+                query = query.Where(d => d.OrgTypeId == _quickFilterOrg);
+            }
+
+            if (_quickFilterDistrict != null)
+            {
+                query = query.Where(d => d.DistrictId == _quickFilterDistrict);
+            }
+
+            if(!string.IsNullOrEmpty(_quickFilterDistrictOthers))
+            {
+                query = query.Where(d => d.AreaOfOperation.Contains(_quickFilterDistrictOthers));
+            }
+
+            data = await query.ToListAsync();
+
+        }
+        catch (Exception ex)
+        {
+            LoadingService.Hide();
+            Snackbar.Add($"An unexpected error occurred: {(ex.InnerException is null ? ex.Message : ex.InnerException.Message)}", Severity.Error, config => { config.RequireInteraction = true; });
+            return;
+        }
+    }
+
+    private async Task OnSearchClicked()
+    {
+        await Init(_quickFilter,_quickFilterOrg,_quickFilterDistrict,_quickFilterDistrictOthers);
+    }
+
+    private async Task OnClearClicked()
+    {
+        _quickFilter = null;
+        _quickFilterDistrict = null;
+        _quickFilterDistrictOthers = null;
+        _quickFilterOrg = null;
+        await Init();
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Init();
+    }
+
+    private string GetStatusStyle(bool isActive)
+    {
+        return isActive
+            ? "background-color:#e6f4ea; color:#2e7d32; border: 1px solid #c8e6c9;"
+            : "background-color:#fcebea; color:#c62828; border: 1px solid #f5c6cb;";
+    }
+
+    private string GetStatusStyle(string? status)
+    {
+        return status switch
+        {
+            "Open" => "background-color:#f5f5f5; color:#616161; border: 1px solid #e0e0e0;",      
+            "Under Review" => "background-color:#fff8e1; color:#f9a825; border: 1px solid #ffecb3;",  
+            "Approved" => "background-color:#e6f4ea; color:#2e7d32; border: 1px solid #c8e6c9;",     
+            "InProgress" => "background-color:#e3f2fd; color:#1565c0; border: 1px solid #90caf9;",    
+            "Closed" => "background-color:#fff3e0; color:#ef6c00; border: 1px solid #ffe0b2;",         
+            "Rejected" => "background-color:#fdecea; color:#c62828; border: 1px solid #f5c6cb;",     
+            _ => "background-color:#eeeeee; color:#424242; border: 1px solid #bdbdbd;"  
+        };
+    }
+
+    private async Task AddContactPerson(int id)
+    {
+        var model = new ContactPersonViewModel { PartnerId = id };
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Small, FullWidth = true };
+        var parameters = new DialogParameters
+        {
+            { "Model", model }
+        };
+        var dialogRef = await DialogService.ShowAsync<CreateEditContactPerson>("Add Contact Person", parameters, options);
+        var result = await dialogRef.Result;
+        if (result is not null && !result.Canceled)
+        {
+            try
+            {
+                LoadingService.Show();
+                model = (ContactPersonViewModel)result.Data;
+                var entity = _mapper.Map<ContactPerson>(model);
+                await _genericService.Add(entity);
+                await Init();
+                LoadingService.Hide();
+                Snackbar.Add($"Contact Person {model.FirstName} saved successfully", Severity.Success);
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add($"An unexpected error occurred: {ex.Message}", Severity.Error, config => { config.RequireInteraction = true; });
+                return;
+            }
+            finally
+            {
+                LoadingService.Hide();
+            }
+        }
+    }
+
+    private async Task AddNew()
+    {
+        var model = new PartnerViewModel();
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Medium, FullWidth = true };
+        var parameters = new DialogParameters
+        {
+            { "Model", model }
+        };
+        var dialogRef = await DialogService.ShowAsync<CreateEdit>("Add Partner", parameters, options);
+        var result = await dialogRef.Result;
+        if (result is not null && !result.Canceled)
+        {
+            try
+            {
+                LoadingService.Show();
+                model = (PartnerViewModel)result.Data;
+                SentenceCaseService.ProcessEntityStrings(model);
+                var entity = _mapper.Map<Partner>(model);
+                await _genericService.Add(entity);
+
+                await Init();
+                LoadingService.Hide();
+                Snackbar.Add($"Partner {model.PartnerName} saved successfully", Severity.Success);
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add($"An unexpected error occurred: {ex.Message}", Severity.Error, config => { config.RequireInteraction = true; });
+                return;
+            }
+            finally
+            {
+                LoadingService.Hide();
+            }
+        }
+    }
+
+    private async Task Edit(PartnerView entity)
+    {
+        var model = _mapper.Map<PartnerViewModel>(entity);
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Medium, FullWidth = true };
+        var parameters = new DialogParameters
+        {
+            { "Model", model }
+        };
+        var dialogRef = await DialogService.ShowAsync<CreateEdit>("Edit Partner", parameters, options);
+        var result = await dialogRef.Result;
+        if (result is not null && !result.Canceled)
+        {
+            try
+            {
+                LoadingService.Show();
+                model = (PartnerViewModel)result.Data;
+                var entityToUpdate = _mapper.Map<Partner>(model);
+                SentenceCaseService.ProcessEntityStrings(entityToUpdate);
+                await _genericService.Update(entityToUpdate);
+                await Init();
+                LoadingService.Hide();
+                Snackbar.Add($"Partner {model.PartnerName} updated successfully", Severity.Success);
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add($"An unexpected error occurred: {ex.Message}", Severity.Error, config => { config.RequireInteraction = true; });
+                return;
+            }
+            finally
+            {
+                LoadingService.Hide();
+            }
+        }
+    }
+
+    private async Task Activate(int id, string name)
+    {
+        var result = await DialogServiceHelper.ShowConfirmationDialogAsync(DialogService, $"Are you sure you want to activate {name}?");
+        if (result)
+        {
+            try
+            {
+                LoadingService.Show();
+                var entity = _genericService.GetById<Partner>(id);
+                if (entity == null)
+                {
+                    Snackbar.Add($"Partner with ID {id} not found.", Severity.Error, config => { config.RequireInteraction = true; });
+                    return;
+                }
+                entity.IsActive = true;
+                await _genericService.Update(entity);
+                await Init();
+                LoadingService.Hide();
+                Snackbar.Add($"Partner {name} activated successfully", Severity.Success);
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add($"An unexpected error occurred: {ex.Message}", Severity.Error, config => { config.RequireInteraction = true; });
+                return;
+            }
+            finally
+            {
+                LoadingService.Hide();
+            }
+        }
+    }
+
+    private async Task Deactivate(int id, string name)
+    {
+        var result = await DialogServiceHelper.ShowConfirmationDialogAsync(DialogService, $"Are you sure you want to deactivate {name}?");
+        if(result)
+        {
+            try
+            {
+                LoadingService.Show();
+                var entity = _genericService.GetById<Partner>(id);
+                if (entity == null)
+                {
+                    Snackbar.Add($"Partner with ID {id} not found.", Severity.Error, config => { config.RequireInteraction = true; });
+                    return;
+                }
+                entity.IsActive = false;
+                await _genericService.Update(entity);
+                await Init();
+                Snackbar.Add($"Partner {name} deactivate successfully", Severity.Success);
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add($"An unexpected error occurred: {ex.Message}", Severity.Error, config => { config.RequireInteraction = true; });
+                return;
+            }
+            finally
+            {
+                LoadingService.Hide();
+            }
+        }
+
+    }
+
+    private void Detail(int id)
+    {
+        Navigation.NavigateTo($"/admin/partners/details/{id}");
+    }
+    
+}

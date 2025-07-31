@@ -1,0 +1,472 @@
+﻿@page "/admin/registrationcentre"
+
+@using MoGYSD.Business.Models.Nissa.Admin
+@using MoGYSD.Business.Persistence
+@using MoGYSD.Business.Views.Nissa.Admin
+@using MoGYSD.ViewModels.Nissa.Administration
+
+
+<PageTitle>Registration Centres</PageTitle>
+
+<MudGrid Class="mb-3" AlignItems="Center" Justify="Justify.SpaceBetween">
+    <MudItem xs="12" md="6">
+        <MudText Typo="Typo.h2" Class="font-weight-bold"><b>Registration Centres</b></MudText>
+        <MudText>
+            Enables the creation, updating, and referencing of registration centres.
+        </MudText>
+    </MudItem>
+    <MudItem xs="12" md="6" Class="d-flex justify-end">
+        <MudBreadcrumbs Items="_breadcrumbItems" Class="custom-breadcrumb" />
+    </MudItem>
+</MudGrid>
+
+<MudExpansionPanels Elevation="1" Class="mt-2 mb-2">
+    <MudExpansionPanel Text="Expand to apply search filter">
+        <MudGrid>
+            <MudItem xs="12" md="3">
+                <MudTextField Variant="Variant.Outlined" @bind-Value="_quickFilterName"
+                              Label="Search by Name" Class="mb-3" />
+
+            </MudItem>
+            <MudItem xs="12" md="3">
+                <RegistrationCentreAutocomplete Label="Search by Centre Name" Variant="Variant.Outlined" @bind-Value="_quickFilter"
+                                        Class="mb-3" />
+            </MudItem>
+            <MudItem xs="12" md="3">
+                <VillageAutocomplete Label="Search by Village Name" Variant="Variant.Outlined"
+                                        @bind-Value="_quickFilterVillage" Class="mb-3" />
+            </MudItem>
+        </MudGrid>
+
+
+        <div class="d-flex justify-content-between mt-2">
+
+            <MudButton Variant="Variant.Filled" Color="Color.Secondary" OnClick="OnClearClicked" Size="Size.Small">
+                Clear
+            </MudButton>
+
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="OnSearchClicked" Size="Size.Small">
+                Search
+            </MudButton>
+        </div>
+        </MudExpansionPanel>
+</MudExpansionPanels>
+
+<MudPaper Class="pa-4">
+    @if (UserProfileService.UserProfile.Contains("REGISTRATION CENTRE:CREATE"))
+    {
+        <MudButton StartIcon="@Icons.Material.Filled.Add" Class="pull-right top-add-button mb-2 mt-2" Variant="Variant.Filled"
+        OnClick="AddNew" DropShadow="true" Color="Color.Primary">Add Centre</MudButton>        
+    }
+    <MudDataGrid T="RegistrationCentreVillageView" Items="data" Bordered="true" Dense="true" RowsPerPage="20">
+        <NoRecordsContent>
+            <MudText Typo="Typo.subtitle1" Class="my-4 text-muted text-center">
+                No Registration Centre found. Try adjusting your filters.
+            </MudText>
+        </NoRecordsContent>
+        <ToolBarContent>
+            <MudText><b>Total Registration Centre(s): @data.Count</b></MudText>
+        </ToolBarContent>
+        <Columns>
+            <PropertyColumn Property="x => x.DistrictName" Title="District Name" />
+            <PropertyColumn Property="x => x.CommunityCouncilName" Title="Community Council Name" />
+            <PropertyColumn Property="x => x.RegistrationCentreName" Title="Centre Name" />
+            <PropertyColumn Property="x => x.RegistrationCentreCode" Title="Centre Code" />
+            <PropertyColumn Property="x => x.TotalVillages" Title="Total Villages" />
+            <TemplateColumn Title="Active">
+                <CellTemplate>
+                    <MudText Style="@($"{GetStatusStyle(context.Item.RegistrationCentreIsActive)} display:block; padding:4px; border-radius:6px; width:100%; text-align: center;")">
+                        @(context.Item.RegistrationCentreIsActive ? "Yes" : "No")
+                    </MudText>
+                </CellTemplate>
+            </TemplateColumn>
+            <TemplateColumn Title="Actions">
+                <CellTemplate>
+                    <MudMenu Icon="@Icons.Material.Filled.MoreVert" Color="Color.Primary" Dense="true">
+                        @if (UserProfileService.UserProfile.Contains("REGISTRATION CENTRE:VIEW"))
+                        {
+                            <MudMenuItem OnClick="@(() => ViewDetails(context.Item))">
+                                <MudIcon Icon="@Icons.Material.Filled.Rule" Class="me-2 text-success" /> View Villages
+                            </MudMenuItem>                            
+                        }
+                        @if (UserProfileService.UserProfile.Contains("REGISTRATION CENTRE:MODIFY"))
+                        {
+                            <MudMenuItem OnClick="@(() => Edit(context.Item))">
+                                <MudIcon Icon="@Icons.Material.Filled.Edit" Class="me-2" /> Edit
+                            </MudMenuItem>
+                        }
+                        @if (context.Item.RegistrationCentreIsActive)
+                        {
+                            @if (UserProfileService.UserProfile.Contains("REGISTRATION CENTRE:ACTION"))
+                            {
+                                <MudMenuItem OnClick="@(() => AssignSupervisor(context.Item))">
+                                    <MudIcon Icon="@Icons.Material.Filled.PersonAdd" Class="me-2" /> Assign Supervisor
+                                </MudMenuItem>
+                                <MudMenuItem OnClick="@(() => Deactivate(context.Item.RegistrationCentreId.Value, context.Item.RegistrationCentreName))">
+                                    <MudIcon Icon="@Icons.Material.Filled.ToggleOff" Class="me-2 text-error" /> Deactivate
+                                </MudMenuItem>
+
+                            }
+                        }
+                        else
+                        {
+                            @if (UserProfileService.UserProfile.Contains("REGISTRATION CENTRE:ACTION"))
+                            {
+                                <MudMenuItem OnClick="@(() => Activate(context.Item.RegistrationCentreId.Value, context.Item.RegistrationCentreName))">
+                                    <MudIcon Icon="@Icons.Material.Filled.ToggleOn" Class="me-2 text-success" /> Activate
+                                </MudMenuItem>                                
+                            }
+                        }
+                    </MudMenu>
+                </CellTemplate>
+            </TemplateColumn>
+        </Columns>
+
+        <PagerContent>
+            <MudDataGridPager T="RegistrationCentreVillageView" />
+        </PagerContent>
+    </MudDataGrid>
+</MudPaper>
+
+
+@code {
+    private List<RegistrationCentreVillageView> data = new();
+    private int? _quickFilter;
+    private int? _quickFilterDistrict;
+    private int? _quickFilterConstituency;
+    private int? _quickFilterCommunity;
+    private int? _quickFilterVillage;
+    private string _quickFilterName = string.Empty;
+
+    private List<BreadcrumbItem> _breadcrumbItems =
+    [
+        new("Home", href: "/", icon: Icons.Material.Filled.Home),
+        new("Settings", href: null, icon: Icons.Material.Filled.Settings),
+        new("Registration Centres", href: null, disabled: true, icon: Icons.Material.Filled.BusinessCenter)
+    ];
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Init();
+    }
+
+    private async Task OnSearchClicked()
+    {
+        await Init(_quickFilter, _quickFilterVillage, _quickFilterName);
+    }
+
+    private async Task OnClearClicked()
+    {
+        _quickFilter = null;
+        _quickFilterVillage = null;
+        _quickFilterName = null;
+        await Init();
+    }
+
+    private async Task Init(int? _quickFilter = null, int? _quickFilterVillage = null, string name = null)
+    {
+        try
+        {
+            var query = _context.RegistrationCentreVillageView.AsNoTracking();
+
+            if (!string.IsNullOrEmpty(name))
+            {
+                query = query.Where(d => d.RegistrationCentreName.Contains(name) || d.DistrictName.Contains(name) || d.CommunityCouncilName.Contains(name));
+            }
+
+            if (_quickFilter != null)
+            {
+                query = query.Where(d => d.Id == _quickFilter);
+            }
+
+            if (_quickFilterVillage != null)
+            {
+                query = query.Where(d => d.VillageId == _quickFilterVillage);
+            }
+
+            // data = await query.GroupBy(a => a.RegistrationCentreId)
+            //                 .Select(g => g.First()).ToListAsync();
+
+            // First, get the village counts per registration center *after* applying filters
+            var villageCounts = await query
+                .GroupBy(x => x.RegistrationCentreId)
+                .Select(g => new { RegistrationCentreId = g.Key, VillageCount = g.Count() })
+                .ToDictionaryAsync(x => x.RegistrationCentreId, x => x.VillageCount);
+
+            // Then, get one representative record per registration center (to display in grid)
+            data = await query
+                .GroupBy(a => a.RegistrationCentreId)
+                .Select(g => g.First())
+                .ToListAsync();
+
+            // Now assign TotalVillages to each item from the counts dictionary
+            foreach (var item in data)
+            {
+                item.TotalVillages = villageCounts.TryGetValue(item.RegistrationCentreId, out var count) ? count : 0;
+            }
+
+        }
+        catch (Exception ex)
+        {
+            LoadingService.Hide();
+            Snackbar.Add($"An unexpected error occurred: {(ex.InnerException is null ? ex.Message : ex.InnerException.Message)}", Severity.Error, config => { config.RequireInteraction = true; });
+        }
+    }
+
+    private string GetStatusStyle(bool isActive)
+    {
+        return isActive
+            ? "background-color:#e6f4ea; color:#2e7d32; border: 1px solid #c8e6c9;"
+            : "background-color:#fcebea; color:#c62828; border: 1px solid #f5c6cb;";
+    }
+
+    private async Task AddNew()
+    {
+        var model = new RegistrationCentreViewModel();
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Small, FullWidth = true };
+        var parameters = new DialogParameters
+        {
+            { "Model", model }
+        };
+        var dialogRef = await DialogService.ShowAsync<Create>("Add Registration Centre", parameters, options);
+        var result = await dialogRef.Result;
+        if (result is not null && !result.Canceled)
+        {
+            try
+            {
+                LoadingService.Show();
+                model = (RegistrationCentreViewModel)result.Data;
+                var entity = _mapper.Map<RegistrationCentre>(model);
+                entity.IsActive = true; // Set IsActive to true by default
+                await _genericService.Add(entity);
+                var ccCode = await _context.CommunityCouncils
+                    .Where(cc => cc.Id == model.CommunityCouncilId)
+                    .Select(cc => cc.Code)
+                    .FirstOrDefaultAsync();
+                var code = $"{ccCode}-{entity.Id}";
+                entity.CentreCode = code;
+                await _genericService.Update(entity);
+
+                // Add selected villages to RegistrationCentreVillage
+                var newVillageLinks = model.VillageIds.Select(villageId => new RegistrationCentreVillage
+                {
+                    RegistrationCentreId = entity.Id,
+                    VillageId = villageId
+                }).ToList();
+                _genericService.AddRange(newVillageLinks);
+
+
+                await Init();
+                LoadingService.Hide();
+                Snackbar.Add("Registration centre saved successfully", Severity.Success);
+            }
+            catch (Exception ex)
+            {
+                LoadingService.Hide();
+                Snackbar.Add($"An unexpected error occurred: {ex.Message}", Severity.Error, config => { config.RequireInteraction = true; });
+                return;
+            }
+        }
+    }
+
+    private async Task Edit(RegistrationCentreVillageView centre)
+    {
+        var model = _context.RegistrationCentreVillageView.Where(p => p.RegistrationCentreId == centre.RegistrationCentreId)
+            .ToList()
+            .GroupBy(c => c.RegistrationCentreId)
+            .Select(group => new RegistrationCentreViewModel
+            {
+                Id = group.Key.Value,
+                CentreCode = group.First().RegistrationCentreCode,
+                CentreName = group.First().RegistrationCentreName,
+                IsActive = group.First().RegistrationCentreIsActive,
+                DistrictId = group.First().DistrictId,
+                CommunityCouncilId = group.First().CommunityCouncilId,
+                ConstituencyId = group.First().ConstituencyId,
+                VillageIds = group.Select(g => g.VillageId).Distinct().ToList(),
+            }).FirstOrDefault();
+
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Small, FullWidth = true };
+        var parameters = new DialogParameters
+        {
+            { "Model", model }
+        };
+        var dialogRef = await DialogService.ShowAsync<Create>("Edit Registration Centre", parameters, options);
+        var result = await dialogRef.Result;
+        if (result is not null && !result.Canceled)
+        {
+            try
+            {
+                LoadingService.Show();
+                model = (RegistrationCentreViewModel)result.Data;
+                var entity = _mapper.Map<RegistrationCentre>(model);
+                SentenceCaseService.ProcessEntityStrings(entity);
+                await _genericService.Update(entity);
+
+                // Remove old links
+                var existingLinks = _context.RegistrationCentreVillages
+                    .Where(x => x.RegistrationCentreId == entity.Id)
+                    .ToList();
+
+                // Remove only the ones not in the new selection
+                var toRemove = existingLinks
+                    .Where(e => !model.VillageIds.Contains(e.VillageId))
+                    .ToList();
+
+                _context.RegistrationCentreVillages.RemoveRange(toRemove);
+                await _context.SaveChangesAsync();
+
+                // Keep existing ones and add only the new ones
+                var existingVillageIds = existingLinks.Select(e => e.VillageId).ToHashSet();
+                var toAdd = model.VillageIds
+                    .Where(id => !existingVillageIds.Contains(id))
+                    .Select(id => new RegistrationCentreVillage
+                    {
+                        RegistrationCentreId = entity.Id,
+                        VillageId = id,
+                        // SupervisorId = model.SupervisorId
+                    }).ToList();
+                _genericService.AddRange(toAdd);
+
+                await Init();
+                LoadingService.Hide();
+                Snackbar.Add("Registration centre updated successfully", Severity.Success);
+            }
+            catch (Exception ex)
+            {
+                LoadingService.Hide();
+                Snackbar.Add($"An unexpected error occurred: {ex.Message}", Severity.Error, config => { config.RequireInteraction = true; });
+            }
+        }
+    }
+
+    private async Task AssignSupervisor(RegistrationCentreVillageView centre)
+    {
+        var model = _context.RegistrationCentreVillageView.Where(p => p.RegistrationCentreId == centre.RegistrationCentreId)
+            .ToList()
+            .GroupBy(c => c.RegistrationCentreId)
+            .Select(group => new RegistrationCentreViewModel
+            {
+                Id = group.Key.Value,
+                CentreCode = group.First().RegistrationCentreCode,
+                CentreName = group.First().RegistrationCentreName,
+                IsActive = group.First().RegistrationCentreIsActive,
+                VillageIds = group.Select(g => g.VillageId).Distinct().ToList(),
+            }).FirstOrDefault();
+
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Small, FullWidth = true };
+        var parameters = new DialogParameters
+        {
+            { "Model", model }
+        };
+        var dialogRef = await DialogService.ShowAsync<AssignSupervisors>("Assign Supervisor", parameters, options);
+        var result = await dialogRef.Result;
+        if (result is not null && !result.Canceled)
+        {
+            try
+            {
+                LoadingService.Show();
+                var chackIfSupervisorAlreadyAssigned = await _context.RegistrationCentres.AnyAsync(c => c.SupervisorId == model.SupervisorId);
+                if (chackIfSupervisorAlreadyAssigned)
+                {
+                    LoadingService.Hide();
+                    Snackbar.Add("Supervisor already assigned to another centre", Severity.Error);
+                    return;
+                }
+                model = (RegistrationCentreViewModel)result.Data;
+
+                var updateData = _mapper.Map<RegistrationCentre>(model);
+                SentenceCaseService.ProcessEntityStrings(updateData);
+                await _genericService.Update(updateData);
+                await Init();
+                LoadingService.Hide();
+                Snackbar.Add("Supervisor assigned successfully", Severity.Success);
+            }
+            catch (Exception ex)
+            {
+                LoadingService.Hide();
+                Snackbar.Add($"An unexpected error occurred: {ex.Message}", Severity.Error, config => { config.RequireInteraction = true; });
+                return;
+            }
+        }
+    }
+
+    private async Task Deactivate(int id, string name)
+    {
+        var result = await DialogServiceHelper.ShowConfirmationDialogAsync(DialogService, $"Deactivate {name}?");
+        if (result)
+        {
+            try
+            {
+                LoadingService.Show();
+                var centre = await _genericService.GetByIdAsync<RegistrationCentre>(id);
+                if (centre == null)
+                {
+                    LoadingService.Hide();
+                    Snackbar.Add("Centre not found", Severity.Error);
+                    return;
+                }
+                centre.IsActive = false;
+                await _genericService.Update(centre);
+                LoadingService.Hide();
+                Snackbar.Add("Centre deactivated successfully", Severity.Success);
+            }
+            catch (Exception ex)
+            {
+                LoadingService.Hide();
+                Snackbar.Add($"Error deactivating centre: {ex.Message}", Severity.Error);
+                return;
+            }
+            finally
+            {
+                await Init();
+            }
+        }
+    }
+
+    private async Task Activate(int id, string name)
+    {
+        var result = await DialogServiceHelper.ShowConfirmationDialogAsync(DialogService, $"Activate {name}?");
+
+        if (result)
+        {
+            try
+            {
+                LoadingService.Show();
+
+                var centre = await _genericService.GetByIdAsync<RegistrationCentre>(id);
+                if (centre == null)
+                {
+                    LoadingService.Hide();
+                    Snackbar.Add("Centre not found", Severity.Error);
+                    return;
+                }
+                centre.IsActive = true;
+                await _genericService.Update(centre);
+                LoadingService.Hide();
+                Snackbar.Add("Centre activated successfully", Severity.Success);
+            }
+            catch (Exception ex)
+            {
+                LoadingService.Hide();
+                Snackbar.Add($"Error activating centre: {ex.Message}", Severity.Error);
+                return;
+            }
+            finally
+            {
+                await Init();
+            }
+        }
+    }
+
+    private async Task ViewDetails(RegistrationCentreVillageView model)
+    {
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Small, FullWidth = true };
+        var parameters = new DialogParameters
+        {
+            { "Model", model }
+        };
+        var dialogRef = await DialogService.ShowAsync<View>("View Registration Centres Villages", parameters, options);
+        var state = await dialogRef.Result;
+    }
+}

@@ -1,0 +1,1074 @@
+﻿@page "/Account/Register"
+@using System.ComponentModel.DataAnnotations
+@using System.Text
+@using System.Text.Encodings.Web
+@using BlazorCaptcha
+@using Image = SixLabors.ImageSharp.Image
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.AspNetCore.WebUtilities
+@using MoGYSD.Business.Models.Nissa.Admin
+@using MoGYSD.Business.Models.Nissa.UserManagement
+@using MoGYSD.Business.Persistence
+@using MoGYSD.Business.Views.Nissa.Admin
+@using MoGYSD.ViewModels
+@using MoGYSD.ViewModels.Email
+@using MoGYSD.ViewModels.Nissa.Administration
+@using MoGYSD.ViewModels.Nissa.Security.UserViewModels
+@using MoGYSD.Web.Components.Account.Pages.Manage
+@using MoGYSD.Web.Components.Shared.JsInterop
+@using ResizeMode = SixLabors.ImageSharp.Processing.ResizeMode
+@using SixLabors.ImageSharp
+@using SixLabors.ImageSharp.Formats.Png
+@using SixLabors.ImageSharp.Processing
+@using Size = SixLabors.ImageSharp.Size
+
+@inject RoleManager<ApplicationRole> RoleManager
+@inject UserManager<ApplicationUser> UserManager
+@inject IUserStore<ApplicationUser> UserStore
+@inject SignInManager<ApplicationUser> SignInManager
+@inject IEmailSender<ApplicationUser> EmailSender
+@inject ILogger<Register> Logger
+@inject NavigationManager NavigationManager
+@inject IdentityRedirectManager RedirectManager
+@inject GenericService _genericService
+@inject IUploadService UploadService
+@inject IJSRuntime JS
+@inject IMapper _mapper
+@layout EmptyLayout
+@rendermode InteractiveServer
+
+
+<MudStack AlignItems="AlignItems.Center" Spacing="1" Class="my-4 mb-3">
+    <MudImage Src="/assets/img/logo.png" Alt="sign up image" Width="150" />
+    <MudText Typo="Typo.h2" Align="Align.Center" Class="form-title">
+        <b> NISSA and MISSA User Registration Form</b>
+    </MudText>
+</MudStack>
+
+<MudForm @ref="form" Model="Input" OnValidSubmit="HandleValidSubmit">
+    <MudGrid Spacing="3">
+        <!-- Personal Info -->
+        <MudItem xs="12">
+            <MudPaper Class="pa-4">
+                <MudText Typo="Typo.h4"><b>Personal Information</b></MudText>
+                <MudGrid Spacing="2" Class="mt-2">
+                    <MudItem xs="12" sm="6" md="4">
+                        <MudTextField Variant="Variant.Outlined" @bind-Value="Input.FirstName" Label="First Name" For="() => Input.FirstName" Required="true" MaxLength="20"/>
+                    </MudItem>
+                    <MudItem xs="12" sm="6" md="4">
+                            <MudTextField Variant="Variant.Outlined" @bind-Value="Input.MiddleName" Label="Middle Name" MaxLength="20" />
+                    </MudItem>
+                    <MudItem xs="12" sm="6" md="4">
+                            <MudTextField Variant="Variant.Outlined" @bind-Value="Input.Surname" Label="Surname" For="() => Input.Surname" Required="true" MaxLength="20" />
+                    </MudItem>
+                    <MudItem xs="12" sm="6" md="4">
+                       <MudSelect  Variant="Variant.Outlined" T="int?" Label="ID Type" @bind-Value="Input.IDTypeId" Required="true">
+                           <MudSelectItem T="int?" Value="null">-- ID Type--</MudSelectItem>
+                            @foreach (var idType in IDTypes)
+                            {
+                               <MudSelectItem T="int?" Value="@idType.Id">@idType.Name</MudSelectItem>
+                            }
+                        </MudSelect>
+                    </MudItem>
+                    <MudItem xs="12" sm="6" md="4">
+                            <MudTextField Variant="Variant.Outlined" @bind-Value="Input.IDNumber" Label="ID Number" For="() => Input.IDNumber" Required="true" MaxLength="20" />
+                    </MudItem>
+                    <MudItem xs="12" sm="6" md="4">
+                       <MudSelect  Variant="Variant.Outlined" T="int?" Label="Sex" @bind-Value="Input.SexId" Required="true">
+                           <MudSelectItem T="int?" Value="null">-- Select Sex --</MudSelectItem>
+                            @foreach (var gender in Genders)
+                            {
+                               <MudSelectItem T="int?" Value="@gender.Id">@gender.Name</MudSelectItem>
+                            }
+                        </MudSelect>
+                    </MudItem>
+                     <MudItem xs="12" sm="6" md="4">
+                        <MudAutocomplete  Variant="Variant.Outlined" T="CountryCodeViewModel"
+                                         @bind-Value="SelectedCountry"
+                                         Label="Select Country Code"
+                                         CoerceText="false"
+                                         ResetValueOnEmptyText="true"
+                                         SearchFunc="@SearchCountries"
+                                         ToStringFunc="@(c => c != null ? $"{c.Flag} {c.Name} ({c.PhoneCode})" : string.Empty)"
+                                         Clearable="true">
+                            <ItemTemplate>
+                                <MudStack>
+                                    <MudText>@context.Flag @context.Name</MudText>
+                                    <MudText Typo="Typo.caption">@context.PhoneCode</MudText>
+                                </MudStack>
+                            </ItemTemplate>
+                        </MudAutocomplete>
+                </MudItem>
+                    <!-- Contact Info -->
+                    <MudItem xs="12" sm="6" md="4">
+                            <MudTextField Variant="Variant.Outlined" @bind-Value="Input.PhoneNumber" Label="Phone Number" For="() => Input.PhoneNumber" Required="true" MaxLength="10" />
+                    </MudItem>
+                    <MudItem xs="12" sm="6" md="4">
+                        <MudTextField Variant="Variant.Outlined"  @bind-Value="Input.Email" Label="Email" For="() => Input.Email" InputId="email-address" Required="true" @ref="emailFieldRef"
+                                        Validation="@(new EmailAddressAttribute() { ErrorMessage = "Invalid email" })" />
+                    </MudItem>
+                    <MudItem xs="12" sm="6" md="4">
+                        <MudTextField Variant="Variant.Outlined" @bind-Value="Input.ConfirmEmail" Label="Confirm Email" Required="true" InputId="confirm-email" @ref="confirmEmailFieldRef"
+                                        Validation="@(new Func<string, string>(ValidateEmail))"/>
+                    </MudItem>
+                    <MudItem xs="12" sm="6" md="4">
+                           <MudSelect  Variant="Variant.Outlined" T="string" Label="Role" @bind-Value="Input.RoleId" Required="true" Placeholder="-- Select Role --">
+                           <MudSelectItem T="string" Value="string.Empty">-- Select Role --</MudSelectItem>
+                            @foreach (var role in Roles)
+                            {
+                               <MudSelectItem T="string" Value="@role.Id">@role.Name</MudSelectItem>
+                            }
+                        </MudSelect>
+                    </MudItem>                
+                </MudGrid>
+            </MudPaper>
+                @if ((string.IsNullOrEmpty(SelectedRoleAccessLevel) || !SelectedRoleAccessLevel?.Equals("National", StringComparison.OrdinalIgnoreCase) == true))
+                {
+                    <MudPaper>
+                        <MudText Typo="Typo.h4" Class="mb-4"><b>Data Access Level</b></MudText>
+                        <MudGrid>
+                            <MudItem xs="12" sm="6">
+                               <MudSelectExtended  Variant="Variant.Outlined" T="int"
+                                                    ItemCollection="Districts.Select(v => v.Id).ToList()"
+                                                    ToStringFunc="GetDistrictNameById"
+                                                    SearchBox="true"
+                                                    SelectAllPosition="SelectAllPosition.AfterSearchBox"
+                                                    MultiSelectionTextFunc="GetMultiSelectionDistrictText"
+                                                    MultiSelection="true"
+                                                    ValuePresenter="_valuePresenter"
+                                                    SelectedValues ="_selectedDistrictIds"
+                                                    SelectedValuesChanged="OnDistrictsChanged"
+                                                    Label="Select Districts"
+                                                    AdornmentIcon="@Icons.Material.Filled.Search"
+                                                    AnchorOrigin="Origin.BottomCenter"
+                                                    MaxHeight="300"
+                                                    ChipCloseable="false"
+                                                    ChipSize="MudBlazor.Size.Small"
+                                                    ChipVariant="Variant.Filled"
+                                                    Clearable="true">
+
+                                    @foreach (var district in Districts)
+                                    {
+                                       <MudSelectItemExtended T="int" Value="@district.Id" Text="@district.Name" />
+                                    }
+                                </MudSelectExtended>
+                            </MudItem>                    
+                            @* Show Community Council only if access level is CommunityCouncil or Village or below *@
+                            @if ((string.IsNullOrEmpty(SelectedRoleAccessLevel) || SelectedRoleAccessLevel?.Equals("Community Council", StringComparison.OrdinalIgnoreCase) == true)
+                            || (string.IsNullOrEmpty(SelectedRoleAccessLevel) || SelectedRoleAccessLevel?.Equals("Village", StringComparison.OrdinalIgnoreCase) == true))
+                            {
+                                <MudItem xs="12" sm="6">
+                                       <MudSelectExtended  Variant="Variant.Outlined" T="int"
+                                                            ItemCollection="CommunityCouncils.Select(v => v.Id).ToList()"
+                                                            ToStringFunc="GetCommunityCouncilNameById"
+                                                            SearchBox="true"
+                                                            SelectAllPosition="SelectAllPosition.AfterSearchBox"
+                                                            MultiSelectionTextFunc="GetMultiSelectionCommunityCouncilText"
+                                                            MultiSelection="true"
+                                                            ValuePresenter="_valuePresenter"
+                                                            SelectedValues="_selectedCommunityCouncilIds"
+                                                            SelectedValuesChanged="OnCommunityCouncilsChanged"
+                                                            Label="Select Community Councils"
+                                                            AdornmentIcon="@Icons.Material.Filled.Search"
+                                                            AnchorOrigin="Origin.BottomCenter"
+                                                            MaxHeight="300"
+                                                            ChipCloseable="false"
+                                                            ChipSize="MudBlazor.Size.Small"
+                                                            ChipVariant="Variant.Filled"
+                                                            Clearable="true">
+
+                                            @foreach (var district in Districts)
+                                            {
+                                               <MudSelectItemExtended T="int" Value="@district.Id" Text="@district.Name" />
+                                            }
+                                        </MudSelectExtended>
+                                </MudItem>
+                            }
+                            @* Show Village only if access level is Village *@
+                            @if (string.IsNullOrEmpty(SelectedRoleAccessLevel) || SelectedRoleAccessLevel?.Equals("Village", StringComparison.OrdinalIgnoreCase) == true)
+                            {
+                                <MudItem xs="12" sm="6">
+                                   <MudSelectExtended  Variant="Variant.Outlined" T="int"
+                                                        ItemCollection="Villages.Select(v => v.Id).ToList()"
+                                                        ToStringFunc="GetVillageNameById"
+                                                        SearchBox="true"
+                                                        SelectAllPosition="SelectAllPosition.AfterSearchBox"
+                                                        MultiSelectionTextFunc="GetMultiSelectionText"
+                                                        MultiSelection="true"
+                                                        ValuePresenter="_valuePresenter"
+                                                        SelectedValues="_selectedVillageIds"
+                                                        SelectedValuesChanged="OnVillagesChanged"
+                                                        Label="Select Villages"
+                                                        AdornmentIcon="@Icons.Material.Filled.Search"
+                                                        AnchorOrigin="Origin.BottomCenter"
+                                                        MaxHeight="300"
+                                                        ChipCloseable="false"
+                                                        ChipSize="MudBlazor.Size.Small"
+                                                        ChipVariant="Variant.Filled"
+                                                        Clearable="true">
+
+                                        @foreach (var village in Villages)
+                                        {
+                                           <MudSelectItemExtended T="int" Value="@village.Id" Text="@village.Name" />
+                                        }
+                                    </MudSelectExtended>
+                                </MudItem>
+                       
+                                <MudItem xs="12" sm="6">
+                                   <MudSelectExtended  Variant="Variant.Outlined" T="int"
+                                                        ItemCollection="RegistrationCentres.Select(v => v.Id.Value).ToList()"
+                                                        ToStringFunc="GetRegistrationCentreNameById"
+                                                        SearchBox="true"
+                                                        SelectAllPosition="SelectAllPosition.AfterSearchBox"
+                                                        MultiSelectionTextFunc="GetMultiSelectionRegistrationCentreText"
+                                                        MultiSelection="true"
+                                                        ValuePresenter="_valuePresenter"
+                                                            @bind-SelectedValues="_selectedRegistrationCentreIds"
+                                                        Label="Select Registration Centre"
+                                                        AdornmentIcon="@Icons.Material.Filled.Search"
+                                                        AnchorOrigin="Origin.BottomCenter"
+                                                        MaxHeight="300"
+                                                        ChipCloseable="false"
+                                                        ChipSize="MudBlazor.Size.Small"
+                                                        ChipVariant="Variant.Filled"
+                                                        Clearable="true">
+
+                                        @foreach (var centres in RegistrationCentres)
+                                        {
+                                           <MudSelectItemExtended T="int" Value="@centres.RegistrationCentreId.Value" Text="@centres.RegistrationCentreName" />
+                                        }
+                                    </MudSelectExtended>
+                                </MudItem>
+                            }
+                        </MudGrid>
+                    </MudPaper>
+                }
+
+        </MudItem>
+
+
+        <!-- Security Verification -->
+        <MudItem xs="12">
+            <MudPaper Class="pa-4">
+                <MudText Typo="Typo.h4"><b>Verification</b></MudText>
+                <MudGrid Spacing="2" Class="mt-2">
+                    <MudItem xs="12" sm="6">
+                        <Captcha @bind-CaptchaWord="@Captcha" CharNumber="@CaptchaLetters" />
+                    </MudItem>
+                    <MudItem xs="12" sm="6">
+                        <InputText Placeholder="Enter Captcha" @bind-Value="Input.EnteredCaptchaText" class="form-control" />
+                    </MudItem>
+                </MudGrid>
+            </MudPaper>
+        </MudItem>
+
+        <!-- File Upload -->
+        <MudItem xs="12">
+            <MudPaper Class="pa-4">
+                <MudText Typo="Typo.h4"><b>User Photo</b></MudText>
+                <MudText Typo="Typo.body2" Class="mb-2">Upload an image.</MudText>
+                <MudFileUpload T="IReadOnlyList<IBrowserFile>" multiple
+                                @bind-Files="Input.UploadDocuments"
+                                OnFilesChanged="UploadImageFiles"
+                                Accept=".pdf,image/*"
+                                AppendMultipleFiles>
+                    <ActivatorContent>
+                        <MudButton Variant="Variant.Filled" Color="MudBlazor.Color.Primary" StartIcon="@Icons.Material.Filled.UploadFile">Upload</MudButton>
+                    </ActivatorContent>
+                </MudFileUpload>
+
+                @if (Input.PhotoDocuments is not null)
+                {
+                    <MudSimpleTable Dense>
+                        <tbody>
+                            @foreach (var dto in Input.PhotoDocuments)
+                            {
+                                <tr  @onclick="() => OnDownloadFile(dto.Url)" style="cursor:pointer">
+                                    <td><Thumbnail FileName="@dto.Name" FileUrl="@dto.Url" /></td>
+                                    <td><FileSizeFormatter FileSizeInBytes="@dto.Size" /></td>
+                                    <td>
+                                        <MudIconButton Icon="@Icons.Material.Outlined.Delete" Color="MudBlazor.Color.Error" OnClick="@(() => DeleteImageImage(dto))" />
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </MudSimpleTable>
+                }
+            </MudPaper>
+        </MudItem>
+
+        <MudItem xs="12">
+            <MudPaper Class="pa-4">
+                <MudText Typo="Typo.h4"><b>@($"{IDTypeName}")</b></MudText>
+                <MudText Typo="Typo.body2" Class="mb-2">@($"Upload an image of your {IDTypeName}.")</MudText>
+                <MudFileUpload T="IReadOnlyList<IBrowserFile>" multiple
+                                @bind-Files="Input.UploadDocuments"
+                                OnFilesChanged="UploadFiles"
+                                Accept=".pdf,image/*"
+                                AppendMultipleFiles>
+                    <ActivatorContent>
+                        <MudButton Variant="Variant.Filled" Color="MudBlazor.Color.Primary" StartIcon="@Icons.Material.Filled.UploadFile">Upload</MudButton>
+                    </ActivatorContent>
+                </MudFileUpload>
+
+                @if (Input.Documents is not null)
+                {
+                    <MudSimpleTable Dense>
+                        <tbody>
+                            @foreach (var dto in Input.Documents)
+                            {
+                                <tr>
+                                    <td><Thumbnail FileName="@dto.Name" FileUrl="@dto.Url" /></td>
+                                    <td><FileSizeFormatter FileSizeInBytes="@dto.Size" /></td>
+                                    <td>
+                                        <MudIconButton Icon="@Icons.Material.Outlined.Delete" Color="MudBlazor.Color.Error" OnClick="@(() => DeleteImage(dto))" />
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </MudSimpleTable>
+                }
+            </MudPaper>
+        </MudItem>
+        <!-- Privacy and Submit -->
+        <MudItem xs="12">
+            <MudStack Spacing="1" Class="mt-4">
+                <MudCheckBox T="bool"
+                             @bind-Checked="Input.PrivacyProtocolsAccepted"
+                             ValueChanged="OnPrivacyProtocolsChanged"
+                             Label="I have read and understood the MoGYSD data sharing and privacy protocols." />
+
+                <MudText Typo="Typo.body2">
+                    <MudLink Style="cursor:pointer;" OnClick="@OpenDialog">Read Protocols</MudLink>
+                </MudText>
+
+
+                @if (isBusy == false)
+                {
+                    <div class="col-md-12 mb-3">
+                        <div class="col-md-12 mb-3 d-flex justify-content-between">
+                            <MudButton Variant="Variant.Filled" OnClick="ReloadToLogin" Color="MudBlazor.Color.Secondary">Back to Login</MudButton>
+
+                            <MudButton Type="Submit"
+                                        Variant="Variant.Filled"
+                                        OnClick="RegisterUser"
+                                        Color="MudBlazor.Color.Primary"
+                                        Class="pull-right">
+                                Register
+                            </MudButton>
+                        </div>
+                    </div>
+                }
+                else
+                {
+                    <MudProgressCircular Color="MudBlazor.Color.Primary" Class="pull-right" Indeterminate="true" />
+                }
+
+            </MudStack>
+        </MudItem>
+    </MudGrid>
+</MudForm>
+<style>
+    @@import url("https://cdn.jsdelivr.net/npm/@@fancyapps/ui@@5.0.36/dist/fancybox/fancybox.css");
+
+    .fancybox__container {
+    --fancybox-bg: rgba(24, 24, 27, 0.85);
+    z-index: 9999;
+    }
+</style>
+
+@code {
+    [Inject] protected IServiceProvider Services { get; init; } = null!;
+    private MudForm form;
+    private bool isValid;
+    private string SelectedAccountType;
+    private IEnumerable<IdentityError>? identityErrors;
+    private List<ApplicationRole>? Roles = new();
+    private List<SystemCodeDetailsView>? Genders = new();
+    private List<SystemCodeDetailsView>? IDTypes = new();
+    private string IDTypeName => IDTypes?.FirstOrDefault(x => x.Id == Input.IDTypeId)?.Name ?? "ID Image";
+    private string? SelectedRoleId;
+    private int DocumentUploaded = 0;
+    private int DocumentUploaded2 = 0;
+    [Parameter]
+    [SupplyParameterFromQuery]
+    public string AccountType { get; set; }
+
+    [SupplyParameterFromForm]
+    private RegisterUserViewModel Input { get; set; } = new();
+
+    [SupplyParameterFromQuery]
+    private string? ReturnUrl { get; set; }
+
+    private string? Message => identityErrors is null ? null : $"Error: {string.Join(", ", identityErrors.Select(error => error.Description))}";
+
+    private List<DistrictView> Districts = new();
+    private IEnumerable<int> _selectedDistrictIds = new List<int>();
+    private List<CommunityCouncilView> CommunityCouncils = new();
+    private IEnumerable<int> _selectedCommunityCouncilIds = new List<int>();
+    private List<VillageView> Villages = new();
+    private IEnumerable<int> _selectedVillageIds = new List<int>();
+    private List<RegistrationCentreVillageView> RegistrationCentres = new();
+    private IEnumerable<int> _selectedRegistrationCentreIds = new List<int>();
+    ValuePresenter _valuePresenter = ValuePresenter.Text;
+
+    private MudTextField<string> emailFieldRef;
+    private MudTextField<string> confirmEmailFieldRef;
+    private CountryCodeViewModel SelectedCountry { get; set; }
+    private List<CountryCodeViewModel> CountryCodes { get; set; } = new();
+
+    private int statusId;
+    private bool isBusy;
+    private string Captcha = "";
+    private int CaptchaLetters = 4;
+
+    public string SelectedRoleAccessLevel
+    {
+        get
+        {
+            var role = Roles?.FirstOrDefault(r => r.Id == Input.RoleId);
+            return role?.SystemCodeDetail.Code ?? string.Empty;
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        RefreshCaptcha();
+        RoleManager = Services.GetRequiredService<RoleManager<ApplicationRole>>();
+
+        Roles = await _context.Roles.Where(p => p.IsSelfRegister == true).Include(a => a.SystemCodeDetail).OrderBy(r => r.Name).ToListAsync();
+
+        Genders = await _context.SystemCodeDetailsView.AsNoTracking().Where(p => p.ParentCode == "Sex").OrderBy(o => o.OrderNo).ToListAsync();
+        IDTypes = await _context.SystemCodeDetailsView.AsNoTracking().Where(p => p.ParentCode == "IDType").OrderBy(o => o.OrderNo).ToListAsync();
+
+        statusId = await _context.SystemCodeDetailsView.AsNoTracking().Where(p => p.ParentCode == "Status" && p.Code == "Under Review").Select(p => p.Id).FirstOrDefaultAsync();
+        Districts = _context.DistrictView.ToList();
+        CountryCodes = CountryCodeDataService.GetCountries();
+        SelectedCountry = CountryCodes.FirstOrDefault(c => c.Code == "LS");
+
+    }
+
+    private void OnPrivacyProtocolsChanged(bool isChecked)
+    {
+        Input.PrivacyProtocolsAccepted = isChecked;
+    }
+
+    private void RefreshCaptcha()
+    {
+        Captcha = BlazorCaptcha.Commun.Tools.GetCaptchaWord(CaptchaLetters);
+    }
+
+    public async Task RegisterUser()
+    {
+        if (!string.IsNullOrEmpty(SelectedRoleAccessLevel) &&
+            SelectedRoleAccessLevel.Equals("District", StringComparison.OrdinalIgnoreCase))
+        {
+            if(_selectedDistrictIds.Count() == 0)
+            {
+                Snackbar.Add("Please select at least one district.", Severity.Warning);
+                return;
+            }
+        }
+        else if (!string.IsNullOrEmpty(SelectedRoleAccessLevel) &&
+                 SelectedRoleAccessLevel.Equals("Community Council", StringComparison.OrdinalIgnoreCase))
+        {
+            if (_selectedCommunityCouncilIds.Count() == 0)
+            {
+                Snackbar.Add("Please select at least one community council.", Severity.Warning);
+                return;
+            }
+        }
+        else if (!string.IsNullOrEmpty(SelectedRoleAccessLevel) &&
+                 SelectedRoleAccessLevel.Equals("Village", StringComparison.OrdinalIgnoreCase))
+        {
+            if (_selectedVillageIds.Count() == 0)
+            {
+                Snackbar.Add("Please select at least one village.", Severity.Warning);
+                return;
+            }
+
+            if(_selectedRegistrationCentreIds.Count() == 0)
+            {
+                Snackbar.Add("Please select at least one registration centre.", Severity.Warning);
+                return;
+            }
+        }
+
+        await form.Validate();
+        isValid = form.IsValid;
+        if (DocumentUploaded < 1)
+        {
+            Snackbar.Add("Please upload at least one image.", Severity.Warning);
+            return;
+        }
+
+        if (DocumentUploaded2 < 1)
+        {
+            Snackbar.Add("Please upload at least one image.", Severity.Warning);
+            return;
+        }
+
+        if (!string.IsNullOrEmpty(Captcha) && Input.EnteredCaptchaText?.ToLower() != Captcha.ToLower())
+        {
+            RefreshCaptcha();
+            Snackbar.Add("Enter the letter from the image correctly.", Severity.Error);
+            StateHasChanged();
+            return;
+        }
+        if (isValid && Input.PrivacyProtocolsAccepted == true)
+        {
+            try
+            {
+                isBusy = true;
+                Input.CreatedOn = DateTime.Now;
+                Input.StatusId = statusId;
+                Input.Id = Guid.NewGuid().ToString();
+                var user = _mapper.Map<ApplicationUser>(Input);
+                await UserStore.SetUserNameAsync(user, Input.Email, CancellationToken.None);
+                var emailStore = GetEmailStore();
+                await emailStore.SetEmailAsync(user, Input.Email, CancellationToken.None);
+                user.SourceOfRegistration = "Self-Registration";
+                SentenceCaseService.ProcessEntityStrings(user);
+
+                var isId = await _context.Users.Where(a => a.IDNumber == user.IDNumber).FirstOrDefaultAsync();
+
+                if (isId != null)
+                {
+                    LoadingService.Hide();
+                    Snackbar.Add("ID number exist.", Severity.Error);
+                    return;
+                }
+                var result = await UserManager.CreateAsync(user);
+
+                if (!result.Succeeded)
+                {
+                    var errors = string.Join(", ", result.Errors.Select(e => e.Description));
+                    Snackbar.Add(errors, Severity.Error, config => { config.RequireInteraction = true; });
+                    return;
+                }
+
+                Logger.LogInformation("User created a new account with password.");
+
+                var roleName = await RoleManager.FindByIdAsync(Input.RoleId);
+
+                if (roleName == null)
+                {
+                    Snackbar.Add("Invalid role selected.", Severity.Error);
+                    return;
+                }
+                await UserManager.AddToRoleAsync(user, roleName.Name);
+
+                Snackbar.Add("Your account has been created successfully. A confirmation email has been sent to your registered email address.", Severity.Success);
+
+                var userId = await UserManager.GetUserIdAsync(user);
+                var code = await UserManager.GenerateEmailConfirmationTokenAsync(user);
+                code = WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(code));
+                var callbackUrl = NavigationManager.GetUriWithQueryParameters(
+                    NavigationManager.ToAbsoluteUri("Account/ConfirmEmail").AbsoluteUri,
+                    new Dictionary<string, object?> { ["userId"] = userId, ["code"] = code, ["returnUrl"] = ReturnUrl });
+
+                // Send Email
+                var emailData = new EmailViewModel<ConfirmationEmail>()
+                {
+                    To = user.Email.Trim(),
+                    IsHtml = true,
+                    Subject = "Email Confirmation",
+                    Email = new ConfirmationEmail
+                    {
+                        FirstName = user.FirstName,
+                        ConfirmationLink = callbackUrl
+                    }
+                };
+
+                await EmailService.SendEmailAsync(emailData).ConfigureAwait(false);
+
+                if(_selectedDistrictIds.Count() > 0)
+                {
+                    // Register user to Districts if selected
+                    foreach (var districtId in _selectedDistrictIds)
+                    {
+                        var districtUser = new UserDistrictAssignment
+                        {
+                            ApplicationUserId = user.Id,
+                            DistrictId = districtId,
+                        };
+                        await _genericService.Add(districtUser);
+                    }
+                }
+
+                if(_selectedCommunityCouncilIds.Count() > 0)
+                {
+                    // Register user to Community Councils if selected
+                    foreach (var communityCouncilId in _selectedCommunityCouncilIds)
+                    {
+                        var communityCouncilUser = new UserCommunityCouncilAssignment
+                        {
+                            ApplicationUserId = user.Id,
+                            CommunityCouncilId = communityCouncilId,
+                        };
+                        await _genericService.Add(communityCouncilUser);
+                    }
+                }
+
+                if(_selectedVillageIds.Count() > 0)
+                {
+                    // Register user to Villages if selected
+                    foreach (var villageId in _selectedVillageIds)
+                    {
+                        var villageUser = new UserVillageAssignment
+                        {
+                            ApplicationUserId = user.Id,
+                            VillageId = villageId,
+                        };
+                        await _genericService.Add(villageUser);
+                    }
+                }
+
+                if(_selectedRegistrationCentreIds.Count() > 0)
+                {
+                    // Register user to Registration Centres if selected
+                    foreach (var registrationCentreId in _selectedRegistrationCentreIds)
+                    {
+                        var registrationCentreUser = new UserRegistrationCentreAssignment
+                        {
+                            ApplicationUserId = user.Id,
+                            RegistrationCentreId = registrationCentreId,
+                        };
+                        await _genericService.Add(registrationCentreUser);
+                        // Register user to Enumerator if selected
+                        if (roleName.Name.Contains("Enumerator", StringComparison.OrdinalIgnoreCase))
+                        {
+                            var enumerator = new Enumerator
+                            {
+                                UserId = user.Id,
+                                RegistrationCentreId = registrationCentreId,
+                                CreatedOn = DateTime.Now,
+                                CreatedById = UserProfileService.UserId,
+                                IsSupervisor = roleName.Name.Contains("Supervisor", StringComparison.OrdinalIgnoreCase)
+                            };
+                            await _genericService.Add(enumerator);
+
+                        }
+
+                        if (roleName.Name.Contains("Supervisor", StringComparison.OrdinalIgnoreCase))
+                        {
+                            // Update the Registration Centre with the Supervisor's ID
+                            // This assumes that the RegistrationCentreId is set and valid)
+                            var updateCentre = _context.RegistrationCentres.Where(p => p.Id == registrationCentreId).FirstOrDefault();
+                            if (updateCentre != null)
+                            {
+                                updateCentre.SupervisorId = user.Id;
+                                await _genericService.Update(updateCentre);
+                            }
+                        }
+                    }
+                }
+                Input = new RegisterUserViewModel();
+                await ReloadToLogin();
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add($"{ex}", Severity.Error, config =>
+                {
+                    config.RequireInteraction = true;
+                });
+                return;
+            }
+            finally
+            {
+                isBusy = false;
+            }
+        }
+        else
+        {
+            if(!Input.PrivacyProtocolsAccepted)
+                Snackbar.Add("Accept privacy protocols to continue.", Severity.Error); 
+            else
+                Snackbar.Add("Confirm all field are entered correctly.", Severity.Error); 
+        }
+    }
+
+    private IUserEmailStore<ApplicationUser> GetEmailStore()
+    {
+        if (!UserManager.SupportsUserEmail)
+        {
+            throw new NotSupportedException("The default UI requires a user store with email support.");
+        }
+        return (IUserEmailStore<ApplicationUser>)UserStore;
+    }
+
+    private string ValidateEmail(string confirmEmail)
+    {
+        if (string.IsNullOrWhiteSpace(Input.Email) || string.IsNullOrWhiteSpace(confirmEmail))
+        {
+            return "Both Email and Confirm Email are required.";
+        }
+
+        if (!Input.Email.Equals(confirmEmail, StringComparison.OrdinalIgnoreCase))
+        {
+            return "Email and Confirm Email must match.";
+        }
+
+        return null; // Validation passed
+    }
+
+    private async Task OpenDialog(MouseEventArgs args)
+    {
+        var parameters = new DialogParameters();
+        var options = new DialogOptions() { MaxWidth = MaxWidth.Medium, FullWidth = true, CloseOnEscapeKey = true };
+        await DialogService.ShowAsync<PrivacyDialog>("MoGYSD Privacy Protocols", parameters, options);
+    }
+
+    private const string DefaultDragClass = "pa-4 d-flex align-content-center align-center flex-grow-1 mb-2 flex-wrap border-2 border-dashed";
+    private string _dragClass = DefaultDragClass;
+    private void SetDragClass()
+        => _dragClass = $"{DefaultDragClass} mud-border-primary mud-elevation-25 border-4";
+
+    private void ClearDragClass()
+        => _dragClass = DefaultDragClass;
+    private const long MaxAllowedSize = 3145728;
+    private bool _uploading;
+
+    private async Task UploadFiles(InputFileChangeEventArgs e)
+    {
+        ClearDragClass();
+        if (Input.Documents?.Count >= 2)
+        {
+            Snackbar.Add("Only two images/documents are allowed.", Severity.Warning);
+            return;
+        }
+        var list = new List<RegistrationImage>();
+        foreach (var file in e.GetMultipleFiles())
+        {
+            try
+            {
+                var filestream = file.OpenReadStream(GlobalVariable.MaxAllowedSize);
+                var attachStream = new MemoryStream();
+                await filestream.CopyToAsync(attachStream);
+                attachStream.Position = 0;
+                var filename = file.Name;
+                var fi = new FileInfo(filename);
+                var ext = fi.Extension;
+                if (ext.EndsWith(".pdf"))
+                {
+                    var result = await UploadService.UploadAsync(new UploadViewModel(Guid.NewGuid() + ext, UploadType.Document, attachStream.ToArray()));
+                    list.Add(new RegistrationImage { Name = filename, Size = attachStream.Length, Url = result });
+                }
+                else
+                {
+                    using (var outStream = new MemoryStream())
+                    {
+                        using (var image = Image.Load(attachStream))
+                        {
+                            image.Mutate(
+                                i => i.Resize(new ResizeOptions { Mode = ResizeMode.Min, Size = new Size(640, 320) }));
+                            image.Save(outStream, PngFormat.Instance);
+                            var result = await UploadService.UploadAsync(new UploadViewModel(Guid.NewGuid() + ext, UploadType.Document, outStream.ToArray()));
+                            list.Add(new RegistrationImage { Name = filename, Size = outStream.Length, Url = result });
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add($"{ex.Message}", Severity.Error);
+                return;
+            }
+        }
+
+        Snackbar.Add("Upload documents successfully", Severity.Info);
+
+        if (Input.Documents == null)
+            Input.Documents = list;
+        else
+            Input.Documents.AddRange(list);
+        DocumentUploaded++;
+        _uploading = false;
+    }
+
+    private async Task UploadImageFiles(InputFileChangeEventArgs e)
+    {
+        ClearDragClass();
+        if (Input.PhotoDocuments?.Count >= 2)
+        {
+            Snackbar.Add("Only two images/documents are allowed.", Severity.Warning);
+            return;
+        }
+        var list = new List<RegistrationImage>();
+        foreach (var file in e.GetMultipleFiles())
+        {
+            try
+            {
+                var filestream = file.OpenReadStream(GlobalVariable.MaxAllowedSize);
+                var attachStream = new MemoryStream();
+                await filestream.CopyToAsync(attachStream);
+                attachStream.Position = 0;
+                var filename = file.Name;
+                var fi = new FileInfo(filename);
+                var ext = fi.Extension;
+                if (ext.EndsWith(".pdf"))
+                {
+                    var result = await UploadService.UploadAsync(new UploadViewModel(Guid.NewGuid() + ext, UploadType.Document, attachStream.ToArray()));
+                    list.Add(new RegistrationImage { Name = filename, Size = attachStream.Length, Url = result });
+                }
+                else
+                {
+                    using (var outStream = new MemoryStream())
+                    {
+                        using (var image = Image.Load(attachStream))
+                        {
+                            image.Mutate(
+                                i => i.Resize(new ResizeOptions { Mode = ResizeMode.Min, Size = new Size(640, 320) }));
+                            image.Save(outStream, PngFormat.Instance);
+                            var result = await UploadService.UploadAsync(new UploadViewModel(Guid.NewGuid() + ext, UploadType.Document, outStream.ToArray()));
+                            list.Add(new RegistrationImage { Name = filename, Size = outStream.Length, Url = result });
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add($"{ex.Message}", Severity.Error);
+                return;
+            }
+        }
+
+        Snackbar.Add("Upload documents successfully", Severity.Info);
+
+        if (Input.PhotoDocuments == null)
+            Input.PhotoDocuments = list;
+        else
+            Input.PhotoDocuments.AddRange(list);
+        DocumentUploaded2++;
+        _uploading = false;
+    }
+
+    private async Task DeleteImage(RegistrationImage document)
+    {
+        if (Input.Documents != null)
+        {
+            var parameters = new DialogParameters<ConfirmDialog>
+            {
+                { x => x.ContentText, $"{"Are you sure you want to erase this image?"}" }
+            };
+            var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.ExtraSmall, FullWidth = true };
+            var dialog = await DialogService.ShowAsync<ConfirmDialog>("Erase image", parameters, options);
+            var state = await dialog.Result;
+
+            if (state is not null && !state.Canceled)
+            {
+                Input.Documents.Remove(document);
+                DocumentUploaded--;
+            }
+        }
+     }
+
+    private async Task DeleteImageImage(RegistrationImage document)
+    {
+        if (Input.PhotoDocuments != null)
+        {
+            var parameters = new DialogParameters<ConfirmDialog>
+            {
+                { x => x.ContentText, $"{"Are you sure you want to erase this image?"}" }
+            };
+            var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.ExtraSmall, FullWidth = true };
+            var dialog = await DialogService.ShowAsync<ConfirmDialog>("Erase image", parameters, options);
+            var state = await dialog.Result;
+
+            if (state is not null && !state.Canceled)
+            {
+                Input.PhotoDocuments.Remove(document);
+                DocumentUploaded2--;
+            }
+        }
+    }
+
+
+    public static class GlobalVariable
+    {
+        public static long MaxAllowedSize => 512000 * 100;
+    }
+
+    private async Task OnDownloadFile(string? str)
+    {
+        var fileURL = str;
+        await new Fancybox(JSRuntime).Preview(str ?? string.Empty, []);
+    }
+
+    private async Task ReloadToLogin()
+    {
+        await JSRuntime.InvokeVoidAsync("location.replace", "/Account/Login");
+    }
+
+    private string GetMultiSelectionText(IEnumerable<int> selectedIds)
+    {
+        var names = Villages
+            .Where(v => selectedIds.Contains(v.Id))
+            .Select(v => v.Name);
+
+        return string.Join(", ", names);
+    }
+
+    private string GetVillageNameById(int id)
+    {
+        return Villages.FirstOrDefault(v => v.Id == id)?.Name ?? $"Village {id}";
+    }
+
+    private async Task OnVillagesChanged(IEnumerable<int> selectedValues)
+    {
+        using var context = _dbContextFactory.CreateDbContext();
+        _selectedVillageIds = selectedValues.ToList();
+
+        RegistrationCentres.Clear();
+        _selectedRegistrationCentreIds= new List<int>();
+
+
+        if (_selectedVillageIds.Any())
+        {
+            // Load Community Councils based on selected Districts
+            RegistrationCentres = await context.RegistrationCentreVillageView
+                .Where(c => _selectedVillageIds.Contains(c.VillageId) && c.RegistrationCentreIsActive == true)
+                .GroupBy(c => c.RegistrationCentreId)
+                .Select(g => g.First()) // or another representative item
+                .ToListAsync();
+
+        }
+
+        StateHasChanged();
+    }
+
+    private string GetDistrictNameById(int id)
+    {
+        return Districts.FirstOrDefault(v => v.Id == id)?.Name ?? $"District {id}";
+    }
+
+    private string GetMultiSelectionDistrictText(IEnumerable<int> selectedIds)
+    {
+        var names = Districts
+            .Where(v => selectedIds.Contains(v.Id))
+            .Select(v => v.Name);
+
+        return string.Join(", ", names);
+    }
+
+    private async Task OnDistrictsChanged(IEnumerable<int> selectedValues)
+    {
+        using var context = _dbContextFactory.CreateDbContext();
+        _selectedDistrictIds = selectedValues;
+        CommunityCouncils.Clear();
+        _selectedCommunityCouncilIds = new List<int>();
+
+
+        Villages.Clear();
+        _selectedVillageIds = new List<int>();
+
+
+        RegistrationCentres.Clear();
+        _selectedRegistrationCentreIds = new List<int>();
+;
+        if (_selectedDistrictIds.Any())
+        {
+            CommunityCouncils.Clear();
+            // Load Community Councils based on selected Districts
+            CommunityCouncils = await context.CommunityCouncilView
+                .Where(c => _selectedDistrictIds.Contains(c.DistrictId))
+                .OrderBy(c => c.DistrictId)
+                .ThenBy(c => c.Id)
+                .ToListAsync();
+        }
+        else
+        {
+            CommunityCouncils.Clear();
+        }
+        StateHasChanged();
+    }
+
+    private string GetCommunityCouncilNameById(int id)
+    {
+        return CommunityCouncils.FirstOrDefault(v => v.Id == id)?.CommunityCouncilName ?? $"Community Council {id}";
+    }
+
+    private string GetMultiSelectionCommunityCouncilText(IEnumerable<int> selectedIds)
+    {
+        var names = CommunityCouncils
+            .Where(v => selectedIds.Contains(v.Id))
+            .Select(v => v.CommunityCouncilName);
+
+        return string.Join(", ", names);
+    }
+
+    private async Task OnCommunityCouncilsChanged(IEnumerable<int> selectedValues)
+    {
+        using var context = _dbContextFactory.CreateDbContext();
+        _selectedCommunityCouncilIds = selectedValues;
+        
+        Villages.Clear();
+        _selectedVillageIds = new List<int>();
+
+
+        RegistrationCentres.Clear();
+        _selectedRegistrationCentreIds = new List<int>();
+
+
+        if (_selectedCommunityCouncilIds.Any())
+        {
+            Villages.Clear();
+            // Load Community Councils based on selected Districts
+            Villages = await context.VillageView
+                .Where(c => _selectedCommunityCouncilIds.Contains(c.CommunityCouncilId))
+                .OrderBy(c => c.DistrictId)
+                .ThenBy(c => c.CommunityCouncilId)
+                .ThenBy(c => c.Id)
+                .ToListAsync();
+        }
+        else
+        {
+            Villages.Clear();
+        }
+        StateHasChanged();
+    }
+
+    private string GetMultiSelectionRegistrationCentreText(IEnumerable<int> selectedIds)
+    {
+        var names = RegistrationCentres
+            .Where(v => v.RegistrationCentreId.HasValue && selectedIds.Contains(v.RegistrationCentreId.Value))
+            .DistinctBy(v => v.RegistrationCentreId)
+            .Select(v => v.RegistrationCentreName);
+        return string.Join(", ", names);
+    }
+
+    private string GetRegistrationCentreNameById(int id)
+    {
+        return RegistrationCentres.DistinctBy(v => v.RegistrationCentreId).FirstOrDefault(v => v.RegistrationCentreId == id)?.RegistrationCentreName ?? $"Registration Centre {id}";
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            while (string.IsNullOrEmpty(emailFieldRef?.InputId) || string.IsNullOrEmpty(confirmEmailFieldRef?.InputId))
+            {
+                await Task.Delay(50);
+            }
+            await JS.InvokeVoidAsync("preventCopyPaste", emailFieldRef.InputId);
+            await JS.InvokeVoidAsync("preventCopyPaste", confirmEmailFieldRef.InputId);
+        }
+    }
+
+    private async Task<IEnumerable<CountryCodeViewModel>> SearchCountries(string value, CancellationToken token)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return CountryCodes.Take(20);
+
+        // Split search term to handle "Lesotho +266" style queries
+        var terms = value.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+
+        return CountryCodes.Where(x =>
+            terms.All(term =>
+                x.Name.Contains(term, StringComparison.OrdinalIgnoreCase) ||
+                x.PhoneCode.Contains(term) ||
+                x.Code.Contains(term, StringComparison.OrdinalIgnoreCase)))
+            .OrderBy(x => x.Name)
+            .Take(20);
+    }
+}

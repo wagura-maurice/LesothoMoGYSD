@@ -1,0 +1,343 @@
+﻿@using MoGYSD.Business.Persistence
+<div class="sidebar-container">
+    <div class="sidemenu-container navbar-collapse collapse fixed-menu">
+        <div id="remove-scroll" class="left-sidemenu">
+            <ul class="sidemenu  page-header-fixed slimscroll-style" data-keep-expanded="false" data-auto-scroll="true"
+                data-slide-speed="200" style="padding-top: 20px">
+                <li class="sidebar-toggler-wrapper hide">
+                    <div class="sidebar-toggler">
+                        <span></span>
+                    </div>
+                </li>
+                <li class="sidebar-user-panel">
+                    <div class="sidebar-user">
+                        <div class="sidebar-user-picture">
+                            <img alt="image" src="../assets/img/logo.png">
+                        </div>
+
+                    </div>
+                </li>
+                <li class="nav-item @GetActiveClass(" /", NavLinkMatch.All)">
+                    <NavLink href="/" class="nav-link nav-toggle">
+                        <i class="fa fa-dashboard"></i>
+                        <span class="title">Dashboard</span>
+                        <span class="selected"></span>
+
+                    </NavLink>
+
+                </li>
+                @if (userProfile.Contains("REGISTRATION PLANNING:"))
+                {
+                    <li class="nav-item">
+                        <NavLink href="/" class="nav-link nav-toggle">
+                            <i data-feather="book"></i>
+                            <span class="title">Registration Planning</span> <span class="arrow"></span>
+                        </NavLink>
+                        <ul class="sub-menu">
+                            @if (userProfile.Contains("MASTER REGISTRATION PLANS"))
+                            {
+                                <li class="nav-item @GetActiveClass("/master/registration", NavLinkMatch.All)">
+                                    <NavLink href="/master/registration" class="nav-link ">
+                                        <span class="title">
+                                            Master Registration Plans
+                                        </span>
+                                    </NavLink>
+                                </li>                            
+                            }
+                            @if (userProfile.Contains("DISTRICT REGISTRATION PLANS"))
+                            {
+                                <li class="nav-item @GetActiveClass("/district/registration", NavLinkMatch.All)">
+                                    <NavLink href="/district/registration" class="nav-link ">
+                                        <span class="title">
+                                            District Registration Plans
+                                        </span>
+                                    </NavLink>
+                                </li>
+                            }  
+                        </ul>
+                    </li>
+                }
+                @if (userProfile.Contains("HOUSEHOLD LISTING:"))
+                {
+                    <li class="nav-item">
+                    <NavLink href="/" class="nav-link nav-toggle">
+                        <i data-feather="home"></i>
+                        <span class="title">Household Listing</span> <span class="arrow"></span>
+                    </NavLink>
+                    <ul class="sub-menu">
+                        @if (userProfile.Contains("HOUSEHOLD LISTING PLANS:"))
+                        {
+                            <li class="nav-item @GetActiveClass("/household-listing-plans", NavLinkMatch.All)">
+                                <NavLink href="/household-listing-plans" class="nav-link ">
+                                    <span class="title">
+                                        Household Listing Plans
+                                    </span>
+                                </NavLink>
+                            </li>
+
+                        }
+                        @if (userProfile.Contains("HOUSEHOLD LISTING REVIEWS:"))
+                        {
+                            <li class="nav-item @GetActiveClass("/household-listing-review", NavLinkMatch.All)">
+                                <NavLink href="/household-listing-review" class="nav-link ">
+                                    <span class="title">
+                                        Household Listings Review
+                                    </span>
+                                </NavLink>
+                            </li>
+
+                        }
+                        @if (userProfile.Contains("CBC ACTIVITIES:"))
+                        {
+                            <li class="nav-item @GetActiveClass("/householdlisting/cbcactivities", NavLinkMatch.All)">
+                                <NavLink href="/householdlisting/cbcactivities" class="nav-link ">
+                                    <span class="title">
+                                        CBC Activity Plans
+                                    </span>
+                                </NavLink>
+                            </li>
+
+                        }
+                        @if (userProfile.Contains("CBC CATEGORISATION REVIEWS:"))
+                        {
+                            <li class="nav-item @GetActiveClass("/householdlisting/categorization", NavLinkMatch.All)">
+                                <NavLink href="/householdlisting/categorization" class="nav-link ">
+                                    <span class="title">
+                                        CBC Categorization Reviews
+                                    </span>
+                                </NavLink>
+                            </li>
+                        }
+                    </ul>
+                </li>                    
+                }
+                @if (userProfile.Contains("HOUSEHOLD ENUMERATION:"))
+                {
+                    <li class="nav-item">
+                    <NavLink href="/" class="nav-link nav-toggle">
+                        <i data-feather="clipboard"></i>
+                        <span class="title">Household <span style="font-size: 0.9em;">Enumeration</span></span><span class="arrow"></span>
+                    </NavLink>
+                    <ul class="sub-menu">
+                        <li class="nav-item @GetActiveClass("/enumeration-plans", NavLinkMatch.All)">
+                            <NavLink href="/enumeration-plans" class="nav-link ">
+                                <span class="title">
+                                    Enumeration plans
+                                </span>
+                            </NavLink>
+                        </li>
+                            <li class="nav-item @GetActiveClass("/household-reviews", NavLinkMatch.All)">
+                            <NavLink href="/household-reviews" class="nav-link ">
+                                <span class="title">
+                                    Household Reviews
+                                </span>
+                            </NavLink>
+                        </li>
+                        <li class="nav-item @GetActiveClass("/quality-check", NavLinkMatch.All)">
+                            <NavLink href="/quality-check" class="nav-link ">
+                                <span class="title">
+                                    Data Quality Checks
+                                </span>
+                            </NavLink>
+                        </li>
+                        <li class="nav-item @GetActiveClass("/conduct-shadowing", NavLinkMatch.All)">
+                            <NavLink href="/conduct-shadowing" class="nav-link ">
+                                <span class="title">
+                                    Conduct Shadowing
+                                </span>
+                            </NavLink>
+                        </li>
+                    </ul>
+                </li>                    
+                }
+                @if (userProfile.Contains("SECURITY:"))
+                {
+                    <li class="nav-item">
+                    <NavLink href="/" class="nav-link nav-toggle">
+                        <i class="fas fa-shield-alt"></i>
+                        <span class="title">Security</span> <span class="arrow"></span>
+                    </NavLink>
+                    <ul class="sub-menu">
+                        @if (userProfile.Contains("ROLES:"))
+                        {
+                            <li class="nav-item @GetActiveClass("/security/roles", NavLinkMatch.All)">
+                                <NavLink href="/security/roles" class="nav-link ">
+                                    <span class="title">
+                                        Roles
+                                    </span>
+                                </NavLink>
+                            </li>                                
+                        }
+
+                        @if (userProfile.Contains("PERMISSIONS:"))
+                        {
+                            <li class="nav-item @GetActiveClass("/security/profiles", NavLinkMatch.All)">
+                                <NavLink href="/security/profiles" class="nav-link ">
+                                    <span class="title">
+                                        Permissions
+                                    </span>
+                                </NavLink>
+                            </li>
+                        }
+                        @if (userProfile.Contains("USERS:"))
+                        {
+                            <li class="nav-item @GetActiveClass("/security/user", NavLinkMatch.All)">
+                                <NavLink href="/security/user" class="nav-link ">
+                                    <span class="title">Users</span>
+                                </NavLink>
+                            </li>
+                        }
+                    </ul>
+                </li>
+                }
+                @if (userProfile.Contains("SETTINGS:"))
+                {
+                    <li class="nav-item">
+                    <NavLink href="javascript:;" class="nav-link nav-toggle">
+                        <i data-feather="settings"></i>
+                        <span class="title">Settings</span>
+                        <span class="arrow "></span>
+                    </NavLink>
+                    <ul class="sub-menu">
+                        @if (userProfile.Contains("GEOGRAPHICAL SETTINGS:"))
+                        {
+                            <li class="nav-item">
+                                <NavLink href="javascript:;" class="nav-link nav-toggle">
+                                    Geographical Settings
+                                    <span class="arrow "></span>
+                                </NavLink>
+                                <ul class="sub-menu">
+                                        <li class="nav-item @GetActiveClass("/admin/country", NavLinkMatch.All)">
+                                        <NavLink href="/admin/country" class="nav-link ">
+                                            <span class="title">
+                                                Country
+                                            </span>
+                                        </NavLink>
+                                    </li>
+                                    @if (userProfile.Contains("DISTRICT:"))
+                                    {
+                                        <li class="nav-item @GetActiveClass("/admin/districts", NavLinkMatch.All)">
+                                            <NavLink href="/admin/districts" class="nav-link ">
+                                                <span class="title">
+                                                    Districts
+                                                </span>
+                                            </NavLink>
+                                        </li>                                            
+                                    }
+                                    @if (userProfile.Contains("CONSTITUENCY:"))
+                                    {
+                                        <li class="nav-item @GetActiveClass("/admin/constituency", NavLinkMatch.All)">
+                                            <NavLink href="/admin/constituency" class="nav-link ">
+                                                <span class="title">
+                                                    Constituencies
+                                                </span>
+                                            </NavLink>
+                                        </li>                                            
+                                    }
+                                    @if (userProfile.Contains("COMMUNITY COUNCIL:"))
+                                    {
+                                        <li class="nav-item @GetActiveClass("/admin/councils", NavLinkMatch.All)">
+                                            <NavLink href="/admin/councils" class="nav-link ">
+                                                <span class="title">Community Councils</span>
+                                            </NavLink>
+                                        </li>                                            
+                                    }
+                                    @if (userProfile.Contains("VILLAGES:"))
+                                    {
+                                        <li class="nav-item @GetActiveClass("/admin/villages", NavLinkMatch.All)">
+                                            <NavLink href="/admin/villages" class="nav-link ">
+                                                <span class="title">
+                                                    Villages
+                                                </span>
+                                            </NavLink>
+                                        </li>
+                                    }
+                                </ul>
+                            </li>                                    
+                        }
+                        @if (userProfile.Contains("DISTRICT CENSUS DATA:"))
+                        {
+                            <li class="nav-item @GetActiveClass("/admin/censusdata", NavLinkMatch.All)">
+                                    <NavLink href="/admin/censusdata" class="nav-link ">
+                                    <span class="title">
+                                        Census Data
+                                    </span>
+                                </NavLink>
+                            </li>                                
+                        }
+                        @if (userProfile.Contains("REGISTRATION CENTRE:"))
+                        {
+                            <li class="nav-item @GetActiveClass("/admin/registrationcentre", NavLinkMatch.All)">
+                                <NavLink href="/admin/registrationcentre" class="nav-link ">
+                                    <span class="title">
+                                        Registration Centres
+                                    </span>
+                                </NavLink>
+                            </li>
+                        }
+                        @* @if (userProfile.Contains("PARTNERS:"))
+                        {
+                            <li class="nav-item @GetActiveClass("/admin/partners", NavLinkMatch.All)">
+                                <NavLink href="/admin/partners" class="nav-link ">
+                                    <span class="title">
+                                        Partners
+                                    </span>
+                                </NavLink>
+                            </li>
+                        } *@
+                        @if (userProfile.Contains("SYSTEM CODES:"))
+                        {
+                            <li class="nav-item @GetActiveClass("/admin/systemcodes", NavLinkMatch.All)">
+                                <NavLink href="/admin/systemcodes" class="nav-link ">
+                                    <span class="title">
+                                        System Codes
+                                    </span>
+                                </NavLink>
+                            </li>
+                        }
+                    </ul>
+                </li>
+                }
+            </ul>
+        </div>
+    </div>
+</div>
+@code {
+    private string userProfile;
+    private string _currentUri;
+    protected override async Task OnInitializedAsync()
+    {
+        await UserProfileService.InitializeAsync();
+        userProfile = UserProfileService.UserProfile;
+
+        _currentUri = Navigation.Uri;
+        Navigation.LocationChanged += OnLocationChanged;
+    }
+    private void OnLocationChanged(object sender, LocationChangedEventArgs e)
+    {
+        _currentUri = e.Location;
+        StateHasChanged();
+    }
+    private string GetActiveClass(string href, NavLinkMatch match = NavLinkMatch.All)
+    {
+        var relativePath = "/" + Navigation.ToBaseRelativePath(_currentUri);
+
+        if (match == NavLinkMatch.All)
+        {
+            return relativePath.Equals(href, StringComparison.OrdinalIgnoreCase) ? "active" : "";
+        }
+        else
+        {
+
+            if (relativePath.StartsWith(href, StringComparison.OrdinalIgnoreCase) && href != "/")
+            {
+                return "active open";
+            }
+        }
+        return "";
+    }
+    public void Dispose()
+    {
+        Navigation.LocationChanged -= OnLocationChanged;
+    }
+}

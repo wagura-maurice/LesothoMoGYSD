@@ -1,0 +1,264 @@
+﻿@using MoGYSD.Business.Models.Nissa.MasterRegistrations
+@using MoGYSD.ViewModels.Nissa.MasterRegistrations
+<MudDialog Class="blur dialog-background" TitleClass="blur dialog-background-title" ContentClass="dialog-background-surface py-10" ActionsClass="dialog-background-surface">
+    <DialogContent>
+        <MudForm @ref="form">
+            <MudGrid>
+                <MudItem xs="12" sm="6">
+                    <DistrictAutocompleteExclude Variant="Variant.Outlined" Label="District Name"
+                                          For="@(() => Model.DistrictId)"
+                                            Value="Model.DistrictId"
+                                                 Required="true"
+                                            ValueChanged="OnDistrictSelected"
+                                          ExcludedDistrictIds="ExcludeDistricts" />
+                </MudItem>
+
+                <MudItem xs="12" sm="6">
+                    <MudTextField Variant="Variant.Outlined" T="int?" @bind-Value="Model.CurrentPopulation"
+                                  For="@(() => Model.CurrentPopulation)"
+                                  Label="Current Population" ReadOnly="true" Format="N0" />
+                </MudItem>
+
+                <MudItem xs="12" sm="6">
+                    <MudTextField Variant="Variant.Outlined" T="int?" @bind-Value="Model.EstimatedPopulation" Required="true"
+                                  For="@(() => Model.EstimatedPopulation)"
+                                  Label="Estimated Population" Format="N0" />
+                </MudItem>
+
+                <MudItem xs="12" sm="6">
+                    <MudNumericField  Variant="Variant.Outlined" T="int?"
+                                     Label="Prior Coverage (%)"
+                                     ReadOnly="true"
+                                     @bind-Value="Model.PriorCoverage"
+                                     For="@(() => Model.PriorCoverage)"
+                                     Max="99" />
+                </MudItem>
+
+                <MudItem xs="12" sm="6">
+                    <MudNumericField  Variant="Variant.Outlined" T="int?"
+                                     Required="true"
+                                     Label="Current Coverage (%)"
+                                     Value="Model.CurrentCoverage"
+                                     ValueChanged="OnCurrentCoverageChanged"
+                                     For="@(() => Model.PriorCoverage)"
+                                     Max="99" />
+                </MudItem>
+
+                <MudItem xs="12" sm="6">
+                    <MudTextField Variant="Variant.Outlined" T="int?" @bind-Value="Model.TotalPopulationToTarget"
+                                  For="@(() => Model.TotalPopulationToTarget)"
+                                  Label="Total Population To Target" ReadOnly="true" Format="N0" />
+                </MudItem>
+
+                <MudItem xs="12" sm="6">
+                    <MudTextField Variant="Variant.Outlined" T="int?"
+                                  Value="AverageHHPopulationNo"
+                                  ValueChanged="OnAverageHHPopulationChanged"
+                                  Label="Average HH Population No." ReadOnly="true"/>
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudTextField Variant="Variant.Outlined" T="int?" @bind-Value="Model.TotalHHsToTarget"
+                                  For="@(() => Model.TotalHHsToTarget)"
+                                  Label="Total HHs To Target"
+                                  Error="@IsTotalHHsInvalid"
+                                  ErrorText="Cannot exceed estimated HHs reduce the Current Coverage %" 
+                                  ReadOnly="true" Format="N0" />
+                </MudItem>
+                <MudItem xs="12">
+                    <MudText Typo="Typo.body2" Color="@(TotalHHsToTargetEntry + Model.TotalHHsToTarget > EstimatedHHs ? Color.Error : Color.Default)">
+                        <b>Total HHs should not exceed: @((EstimatedHHs - TotalHHsToTargetEntry).ToString("N0"))</b>
+                    </MudText>
+                </MudItem>
+            </MudGrid>
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel"
+                   Variant="Variant.Text"
+                   Size="Size.Small"
+                   Class="ml-0">Cancel</MudButton>
+        <MudButton OnClick="SubmitForm" Color="Color.Primary" Variant="Variant.Filled"
+                   Size="Size.Small">Save</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter]
+    private IMudDialogInstance Dialog { get; set; }
+    [Parameter] public RegistrationDistrictViewModel Model { get; set; }
+    [Parameter] public int MasterRegistrationPlanId { get; set; }
+    [Parameter] public int EstimatedHHs { get; set; }
+    private int TotalHHsToTargetEntry;
+    private int? AverageHHPopulationNo;
+    private bool IsTotalHHsInvalid = false;
+    private List<int> ExcludeDistricts = new();
+
+    private MudForm form;
+    private void Cancel() => Dialog.Cancel();
+
+    protected override async Task OnInitializedAsync()
+    {
+        TotalHHsToTargetEntry = await _context.RegistrationDistricts.AsNoTracking()
+        .Where(p => p.MasterRegistrationPlanId == MasterRegistrationPlanId).SumAsync(h => h.TotalHHsToTarget);
+        ExcludeDistricts = await _context.RegistrationDistricts
+        .Where(p => p.MasterRegistrationPlanId == MasterRegistrationPlanId).Select(p => p.DistrictId).ToListAsync();
+    }
+
+    private async Task OnDistrictSelected(int? selectedDistrictId)
+    {
+        using var context = _dbContextFactory.CreateDbContext();
+        Model.DistrictId = selectedDistrictId;
+
+        if (selectedDistrictId == null)
+        {
+            Model.CurrentPopulation = 0;
+            return;
+        }
+        var statusId = await context.SystemCodeDetailsView.Where(p => p.ParentCode == "Status" && p.Code == "Approved").Select(p => p.Id).FirstOrDefaultAsync();
+        
+        var district = await context.DistrictView.AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Id == selectedDistrictId);
+
+        var totalHHList = await context.HHListingView.AsNoTracking()
+            .Where(h => h.DistrictId == selectedDistrictId && h.StatusId == statusId)
+            .Select(h => h.NationalId)
+            .Distinct()
+            .CountAsync();
+
+        if (district != null)
+        {
+            Model.CurrentPopulation = district.CensusPopulationData;
+
+            AverageHHPopulationNo = Math.Max(1, (int)Math.Round(
+                    (district.CensusPopulationData.Value / (double)district.CensusHouseholdData),
+                    MidpointRounding.AwayFromZero));
+
+            Model.PriorCoverage = totalHHList > 0 && district.CensusPopulationData.HasValue
+                ? Math.Min(100, (int)Math.Round(
+                    ((double)totalHHList / district.CensusPopulationData.Value) * 100,
+                    MidpointRounding.AwayFromZero))
+                : 0;
+        }
+
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task OnCurrentCoverageChanged(int? coveragePercent)
+    {
+        Model.CurrentCoverage = coveragePercent;
+
+        if (coveragePercent.HasValue)
+        {
+            if (Model.CurrentPopulation > 0)
+            {
+                // Calculate absolute coverage value
+                Model.TotalPopulationToTarget = (int)((coveragePercent.Value / 100.0) * Model.CurrentPopulation);
+
+                if (AverageHHPopulationNo > 0) // Prevent division by zero
+                {
+                    Model.TotalHHsToTarget = (int)(Model.TotalPopulationToTarget / AverageHHPopulationNo);
+                }
+                else
+                {
+                    Model.TotalHHsToTarget = 0;
+                }
+
+                IsTotalHHsInvalid = TotalHHsToTargetEntry + Model.TotalHHsToTarget > EstimatedHHs;
+            }
+            else
+            {
+                // Reset calculations if population is 0 or invalid
+                Model.TotalPopulationToTarget = 0;
+                Model.TotalHHsToTarget = 0;
+                IsTotalHHsInvalid = false;
+            }
+        }
+        else
+        {
+            // Handle null coverage case
+            Model.TotalPopulationToTarget = 0;
+            Model.TotalHHsToTarget = 0;
+            IsTotalHHsInvalid = false;
+
+            // Only reset CurrentPopulation if that's the intended behavior
+            // Model.CurrentPopulation = 0; // Commented out as this might not be desired
+        }
+
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task OnAverageHHPopulationChanged(int? average)
+    {
+        AverageHHPopulationNo = average;
+
+        if (average.HasValue && Model.TotalPopulationToTarget > 0)
+        {
+            // Calculate absolute coverage value
+            Model.TotalHHsToTarget = (int) (Model.TotalPopulationToTarget / average);
+            IsTotalHHsInvalid = TotalHHsToTargetEntry + Model.TotalHHsToTarget > EstimatedHHs;
+            
+        }
+        else
+        {
+            Model.TotalHHsToTarget = 0;
+        }
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task SubmitForm()
+    {
+        await form.Validate();
+
+        if (form.IsValid && !IsTotalHHsInvalid)
+        {
+            if (Model.Id > 0)
+            {
+                try
+                {
+                    LoadingService.Show();
+                    var dataToUpdate = _mapper.Map<RegistrationDistrict>(Model);
+                    await _genericService.Update(dataToUpdate);
+
+                    LoadingService.Hide();
+                    Dialog.Close(DialogResult.Ok(true));
+                    Snackbar.Add("District population data updated successfully", Severity.Success);
+                }
+                catch (Exception ex)
+                {
+                    LoadingService.Hide();
+                    Snackbar.Add($"An unexpected error occurred: {(ex.InnerException is null ? ex.Message : ex.InnerException.Message)}", Severity.Error, config => { config.RequireInteraction = true; });
+                    return;
+                }
+            }
+            else
+            {
+                try
+                {
+                    LoadingService.Show();
+                    Model.MasterRegistrationPlanId = MasterRegistrationPlanId;
+                    var addData = _mapper.Map<RegistrationDistrict>(Model);
+                    await _genericService.Add(addData);
+
+                    LoadingService.Hide();
+                    Dialog.Close(DialogResult.Ok(true));
+                    Snackbar.Add("District population data saved successfully", Severity.Success);
+                }
+                catch (Exception ex)
+                {
+                    LoadingService.Hide();
+                    Snackbar.Add(
+                        $"An unexpected error occurred: {(ex.InnerException is null ? ex.Message : ex.InnerException.Message)}",
+                        Severity.Error,
+                        config => { config.RequireInteraction = true; }
+                    );
+                    return;
+                }
+
+            }
+        }
+        else
+        {
+            Snackbar.Add("Please fill in all required fields correctly.", Severity.Error);
+        }
+    }
+}

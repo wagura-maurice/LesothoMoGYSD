@@ -1,0 +1,92 @@
+﻿@using MoGYSD.Business.Models.Nissa.Admin
+@using MoGYSD.Business.Persistence
+@using MoGYSD.ViewModels.Nissa.Administration
+
+<MudDialog Class="blur dialog-background" TitleClass="blur dialog-background-title" ContentClass="dialog-background-surface py-10" ActionsClass="dialog-background-surface">
+    <DialogContent>
+        <MudForm @ref="form" Class="d-flex flex-column gap-2">
+            <MudTextField Variant="Variant.Outlined" @bind-Value="Model.Name" For="@(() => Model.Name)" Label="Country Name" Class="mb-2" />
+            <MudTextField Variant="Variant.Outlined" @bind-Value="Model.Code" For="@(() => Model.Code)" Label="Country Code" Class="mb-2" />
+            <MudTextField Variant="Variant.Outlined" @bind-Value="Model.Population" For="@(() => Model.Population)" Label="Population" Class="mb-2" />
+            @* <MudSwitch @bind-Value="Model.Status"
+                       Style="@(Model.Status ? "color:green" : "color:red")"
+                       ThumbIcon="@(Model.Status? Icons.Material.Filled.Done : Icons.Material.Filled.Close)"
+                       ThumbIconColor="@(Model.Status? Color.Success: Color.Error)"
+                       Label="@(Model.Status ? "Active" : "Not Active")"
+                       Class="mb-3" /> *@
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel"
+                   Variant="Variant.Text"
+                   Size="Size.Small"
+                   Class="ml-0">Cancel</MudButton>
+        <MudButton OnClick="SubmitForm" Color="Color.Primary" Variant="Variant.Filled"
+                   Size="Size.Small">Submit</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter]
+    private IMudDialogInstance Dialog { get; set; }
+    [Parameter] public CountryViewModel Model { get; set; }
+
+    private MudForm form;
+    private void Cancel() => Dialog.Cancel();
+
+
+    private async Task SubmitForm()
+    {
+        await form.Validate();
+        if (form.IsValid)
+        {
+            if (Model.Id > 0)
+            {
+                try
+                {
+                    LoadingService.Show();
+                    var dataToUpdate = _mapper.Map<Country>(Model);
+                    await _genericService.Update(dataToUpdate, false);
+
+                    LoadingService.Hide();
+                    Dialog.Close(DialogResult.Ok(true));
+                    Snackbar.Add("Country updated successfully", Severity.Success);
+                }
+                catch (Exception ex)
+                {
+                    LoadingService.Hide();
+                    Snackbar.Add($"An unexpected error occurred: {(ex.InnerException is null ? ex.Message : ex.InnerException.Message)}", Severity.Error, config => { config.RequireInteraction = true; });
+                    return;
+                }
+            }
+            else
+            {
+                try
+                {
+                    LoadingService.Show();
+                    var addData = _mapper.Map<Country>(Model);
+                    await _genericService.Add(addData);
+
+                    LoadingService.Hide();
+                    Dialog.Close(DialogResult.Ok(true));
+                    Snackbar.Add("Country saved successfully", Severity.Success);
+                }
+                catch (Exception ex)
+                {
+                    LoadingService.Hide();
+                    Snackbar.Add(
+                        $"An unexpected error occurred: {(ex.InnerException is null ? ex.Message : ex.InnerException.Message)}",
+                        Severity.Error,
+                        config => { config.RequireInteraction = true; }
+                    );
+                    return;
+                }
+
+            }
+        }
+        else
+        {
+            Snackbar.Add("Please fill in all required fields.", Severity.Error);
+        }
+    }
+}

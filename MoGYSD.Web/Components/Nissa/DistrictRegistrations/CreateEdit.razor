@@ -1,0 +1,602 @@
+﻿@page "/district/registration/create"
+@page "/district/registration/create/{FilterDistrictIds}"
+@page "/district/registration/edit/{Id:int}"
+
+@using MoGYSD.Business.Models.Nissa.Admin
+@using MoGYSD.Business.Models.Nissa.DistrictRegistrations
+@using MoGYSD.Business.Persistence
+@using MoGYSD.Business.Views.Nissa.Districtregistrations
+@using MoGYSD.ViewModels.Nissa.DistrictRegistrations
+@using MoGYSD.Web.Components.Autocompletes
+@using Newtonsoft.Json
+
+<MudGrid Class="mb-3" Justify="Justify.SpaceBetween">
+    <MudItem xs="12" md="6">
+        <MudText Typo="Typo.h2" Class="font-weight-bold"><b>@HeaderText</b></MudText>
+    </MudItem>
+    <MudItem xs="12" md="6" Class="d-flex justify-end">
+        <MudBreadcrumbs Items="_breadcrumbItems" Class="custom-breadcrumb" />
+    </MudItem>
+</MudGrid>
+
+<MudPaper Elevation="3">
+    <MudTabs @bind-ActivePanelIndex="_activeTab" KeepPanelsAlive="true">
+        <MudTabPanel Text="District Registration Plan"> 
+            <MudPaper Class="pa-8 ma-2" >
+                <MudForm @ref="districtForm">
+                    <MudGrid>
+                        <MudItem xs="12" sm="6" md="3">
+                            <DistrictAutocomplete Variant="Variant.Outlined" Label="District"
+                                For="@(() => Model.DistrictId)"
+                                @bind-Value="Model.DistrictId"
+                                Required="true"
+                                DistrictsWithPlans="@FilterDistrictIdForAccessLevel"
+                                Disabled="@(Id > 0)">
+                            </DistrictAutocomplete>
+                        </MudItem>
+                        <MudItem xs="12" sm="6" md="3">                           
+                            <MasterRegistrationDistrictAutocomplete Label="Master Plan"
+                                Variant="Variant.Outlined"
+                                Required="true"
+                                For="@(() => Model.DistrictRegistrationPlanId)"
+                                Value="Model.DistrictRegistrationPlanId"
+                                ValueChanged="OnMasterPlanChange"
+                                DistrictId="Model.DistrictId"
+                                Disabled="@(Id > 0)">
+                            </MasterRegistrationDistrictAutocomplete>
+                        </MudItem>
+                        <MudItem xs="12" sm="6" md="3">
+                            <MudTextField Variant="Variant.Outlined" @bind-Value="@Model.RegistrationPlanName"
+                            Label="Registration Plan Name"
+                            Required="true"
+                            For="@(() => Model.RegistrationPlanName)" />
+                        </MudItem>
+                        <MudItem xs="12" sm="6" md="3">
+                            <MudTextField Variant="Variant.Outlined" T="decimal?" @bind-Value="@Model.ApprovedBudgetAmount"
+                                        Label="Approved Budget"
+                                        Required="true"
+                                        For="@(() => Model.ApprovedBudgetAmount)"
+                                        Format="N2"
+                                        Adornment="Adornment.End"
+                                        AdornmentText="LSL" />
+                        </MudItem>
+                        <MudItem xs="12" sm="6" md="3">
+                            <MudTextField Variant="Variant.Outlined" T="int?" @bind-Value="@Model.ExpectedNoHouseholds"
+                            Label="Expected Households"
+                            Required="true"
+                            For="@(() => Model.ExpectedNoHouseholds)" ReadOnly="true"/>
+                        </MudItem>
+                        <MudItem xs="12" sm="6" md="3">
+                            <MudDatePicker Variant="Variant.Outlined"  @bind-Date="Model.ProjectedStartDate"
+                            Label="Projected Start Date"
+                            Required="true"
+                            For="@(() => Model.ProjectedStartDate)" MinDate="_projectedStartDate ?? DateTime.Today" MaxDate="_projectedEndDate ?? DateTime.Today.AddMonths(2)" />
+                        </MudItem>
+                        <MudItem xs="12" sm="6" md="3">
+                            <MudDatePicker Variant="Variant.Outlined"  @bind-Date="Model.ProjectedEndDate"
+                            Label="Projected End Date"
+                            For="@(() => Model.ProjectedEndDate)" MinDate="Model.ProjectedStartDate ?? DateTime.Today" MaxDate="_projectedEndDate ?? DateTime.Today.AddMonths(2)" />
+                        </MudItem>
+                        <MudItem xs="12" sm="6" md="3">
+                            <MudDatePicker Variant="Variant.Outlined" Required="true" @bind-Date="Model.ActualStartDate"
+                            Label="Actual Start Date"
+                            For="@(() => Model.ActualStartDate)" />
+                        </MudItem>
+                        <MudItem xs="12" sm="6" md="3">
+                            <MudDatePicker Variant="Variant.Outlined"  @bind-Date="Model.ActualEndDate"
+                            Label="Actual End Date"
+                            For="@(() => Model.ActualEndDate)" />
+                        </MudItem>
+
+                        <MudItem xs="12" sm="6" md="4">
+                            <MudTextField Variant="Variant.Outlined" @bind-Value="@Model.Description"
+                            Label="Description"
+                            For="@(() => Model.Description)" />
+                        </MudItem>
+                        <!-- Submit Button -->
+                        <MudItem xs="12" class="d-flex justify-space-between">
+                            <MudButton Variant="Variant.Filled"
+                                Color="Color.Secondary"
+                                OnClick="Back">
+                                Back
+                            </MudButton>
+                            <MudButton Variant="Variant.Filled"
+                                       Color="Color.Primary"
+                                       OnClick="NextStepFromTab0">
+                                Save
+                            </MudButton>
+                        </MudItem>
+                    </MudGrid>
+                </MudForm>
+            </MudPaper>
+        </MudTabPanel>
+        <MudTabPanel Text="Registration Activity Details" Disabled="@(_firstEnd)">
+            <MudPaper Class="pa-8 ma-2">
+                    <!-- District Name -->
+                <MudItem xs="12" sm="4">
+                    <MudText Typo="Typo.h3"><b>District: @registeredGroupActivities.FirstOrDefault()?.DistrictName</b></MudText>
+                </MudItem>
+                <MudGrid Class="mb-4" Justify="Justify.SpaceBetween">
+                    <!-- Search Field -->
+                    <MudItem xs="12" sm="4" Class="d-flex justify-start">
+                        <CommunityCouncilAutocomplete Label="Search by Community Council"
+                                                      @bind-Value="SearchByCCs"
+                                                      DistrictId="@Model.DistrictId"
+                                                      Dense="true" />
+                    </MudItem>
+
+
+                    <!-- Add Button -->
+                    <MudItem xs="12" sm="4" Class="d-flex justify-end">
+                        <MudButton EndIcon="@Icons.Material.Filled.Add"
+                                   Variant="Variant.Filled"
+                                   OnClick="() => AddNew()"
+                                   DropShadow="true"
+                                   Color="Color.Primary"
+                                   Class="top-add-button">
+                            Add New
+                        </MudButton>
+                    </MudItem>
+                </MudGrid>
+
+                <!-- Table -->
+                <MudTable Items="@FilteredActivities" Bordered="true" Striped="true" Hover="true" Dense="true">
+                    <HeaderContent>
+                        <MudTh>Community Council</MudTh>
+                        <MudTh>Number of Households</MudTh>
+                        <MudTh>Total Activities Required</MudTh>
+                        <MudTh>Total Activities Not Required</MudTh>
+                        <MudTh>Actions</MudTh>
+                    </HeaderContent>
+                    <RowTemplate>
+                        <MudTd>@context.CommunityCouncilName</MudTd>
+                        <MudTd Style ="text-align: right;">@context.NumberOfHouseholds.ToString("N0")</MudTd>
+                        <MudTd>@context.NumberOfActiveActivities</MudTd>
+                        <MudTd>@context.NumberOfNotActiveActivities</MudTd>
+                        <MudTd>
+                            <MudMenu Icon="@Icons.Material.Filled.MoreVert" Color="Color.Primary" Dense="true">
+                                <MudMenuItem OnClick="@(() => ViewActivity(context.CommunityCouncilId))">
+                                    <MudIcon Icon="@Icons.Material.Filled.Info" Class="me-2 text-primary" /> Details
+                                </MudMenuItem>
+                                <MudMenuItem OnClick="@(() => EditActivity(context))">
+                                    <MudIcon Icon="@Icons.Material.Filled.Edit" Class="me-2" /> Edit
+                                </MudMenuItem>
+                            </MudMenu>
+                        </MudTd>
+                    </RowTemplate>
+                </MudTable>
+            </MudPaper>
+
+        </MudTabPanel>
+        <MudTabPanel Text="Registration Activity Details" Disabled="@(_secondEnd)">
+            <MudPaper Class="pa-8 ma-2">
+                <MudText Typo="Typo.h3" Class="mb-4"><b>Community Council : @registeredActivities.FirstOrDefault()?.CommunityCouncilName</b></MudText>
+                <MudPaper>
+                    <MudTable Items="@registeredActivities" Bordered="true" Striped="true" Hover="true" Dense="true">
+                        <HeaderContent>
+                            <MudTh>Activity Name</MudTh>
+                            <MudTh>Responsible Organisation Type</MudTh>
+                            <MudTh>Responsible Organisation</MudTh>
+                            <MudTh>Responsible Person</MudTh>
+                            <MudTh>Contact of Responsible Person</MudTh>
+                            <MudTh>Projected StartDate</MudTh>
+                            <MudTh>Projected EndDate</MudTh>
+                            <MudTh>Activities Required</MudTh>
+                            @* <MudTh>Documents</MudTh> *@
+                        </HeaderContent>
+                        <RowTemplate>
+                            <MudTd>@context.ActivityName</MudTd>
+                            <MudTd>@context.OrgTypeName</MudTd>
+                            <MudTd>@context.PartnersName</MudTd>
+                            <MudTd>@context.ContactPersonName</MudTd>
+                            <MudTd>@context.ContactPersonEmail</MudTd>
+                            <MudTd>@context.ProjectedStartDate.ToString("dd-MMM-yyyy")</MudTd>
+                            <MudTd>@context.ProjectedEndDate.ToString("dd-MMM-yyyy")</MudTd>
+                            <MudTd>
+                                <MudText Style="@($"{GetStatusStyle(context.IsRequired)} display:block; padding:4px; border-radius:6px; width:100%; text-align: center;")">
+                                    @(context.IsRequired ? "Yes" : "No")
+                                </MudText>
+                            </MudTd>
+
+                            @* <MudTd>@context.DocumentsJson</MudTd> *@
+                        </RowTemplate>
+                    </MudTable>
+                </MudPaper>
+                <MudItem xs="12" class="d-flex justify-space-between mb-2 ml-2 mt-2">
+                    <MudButton Variant="Variant.Filled"
+                               Color="Color.Secondary"
+                               OnClick="BackTab">
+                        Back
+                    </MudButton>
+                </MudItem>
+            </MudPaper>
+        </MudTabPanel>
+    </MudTabs>
+</MudPaper>
+
+@code {
+    [Parameter] public int? Id { get; set; }
+    [Parameter] public string? FilterDistrictIds { get; set; }
+    public List<int> FilterDistrictIdForAccessLevel { get; set; }
+    private DistrictRegistrationPlanViewModel Model = new();
+    private List<CCsRegisteredViewModel> registeredCCs = new();
+    private List<CCRegistrationActivityView> registeredActivities = new();
+    private List<CCRegistrationActivityGroupView> registeredGroupActivities = new();
+    private string HeaderText = "District Registration Planning";
+    private List<BreadcrumbItem> _breadcrumbItems;
+    private DateTime? _projectedStartDate;
+    private DateTime? _projectedEndDate;
+
+    private MudForm districtForm;
+    private int _activeTab = 0;
+    private int statusId;
+    private int cCregisteredId;
+    private bool _firstEnd = true;
+    private bool _secondEnd = true;
+    private string DistrictName;
+    private int? SearchByCCs { get; set; }
+
+    private List<CCRegistrationActivityGroupView> FilteredActivities =>
+        SearchByCCs != null && SearchByCCs.Value > 0
+            ? registeredGroupActivities
+                .Where(x => x.CommunityCouncilId == SearchByCCs)
+                .ToList()
+                : registeredGroupActivities;
+
+
+    private void Back()
+    {
+        Navigation.NavigateTo("/district/registration");
+    }
+
+    private async Task NextStepFromTab0()
+    {
+        await districtForm.Validate();
+
+        if (districtForm.IsValid)
+        {
+            try
+            {
+                _firstEnd = false; // Enable the next tab
+                LoadingService.Show();
+                if (Id.HasValue && Id.Value > 0)
+                {
+                    Model.StatusId = statusId;
+                    var data = _mapper.Map<DistrictRegistrationPlan>(Model);
+                    await _genericService.Update(data, false);
+                    // Detach after adding
+                    _context.Entry(data).State = EntityState.Detached;
+                    LoadingService.Hide();
+                    await PopulateCCsRegistered();
+                    Snackbar.Add("District registration plan updated successfully", Severity.Success);
+                }
+                else
+                {
+                    Model.StatusId = statusId;
+                    var data = _mapper.Map<DistrictRegistrationPlan>(Model);
+                    // var saveToDB = _genericService.Add<DistrictRegistrationPlan>(data, false);
+                    data.CreatedById = UserProfileService.UserId;
+                    data.CreatedOn = DateTime.Now;
+                    _context.DistrictRegistrationPlans.Add(data);
+                    await _context.SaveChangesAsync();
+                    Model.Id = data.Id;
+                    // Detach after adding
+                    _context.Entry(data).State = EntityState.Detached;
+                    LoadingService.Hide();
+                    await PopulateCCsRegistered();
+                    Snackbar.Add("District registration plan saved successfully", Severity.Success);
+                }
+
+            }
+            catch (Exception ex)
+            {
+                LoadingService.Hide();
+                Snackbar.Add($"An unexpected error occurred: {ex.Message}", Severity.Error, config => { config.RequireInteraction = true; });
+                return;
+            }
+            finally
+            {
+                LoadingService.Hide();
+                _activeTab = 1; // Move to next tab
+            }
+        }
+        else
+        {
+            await districtForm.Validate();
+        }
+    }
+
+    private async Task PopulateCCsRegistered()
+    {
+        // Load already registered councils
+        var dataRegistered = await _context.CCsRegisteredView.AsNoTracking()
+            .Where(d => d.DistrictRegistrationPlanId == Model.Id)
+            .ToListAsync();
+
+        // Map to view model
+        registeredCCs = _mapper.Map<List<CCsRegisteredViewModel>>(dataRegistered);
+
+        // Get all councils for the district
+        var councils = await _genericService.GetAsync<CommunityCouncil>(c => c.DistrictId == Model.DistrictId);
+
+        // If there are no registered councils, initialize all councils as registered
+        if (!dataRegistered.Any() && councils.Any())
+        {
+            registeredCCs = councils.Select(c => new CCsRegisteredViewModel
+            {
+                Id = 0,
+                DistrictRegistrationPlanId = Model.Id,
+                DistrictRegistrationPlanName = Model.RegistrationPlanName,
+                CommunityCouncilId = c.Id,
+                CommunityCouncilName = c.CommunityCouncilName,
+                StatusId = statusId
+            }).ToList();
+        }
+        else
+        {
+            // Add councils not already registered
+            var registeredCouncilIds = new HashSet<int>(registeredCCs.Select(r => r.CommunityCouncilId));
+
+            foreach (var council in councils.Where(c => !registeredCouncilIds.Contains(c.Id)))
+            {
+                registeredCCs.Add(new CCsRegisteredViewModel
+                {
+                    Id = 0,
+                    DistrictRegistrationPlanId = Model.Id,
+                    DistrictRegistrationPlanName = Model.RegistrationPlanName,
+                    CommunityCouncilId = council.Id,
+                    CommunityCouncilName = council.CommunityCouncilName,
+                    StatusId = statusId
+                });
+            }
+        }
+
+    }
+
+    private async Task Init()
+    {
+        statusId = await _context.SystemCodeDetailsView.AsNoTracking().Where(x => x.Code == "Open" && x.ParentCode == "Status").Select(x => x.Id).FirstOrDefaultAsync();
+
+        if (Id.HasValue && Id.Value > 0)
+        {
+            HeaderText = "Edit District Registration Plan";
+            _firstEnd = false; // Enable the next tab
+            var district = await _context.DistrictRegistrationPlanView.AsNoTracking().Where(d => d.Id == Id.Value).FirstOrDefaultAsync();
+            if (district != null)
+            {
+                DistrictName = district.DistrictName;
+                // Load data
+                Model = _mapper.Map<DistrictRegistrationPlanViewModel>(district);
+                registeredActivities = await _context.CCRegistrationActivityView.AsNoTracking().Where(c => c.DistrictRegistrationPlanId == Model.Id).ToListAsync();
+                registeredGroupActivities = registeredActivities
+                    .GroupBy(c => new { c.CommunityCouncilId, c.CommunityCouncilName })
+                    .Select(g => new CCRegistrationActivityGroupView
+                    {
+                        CommunityCouncilId = g.Key.CommunityCouncilId,
+                        CommunityCouncilName = g.Key.CommunityCouncilName,
+                        NumberOfHouseholds = g.FirstOrDefault()?.NumberOfHouseholds ?? 0,
+                        DistrictName = district.DistrictName,
+                        NumberOfActiveActivities = g.Count(a => a.IsRequired == true),
+                        NumberOfNotActiveActivities = g.Count(a => a.IsRequired == false),
+                    }).ToList();
+
+                var masterDistrictPlan = await _context.RegistrationDistrictView.AsNoTracking()
+                    .Where(x => x.MasterRegistrationPlanId == district.MasterRegistrationPlanId && x.DistrictId == district.DistrictId)
+                    .FirstOrDefaultAsync();
+
+                if (masterDistrictPlan != null)
+                {
+                    Model.DistrictRegistrationPlanId = masterDistrictPlan.Id;
+                    _projectedStartDate = masterDistrictPlan.ProjectedStartDate;
+                    _projectedEndDate = masterDistrictPlan.ProjectedEndDate;
+                }
+            }
+            else
+            {
+                Snackbar.Add("District registration plan not found.", Severity.Error);
+            }
+        }
+        else
+        {
+            HeaderText = "Add District Registration Plan";
+            Model.StatusId = statusId;
+            await PopulateCCsRegistered();
+        }
+        _breadcrumbItems = new List<BreadcrumbItem>
+        {
+            new BreadcrumbItem("Home", href: "/", icon: Icons.Material.Filled.Home),
+            new("Registration Planning", href: null, icon: Icons.Material.Filled.NextPlan),
+            new BreadcrumbItem("District Registration Plans", href: "/district/registration", icon: Icons.Material.Filled.ManageAccounts),
+            new BreadcrumbItem(HeaderText, href: null, disabled: true)
+        };
+    }
+
+    private async Task OnSelectCCRegistered(CCsRegisteredViewModel cCsRegistered)
+    {
+        if(cCsRegistered.Id == 0)
+        {
+            var result = await DialogServiceHelper.ShowConfirmationDialogAsync(DialogService, $"Are you sure you want to add activities on community council?");
+            if (result)
+            {
+                var model = _mapper.Map<CCsRegistered>(cCsRegistered);
+                var id = _genericService.Add(model);
+                cCregisteredId = model.Id;
+                _activeTab = 2;
+
+            }
+
+        }
+        else
+        {
+            registeredActivities = await _context.CCRegistrationActivityView.AsNoTracking().Where(c => c.CCsRegisteredId == cCsRegistered.Id).ToListAsync();
+            cCregisteredId = cCsRegistered.Id;
+            _activeTab = 2;
+        }
+
+    }
+
+    private async Task AddNew()
+    {
+        var model = new CCRegistrationActivityViewModel ();
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Medium, FullWidth = true };
+        var parameters = new DialogParameters
+        {
+            { "Model", model },
+            { "DistrictPlanId", Model.Id},
+            { "DistrictId", Model.DistrictId  },
+            { "RegistrationDistrictId", Model.DistrictRegistrationPlanId}
+        };
+        var dialogRef = await DialogService.ShowAsync<CreateEditActivity>("Add Activity Details", parameters, options);
+        var state = await dialogRef.Result;
+        if (state is not null && !state.Canceled)
+        {
+            registeredActivities = await _context.CCRegistrationActivityView.AsNoTracking().Where(c => c.DistrictRegistrationPlanId == Model.Id).ToListAsync();
+            registeredGroupActivities = registeredActivities
+                .GroupBy(c => new { c.CommunityCouncilId, c.CommunityCouncilName })
+                .Select(g => new CCRegistrationActivityGroupView
+                {
+                    CommunityCouncilId = g.Key.CommunityCouncilId,
+                    CommunityCouncilName = g.Key.CommunityCouncilName,
+                    NumberOfHouseholds = g.FirstOrDefault()?.NumberOfHouseholds ?? 0,
+                    DistrictName = DistrictName,
+                    NumberOfActiveActivities = g.Count(a => a.IsRequired == true),
+                    NumberOfNotActiveActivities = g.Count(a => a.IsRequired == false),
+                }).ToList();
+            StateHasChanged();
+        }
+    }
+
+    private async Task EditActivity(CCRegistrationActivityGroupView activities)
+    {
+        try
+        {
+            var model = new CCRegistrationActivityViewModel
+            {
+                CommunityCouncilId = activities.CommunityCouncilId,
+                CommunityCouncilName = activities.CommunityCouncilName,
+                NumberOfHouseholds = activities.NumberOfHouseholds,
+            };
+            var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Medium, FullWidth = true };
+            var parameters = new DialogParameters
+            {
+                { "Model", model },
+                { "DistrictPlanId", Model.Id},
+                { "DistrictId", Model.DistrictId  }
+            };
+            var dialogRef = await DialogService.ShowAsync<CreateEditActivity>("Edit Activity Details", parameters, options);
+            var state = await dialogRef.Result;
+            if (state is not null && !state.Canceled)
+            {
+                using var context = _dbContextFactory.CreateDbContext();
+
+                registeredActivities = await context.CCRegistrationActivityView.AsNoTracking().Where(c => c.DistrictRegistrationPlanId == Model.Id).ToListAsync();
+                registeredGroupActivities = registeredActivities
+                    .GroupBy(c => new { c.CommunityCouncilId, c.CommunityCouncilName })
+                    .Select(g => new CCRegistrationActivityGroupView
+                    {
+                        CommunityCouncilId = g.Key.CommunityCouncilId,
+                        CommunityCouncilName = g.Key.CommunityCouncilName,
+                        NumberOfHouseholds = g.FirstOrDefault()?.NumberOfHouseholds ?? 0,
+                        DistrictName = DistrictName,
+                        NumberOfActiveActivities = g.Count(a => a.IsRequired == true),
+                        NumberOfNotActiveActivities = g.Count(a => a.IsRequired == false),
+                    }).ToList();
+                StateHasChanged();
+            }
+        }
+        catch (Exception ex)
+        {            
+            LoadingService.Hide();
+            Snackbar.Add($"An unexpected error occurred: {(ex.InnerException is null ? ex.Message : ex.InnerException.Message)}", Severity.Error, config => { config.RequireInteraction = true; });
+            return;
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!UserProfileService.UserProfile.Contains("DISTRICT REGISTRATION PLANS:CREATE") || 
+        !UserProfileService.UserProfile.Contains("DISTRICT REGISTRATION PLANS:MODIFY"))
+        {
+            Navigation.NavigateTo("/AccessDenied");
+        }
+        if (!string.IsNullOrWhiteSpace(FilterDistrictIds))
+        {
+            FilterDistrictIdForAccessLevel = FilterDistrictIds.Split('-')
+                        .Where(s => int.TryParse(s, out _))
+                        .Select(int.Parse)
+                        .ToList();
+        }
+        await Init();
+    }
+
+    private async Task SaveCCRegistered(CCsRegisteredViewModel model)
+    {
+        try
+        {
+            LoadingService.Show();
+            var entity = _mapper.Map<CCsRegistered>(model);
+            SentenceCaseService.ProcessEntityStrings(entity);
+            await _genericService.Add(entity);
+            await PopulateCCsRegistered();
+            LoadingService.Hide();
+            Snackbar.Add("Community Council registered successfully", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"An unexpected error occurred: {ex.Message}", Severity.Error, config => { config.RequireInteraction = true; });
+            return;
+        }
+    }
+
+    private async Task OnMasterPlanChange(int? masterPlanId)
+    {
+        Model.DistrictRegistrationPlanId = masterPlanId;
+        if(masterPlanId.HasValue && masterPlanId.Value > 0)
+        {
+            var masterDistrictPlan = await _context.RegistrationDistrictView.AsNoTracking()
+            .Where(x => x.Id == masterPlanId.Value)
+            .FirstOrDefaultAsync();
+
+            if(masterDistrictPlan != null)
+            {
+                Model.ExpectedNoHouseholds = masterDistrictPlan.TotalHHsToTarget;
+                Model.MasterRegistrationPlanId = masterDistrictPlan.MasterRegistrationPlanId;
+                _projectedStartDate = masterDistrictPlan.ProjectedStartDate;
+                _projectedEndDate = masterDistrictPlan.ProjectedEndDate;
+            }
+        }
+    }
+
+    private async Task ViewActivity(int communityCouncilId)
+    {
+        try
+        {
+            LoadingService.Show();
+            registeredActivities = await _context.CCRegistrationActivityView.AsNoTracking()
+                .Where(c => c.CommunityCouncilId == communityCouncilId && c.DistrictRegistrationPlanId == Model.Id)
+                .ToListAsync();
+
+            LoadingService.Hide();
+            _activeTab = 2; // Move to the second tab
+        }
+        catch (Exception ex)
+        {
+            LoadingService.Hide();
+            Snackbar.Add($"An unexpected error occurred: {ex.Message}", Severity.Error, config => { config.RequireInteraction = true; });
+            return;
+        }
+    }
+
+    private void BackTab()
+    {
+        _activeTab--;
+    }
+
+    private string GetStatusStyle(bool isActive)
+    {
+        return isActive
+            ? "background-color:#e6f4ea; color:#2e7d32; border: 1px solid #c8e6c9;"
+            : "background-color:#fcebea; color:#c62828; border: 1px solid #f5c6cb;";
+    }
+}
+

@@ -1,0 +1,100 @@
+# 📊 MISSA & NISSA System
+
+**MISSA (Multi-Indicator Survey System Application)** and **NISSA (National Information System for Social Assistance)** is a modern, robust web application designed to manage survey data, targeting, and reporting for social protection programs.
+
+---
+
+## 🚀 Technology Stack
+
+- **.NET 9**: Modern and performant framework used across backend and frontend
+- **Blazor Server**: Chosen for its real-time UI capability and server-side processing
+- **MudBlazor**: Provides a rich set of Material Design components
+- **Bootstrap 5**: Used for responsive layout and classic styling flexibility
+- **Visual Studio**: Main IDE for development (2022/2025)
+
+---
+
+## 🧠 Why Blazor Server?
+
+Blazor Server was selected because of:
+
+- ✅ Real-time interactivity via SignalR without full page reloads
+- ✅ All logic stays on the server, enhancing security
+- ✅ Smaller client footprint, ideal for low-bandwidth scenarios
+- ✅ One language (C#) for full-stack development
+- ✅ Strong integration with .NET ecosystem (EF Core, Identity, DI, etc.)
+
+---
+
+## 🗂️ Project Structure
+
+```plaintext
+📦 MISSA-NISSA
+├── 📁 Business
+├── 📁 Services
+├── 📁 ViewModels
+└── 📁 Web
+---
+
+---
+
+### 🔸 Business  
+Responsible for core entities and data persistence
+
+- **Entities**: Represent database tables grouped by modules (e.g., Beneficiaries, Districts)  
+- **Persistence**:  
+  - EF Core `DbContext` and migrations  
+  - `OnModelCreating` configures relationships, constraints, keys, and properties  
+- **Views Folder**: Contains SQL view models for read-only and reporting purposes  
+
+---
+
+### 🔸 Services  
+Contains shared utilities and helper services
+
+- Email service (SMTP-based)  
+- PDF & Excel export utilities  
+- Generic Repository Pattern implementation:  
+  - Centralizes data access logic  
+  - Promotes cleaner, testable code  
+  - Example interfaces: `IRepository<T>` and `GenericRepository<T>`  
+
+---
+
+### 🔸 ViewModels  
+Bridges the gap between Entities and the UI
+
+- All user-facing models for data binding, display, and validation  
+- Organized per module (e.g., `DistrictViewModel`, `HouseholdViewModel`)  
+- Includes AutoMapper profiles for mapping between entities and view models  
+
+---
+
+### 🔸 Web (UI)  
+Blazor Server-based user interface
+
+- Razor pages and components organized per module  
+- Global DI setup, routing, and `appsettings.json` configuration  
+- Integrated with MudBlazor and Bootstrap for rich, responsive UI  
+- Features forms, dashboards, permission checks, and role-based navigation  
+
+---
+
+## 📋 Key Features
+
+- 🔐 Role & Permission management  
+- 🏘️ Household & Population Targeting modules  
+- 📊 Real-time data validation and feedback  
+- 📤 Export to PDF and Excel  
+- 🧮 SQL View support for reporting  
+- 📱 Responsive UI with Bootstrap and MudBlazor  
+- ⚙️ Dynamic configuration through `appsettings.json`  
+
+---
+
+## 🧪 Run the Project Locally
+
+1️⃣ **Clone the Repository**
+
+```bash
+

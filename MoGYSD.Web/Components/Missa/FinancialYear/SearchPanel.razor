@@ -1,0 +1,66 @@
+﻿@using MoGYSD.Web.Components.Missa.FinancialYear
+
+<MudExpansionPanel Text="Expand to apply search filters" IsInitiallyExpanded="true">
+    <PanelContent>
+        <MudGrid Class="mt-2">
+
+            <MudItem xs="12" sm="6">
+                <MudTextField @bind-Value="Filter.Name"
+                              Label="Name"
+                              Variant="Variant.Outlined"
+                              Margin="Margin.Dense"
+                              Clearable="true"
+                              Dense="true" />
+            </MudItem>
+          
+            <MudItem xs="12" sm="6">
+               <MudSelect T="bool?" @bind-Value="Filter.IsActive"
+                          Label="Status"
+                          Variant="Variant.Outlined"
+                          Margin="Margin.Dense"
+                          AnchorOrigin="Origin.BottomCenter"
+                          Dense="true">
+                   <MudSelectItem T="bool?" Value="@((bool?)null)">All</MudSelectItem>
+                   <MudSelectItem T="bool?" Value="true">Active</MudSelectItem>
+                   <MudSelectItem T="bool?" Value="false">Inactive</MudSelectItem>
+               </MudSelect>
+            </MudItem>
+
+            <MudItem xs="12" class="d-flex justify-end mt-4">
+                <MudButton Variant="Variant.Filled"
+                           Color="Color.Primary"
+                           OnClick="ApplyFilterClicked"
+                           Class="me-2">
+                    Filter
+                </MudButton>
+
+                <MudButton Variant="Variant.Outlined"
+                           Color="Color.Secondary"
+                           OnClick="ClearFilterClicked">
+                    Clear
+                </MudButton>
+            </MudItem>
+        </MudGrid>
+    </PanelContent>
+</MudExpansionPanel>
+
+@code {
+    [Parameter]
+    public FinancialSearchFilter Filter { get; set; } = new();
+
+    [Parameter]
+    public EventCallback OnFilterApplied { get; set; }
+
+    private async Task ApplyFilterClicked()
+    {
+        await OnFilterApplied.InvokeAsync();
+    }
+
+    private async Task ClearFilterClicked()
+    {
+        Filter.Name = null;
+        Filter.IsActive = null;
+        StateHasChanged();
+        await OnFilterApplied.InvokeAsync();
+    }
+}

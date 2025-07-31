@@ -1,0 +1,756 @@
+﻿@page "/programme/eligibilitycriteria/add"
+@page "/programme/eligibilitycriteria/edit/{Id:int}"
+
+@using AutoMapper
+@using Microsoft.EntityFrameworkCore
+@using MoGYSD.Business.Models.Missa.ProgrammeConfiguration
+@using MoGYSD.Business.Models.Nissa.Admin
+@using MoGYSD.Business.Persistence
+@using MoGYSD.Business.Views.Nissa.Admin
+@using MoGYSD.Services
+@using MoGYSD.ViewModels.Missa.Programmes
+
+@inject ISnackbar Snackbar
+@inject NavigationManager Navigation
+@inject IDialogService DialogService
+@inject LoadingService LoadingService
+
+<PageTitle>@(Model.Id > 0 ? "Edit Programme Eligibility Criteria" : "Create Programme Eligibility Criteria")</PageTitle>
+
+<MudGrid Class="mb-3" AlignItems="Align.Center" Justify="Justify.SpaceBetween">
+    <MudItem xs="12" md="6">
+        <MudText Typo="Typo.h2" Class="font-weight-bold"><b>@(Model.Id > 0 ? "Edit Programme Eligibility Criteria" : "Create Programme Eligibility Criteria")</b></MudText>
+    </MudItem>
+    <MudItem xs="12" md="6" Class="d-flex justify-end">
+        <MudBreadcrumbs Items="_breadcrumbItems" Class="custom-breadcrumb" />
+    </MudItem>
+</MudGrid>
+
+<MudPaper Elevation="3" Class="pa-4">
+    <MudForm @ref="form" Model="@Model" ValidationDelay="0">
+        <MudGrid Spacing="3">
+
+            <MudItem xs="12" sm="6" md="4">
+                <ProgramsAutoComplete Variant="Variant.Outlined" Label="Programme"
+                                      For="@(() => Model.ProgrammeId)"
+                                      Value="Model.ProgrammeId"
+                                      ValueChanged="OnProgrammeSelectionChanged"
+                                      Required="true" />
+            </MudItem>
+
+            <MudItem xs="12" sm="6" md="4">
+                <SystemCodeAutocomplete Variant="Variant.Outlined" Label="Assistance Unit"
+                                        For="@(() => Model.AssistanceUnitId)"
+                                        Value="Model.AssistanceUnitId"
+                                        ValueChanged="OnAssistanceUnitChanged"
+                                        ParentCode="AssistanceUnit"
+                                        Required="true"
+                                        RequiredError="The AssistanceUnit field is required" />
+            </MudItem>
+
+            <MudItem xs="12" sm="6" md="4">
+                <MudSelectExtended Variant="Variant.Outlined" T="int"
+                                   ItemCollection="_vulnerabilityTypes.Select(v => v.Id).ToList()"
+                                   ToStringFunc="GetVulnerabilityTypeNameById"
+                                   SearchBox="true"
+                                   SelectAllPosition="SelectAllPosition.AfterSearchBox"
+                                   MultiSelectionTextFunc="GetMultiSelectionVulnerabilityTypeText"
+                                   MultiSelection="true"
+                                   ValuePresenter="_valuePresenter"
+                                   SelectedValues="_selectedVulnerabilityTypeIds"
+                                   SelectedValuesChanged="OnVulnerabilityTypesChanged"
+                                   Label="Vulnerability Types"
+                                   Required="@_isVulnerabilityTypeRequired"
+                                   RequiredError="Vulnerability Type is required"
+                                   AdornmentIcon="@Icons.Material.Filled.Search"
+                                   AnchorOrigin="Origin.BottomCenter"
+                                   MaxHeight="300"
+                                   ChipCloseable="false"
+                                   ChipSize="MudBlazor.Size.Small"
+                                   ChipVariant="Variant.Filled"
+                                   Clearable="true"
+                                   Disabled="@_isVulnerabilityTypeDisabled">
+                    @* Added Disabled here based on your logic *@
+                    @foreach (var vt in _vulnerabilityTypes)
+                    {
+                        <MudSelectItemExtended T="int" Value="@vt.Id" Text="@vt.Name" />
+                    }
+                </MudSelectExtended>
+            </MudItem>
+
+            <MudItem xs="12" sm="6" md="4">
+                <MudNumericField Variant="Variant.Outlined" T="int?"
+                                 Label="Minimum Age"
+                                 @bind-Value="Model.StartAge"
+                                 For="@(() => Model.StartAge)"
+                                 Min="0"
+                                 Disabled="@_isAgeDisabled" />
+            </MudItem>
+
+            <MudItem xs="12" sm="6" md="4">
+                <MudNumericField Variant="Variant.Outlined" T="int?"
+                                 Label="Maximum Age"
+                                 @bind-Value="Model.EndAge"
+                                 For="@(() => Model.EndAge)"
+                                 Validation="@(ValidateMaximumAge)"
+                                 Min="0"
+                                 Disabled="@_isAgeDisabled" />
+            </MudItem>
+
+            <MudItem xs="12" sm="6" md="4">
+                <MudSelectExtended Variant="Variant.Outlined" T="int"
+                                   ItemCollection="_povertyStatuses.Select(v => v.Id).ToList()"
+                                   ToStringFunc="GetPovertyStatusNameById"
+                                   SearchBox="true"
+                                   SelectAllPosition="SelectAllPosition.AfterSearchBox"
+                                   MultiSelectionTextFunc="GetMultiSelectionPovertyStatusText"
+                                   MultiSelection="true"
+                                   ValuePresenter="_valuePresenter"
+                                   SelectedValues="_selectedPovertyStatusIds"
+                                   SelectedValuesChanged="OnPovertyStatusesChanged"
+                                   Label="Poverty Status"
+                                   Required="@_isPovertyStatusRequired"
+                                   RequiredError="Poverty status is required"
+                                   AdornmentIcon="@Icons.Material.Filled.Search"
+                                   AnchorOrigin="Origin.BottomCenter"
+                                   MaxHeight="300"
+                                   ChipCloseable="false"
+                                   ChipSize="MudBlazor.Size.Small"
+                                   ChipVariant="Variant.Filled"
+                                   Clearable="true">
+                    @foreach (var ps in _povertyStatuses)
+                    {
+                        <MudSelectItemExtended T="int" Value="@ps.Id" Text="@ps.Name" />
+                    }
+                </MudSelectExtended>
+            </MudItem>
+
+            <MudItem xs="12" sm="6" md="4">
+                <MudSelectExtended Variant="Variant.Outlined" T="int"
+                                   ItemCollection="Districts.Select(v => v.Id).ToList()"
+                                   ToStringFunc="GetDistrictNameById"
+                                   SearchBox="true"
+                                   SelectAllPosition="SelectAllPosition.AfterSearchBox"
+                                   MultiSelectionTextFunc="GetMultiSelectionDistrictText"
+                                   MultiSelection="true"
+                                   ValuePresenter="_valuePresenter"
+                                   SelectedValues="_selectedDistrictIds"
+                                   SelectedValuesChanged="OnDistrictsChanged"
+                                   Label="Select Districts"
+                                   Required="@_isDistrictRequired"
+                                   RequiredError="The Districts field is required"
+                                   AdornmentIcon="@Icons.Material.Filled.Search"
+                                   AnchorOrigin="Origin.BottomCenter"
+                                   MaxHeight="300"
+                                   ChipCloseable="false"
+                                   ChipSize="MudBlazor.Size.Small"
+                                   ChipVariant="Variant.Filled"
+                                   Clearable="true">
+                    @foreach (var district in Districts)
+                    {
+                        <MudSelectItemExtended T="int" Value="@district.Id" Text="@district.Name" />
+                    }
+                </MudSelectExtended>
+            </MudItem>
+
+            <MudItem xs="12" sm="6" md="4">
+                <MudSelectExtended Variant="Variant.Outlined" T="int"
+                                   ItemCollection="_cbcCategorisations.Select(v => v.Id).ToList()"
+                                   ToStringFunc="GetCBCCategorisationNameById"
+                                   SearchBox="true"
+                                   SelectAllPosition="SelectAllPosition.AfterSearchBox"
+                                   MultiSelectionTextFunc="GetMultiSelectionCBCCategorisationText"
+                                   MultiSelection="true"
+                                   ValuePresenter="_valuePresenter"
+                                   SelectedValues="_selectedCBCCategorisationIds"
+                                   SelectedValuesChanged="OnCBCCategorisationsChanged"
+                                   Label="CBC Categorisation"
+                                   Required="@_isCBCCategorisationRequired"
+                                   RequiredError="The CBC Categorisation is required"
+                                   AdornmentIcon="@Icons.Material.Filled.Search"
+                                   AnchorOrigin="Origin.BottomCenter"
+                                   MaxHeight="300"
+                                   ChipCloseable="false"
+                                   ChipSize="MudBlazor.Size.Small"
+                                   ChipVariant="Variant.Filled"
+                                   Clearable="true">
+                    @foreach (var cbc in _cbcCategorisations)
+                    {
+                        <MudSelectItemExtended T="int" Value="@cbc.Id" Text="@cbc.Name" />
+                    }
+                </MudSelectExtended>
+            </MudItem>
+
+            <MudItem xs="12" sm="6" md="4">
+                <SystemCodeAutocomplete Variant="Variant.Outlined" Label="Community Validation Status"
+                                        For="@(() => Model.CommunityValidationStatusId)"
+                                        @bind-Value="Model.CommunityValidationStatusId"
+                                        ParentCode="YesNo"
+                                        Required="@_isCommunityValidationRequired"
+                                        RequiredError="The Community validation is required"
+                                        Clearable="true" />
+            </MudItem>
+
+            @if (_showModClearance)
+            {
+                <MudItem xs="12" sm="6" md="4">
+                    <MudSelect Variant="Variant.Outlined" T="bool?" Label="MoD Clearance Required?" @bind-Value="Model.HasMoDClearance"
+                               Required="@_showModClearance" RequiredError="The MoD Clearance field is required">
+                        <MudSelectItem T="bool?" Value="true">Yes</MudSelectItem>
+                        <MudSelectItem T="bool?" Value="false">No</MudSelectItem>
+                    </MudSelect>
+                </MudItem>
+            }
+
+            @if (_showDisabilityRegistry)
+            {
+                <MudItem xs="12" sm="6" md="4">
+                    <MudSelect Variant="Variant.Outlined" T="bool?" Label="Disability Registry Registration?" @bind-Value="Model.HasDisabilityRegistryRegistration"
+                               Required="@_showDisabilityRegistry" RequiredError="The Disability Registry Registration field is required">
+                        <MudSelectItem T="bool?" Value="true">Yes</MudSelectItem>
+                        <MudSelectItem T="bool?" Value="false">No</MudSelectItem>
+                    </MudSelect>
+                </MudItem>
+            }
+
+            @if (_showSchoolEnrolment)
+            {
+                <MudItem xs="12" sm="6" md="4">
+                    <MudSelect Variant="Variant.Outlined" T="bool?" Label="School Enrolment Required?" @bind-Value="Model.HasSchoolEnrolment"
+                               Required="@_showSchoolEnrolment" RequiredError="The School Enrolment field is required">
+                        <MudSelectItem T="bool?" Value="true">Yes</MudSelectItem>
+                        <MudSelectItem T="bool?" Value="false">No</MudSelectItem>
+                    </MudSelect>
+                </MudItem>
+            }
+
+            <MudItem xs="12" sm="6" md="4">
+                <MudSelectExtended Variant="Variant.Outlined" T="int"
+                                   ItemCollection="_filteredOtherProgrammes.Select(v => v.Id).ToList()"
+                                   ToStringFunc="GetDProgrammeNameById"
+                                   SearchBox="true"
+                                   SelectAllPosition="SelectAllPosition.AfterSearchBox"
+                                   MultiSelectionTextFunc="GetMultiSelectionProgrammeText"
+                                   MultiSelection="true"
+                                   ValuePresenter="_valuePresenter"
+                                   SelectedValues="_selectedProgrammeIds"
+                                   SelectedValuesChanged="OnProgrammeChanged"
+                                   Label="Must Not be enrolled in another Programme"
+                                   AdornmentIcon="@Icons.Material.Filled.Search"
+                                   AnchorOrigin="Origin.BottomCenter"
+                                   MaxHeight="300"
+                                   ChipCloseable="false"
+                                   ChipSize="MudBlazor.Size.Small"
+                                   ChipVariant="Variant.Filled"
+                                   Clearable="true"
+                                   Disabled="@_isOtherProgrammesDisabled"
+                                   Required="false"
+                                   RequiredError="Must Not be enrolled in another Programme field is required">
+
+                    @foreach (var programme in _filteredOtherProgrammes)
+                    {
+                        <MudSelectItemExtended T="int" Value="@programme.Id" Text="@programme.Name" />
+                    }
+                </MudSelectExtended>
+            </MudItem>
+
+            <MudItem xs="12" Class="d-flex justify-space-between mt-4">
+                <MudButton Variant="Variant.Filled"
+                           Color="Color.Secondary"
+                           OnClick="BackToList"
+                           Class="me-2">
+                    Back
+                </MudButton>
+                <MudButton Variant="Variant.Filled"
+                           Color="Color.Primary"
+                           OnClick="SaveAsync"
+                           StartIcon="@Icons.Material.Filled.Save">
+                    @(Model.Id > 0 ? "Update Criteria" : "Save Criteria")
+                </MudButton>
+            </MudItem>
+        </MudGrid>
+    </MudForm>
+</MudPaper>
+
+@code {
+    [Parameter]
+    public int? Id { get; set; }
+
+    private EligibilityCriteriaViewModel Model { get; set; } = new();
+    private MudForm form;
+    private List<BreadcrumbItem> _breadcrumbItems;
+    private ValuePresenter _valuePresenter = ValuePresenter.Text;
+
+    // Existing multi-select fields
+    private List<DistrictView> Districts = new();
+    private IEnumerable<int> _selectedDistrictIds = new List<int>();
+    private IEnumerable<int> _selectedProgrammeIds = new List<int>();
+
+    // New multi-select fields
+    private List<SystemCodeDetail> _vulnerabilityTypes = new();
+    private IEnumerable<int> _selectedVulnerabilityTypeIds = new List<int>();
+    private List<SystemCodeDetail> _povertyStatuses = new();
+    private IEnumerable<int> _selectedPovertyStatusIds = new List<int>();
+    private List<SystemCodeDetail> _cbcCategorisations = new();
+    private IEnumerable<int> _selectedCBCCategorisationIds = new List<int>();
+
+
+    private List<Programmes> _programmes = new();
+    private List<Programmes> _filteredOtherProgrammes = new();
+
+    // Conditional field flags
+    private bool _isVulnerabilityTypeDisabled;
+    private bool _isVulnerabilityTypeRequired;
+    private bool _isAgeDisabled;
+    private bool _isPovertyStatusRequired;
+    private bool _isDistrictRequired = false;
+    private bool _isCommunityValidationRequired;
+    private bool _isCBCCategorisationRequired; // New flag for CBC
+    private bool _showModClearance;
+    private bool _showDisabilityRegistry;
+    private bool _showSchoolEnrolment;
+    private bool _isOtherProgrammesDisabled;
+
+    // System Code IDs for logic
+    private int? _individualAssistanceUnitId;
+    private int? _yesValidationId;
+
+    // Programme codes for logic
+    private Programmes _ovcbProgramme;
+    private Programmes _dgProgramme;
+    private Programmes _oapProgramme;
+    private Programmes _govPensionProgramme;
+
+    protected override async Task OnInitializedAsync()
+    {
+        LoadingService.Show();
+        _programmes = await _context.Programmes.AsNoTracking().OrderBy(p => p.Name).ToListAsync();
+        Districts = await _context.DistrictView.AsNoTracking().OrderBy(d => d.Name).ToListAsync();
+
+        var systemCodes = await _context.SystemCodeDetails.AsNoTracking().Include(s => s.SystemCode).ToListAsync();
+
+        _vulnerabilityTypes = systemCodes.Where(scd => scd.SystemCode.Code == "VulnerabilityType").ToList();
+        _povertyStatuses = systemCodes.Where(scd => scd.SystemCode.Code == "PovertyStatusPMT").ToList();
+        _cbcCategorisations = systemCodes.Where(scd => scd.SystemCode.Code == "CBCCategorisation").ToList();
+
+        _individualAssistanceUnitId = systemCodes.FirstOrDefault(scd => scd.Code == "Individual" && scd.SystemCode.Code == "AssistanceUnit")?.Id;
+        _yesValidationId = systemCodes.FirstOrDefault(scd => scd.Code == "YES" && scd.SystemCode.Code == "YesNo")?.Id;
+
+        _ovcbProgramme = _programmes.FirstOrDefault(p => p.Code == "OVC-B");
+        _dgProgramme = _programmes.FirstOrDefault(p => p.Code == "DG");
+        _oapProgramme = _programmes.FirstOrDefault(p => p.Code == "OAP");
+        _govPensionProgramme = _programmes.FirstOrDefault(p => p.Code == "GOV_PENSION");
+        _isDistrictRequired = true; // Default to required as per original code
+
+        // Removed the initial load attempts for _selectedVulnerabilityTypeIds etc. from here
+        // as they rely on Model.Id, which isn't set yet.
+        // These will be correctly loaded in OnParametersSetAsync.
+
+        LoadingService.Hide();
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        LoadingService.Show();
+
+        if (Id.HasValue && Id > 0)
+        {
+            var entity = await _context.EligibilityCriterias
+                .Include(ec => ec.EligibilityCriteriaLocations)
+                .Include(ec => ec.EnrolledInOtherProgrammes)
+                .Include(ec => ec.EligibilityCriteriaVulnerabilityTypes)
+                .Include(ec => ec.EligibilityCriteriaPovertyStatuses)
+                .Include(ec => ec.EligibilityCriteriaCBCs)
+                .AsNoTracking()
+                .FirstOrDefaultAsync(p => p.Id == Id.Value);
+
+            if (entity != null)
+            {
+                // Map basic properties
+                Model = _mapper.Map<EligibilityCriteriaViewModel>(entity);
+
+                // Populate multi-select SelectedValues
+                _selectedDistrictIds = entity.EligibilityCriteriaLocations.Select(loc => loc.DistrictId ?? 0).ToList();
+                Model.SelectedLocationIds = _selectedDistrictIds.Select(id => (int?)id).ToList();
+
+                _selectedProgrammeIds = entity.EnrolledInOtherProgrammes.Select(prog => prog.ProgrammeId ?? 0).ToList();
+                Model.SelectedOtherProgrammeIds = _selectedProgrammeIds.Select(id => (int?)id).ToList();
+
+                // Populate new multi-select SelectedValues
+                _selectedVulnerabilityTypeIds = entity.EligibilityCriteriaVulnerabilityTypes.Select(vt => vt.VulnerabilityTypeId).ToList();
+                Model.SelectedVulnerabilityTypeIds = _selectedVulnerabilityTypeIds.Select(id => (int?)id).ToList();
+
+                _selectedPovertyStatusIds = entity.EligibilityCriteriaPovertyStatuses.Select(ps => ps.PovertyStatusId).ToList();
+                Model.SelectedPovertyStatusIds = _selectedPovertyStatusIds.Select(id => (int?)id).ToList();
+
+                // Check for null before selecting and converting
+                _selectedCBCCategorisationIds = entity.EligibilityCriteriaCBCs?.Select(cbc => cbc.CBCId).ToList() ?? new List<int>();
+                Model.SelectedCBCIds = _selectedCBCCategorisationIds.Select(id => (int?)id).ToList();
+
+                // Call UpdateConditionalFields with isInitialLoad: true for existing records
+                UpdateConditionalFields(Model.ProgrammeId, isInitialLoad: true);
+            }
+            else
+            {
+                Snackbar.Add("Programme Eligibility Criteria not found.", Severity.Error);
+                Navigation.NavigateTo("/programme/eligibilitycriteria");
+            }
+        }
+        else
+        {
+            Model = new EligibilityCriteriaViewModel();
+            // Call UpdateConditionalFields without isInitialLoad: true for new records
+            UpdateConditionalFields(null);
+        }
+        BuildBreadcrumbs();
+        LoadingService.Hide();
+    }
+
+    private Func<int?, string> ValidateMaximumAge => (maxAge) =>
+    {
+        if (Model.StartAge.HasValue && maxAge.HasValue && maxAge < Model.StartAge)
+        {
+            return "Maximum Age cannot be less than Minimum Age.";
+        }
+        if (maxAge.HasValue && maxAge > 120)
+        {
+            return "Maximum Age cannot exceed 120.";
+        }
+        return null;
+    };
+
+    private void OnProgrammeSelectionChanged(int? programmeId)
+    {
+        Model.ProgrammeId = programmeId;
+        UpdateConditionalFields(programmeId, isInitialLoad: false); // User changed, so not initial load
+    }
+
+    private void OnAssistanceUnitChanged(int? assistanceUnitId)
+    {
+        Model.AssistanceUnitId = assistanceUnitId;
+        UpdateConditionalFields(Model.ProgrammeId, isInitialLoad: false); // User changed, so not initial load
+    }
+
+    private void ResetAllFieldRules()
+    {
+        // This method should primarily reset the flags and single-value Model properties
+        _isVulnerabilityTypeDisabled = false;
+        _isVulnerabilityTypeRequired = false;
+        _isAgeDisabled = false;
+        _isPovertyStatusRequired = false;
+        _isDistrictRequired = false;
+        _isCommunityValidationRequired = false;
+        _isCBCCategorisationRequired = false;
+        _showModClearance = false;
+        _showDisabilityRegistry = false;
+        _showSchoolEnrolment = false;
+        _isOtherProgrammesDisabled = false;
+
+        // The _filteredOtherProgrammes can stay here as it's a dynamic filter based on current Model.ProgrammeId
+        _filteredOtherProgrammes = _programmes.Where(p => p.Id != Model.ProgrammeId).ToList();
+    }
+
+    private void UpdateConditionalFields(int? programmeId, bool isInitialLoad = false)
+    {
+        // Always reset flags first
+        ResetAllFieldRules();
+
+        // ONLY clear selected values for multi-selects and single-value fields if it's NOT an initial load
+        // This ensures that values loaded from the database in OnParametersSetAsync are retained.
+        if (!isInitialLoad)
+        {
+            // Reset single-value fields that should be cleared on programme/assistance unit change
+            Model.StartAge = null;
+            Model.EndAge = null;
+            Model.CommunityValidationStatusId = null;
+            Model.HasMoDClearance = null;
+            Model.HasDisabilityRegistryRegistration = null;
+            Model.HasSchoolEnrolment = null;
+
+            // Clear multi-select selected values and their model counterparts
+            _selectedDistrictIds = new List<int>();
+            Model.SelectedLocationIds = new List<int?>();
+            _selectedProgrammeIds = new List<int>();
+            Model.SelectedOtherProgrammeIds = new List<int?>();
+
+            _selectedVulnerabilityTypeIds = new List<int>();
+            Model.SelectedVulnerabilityTypeIds = new List<int?>(); // Clear model property too
+
+            _selectedPovertyStatusIds = new List<int>();
+            Model.SelectedPovertyStatusIds = new List<int?>(); // Clear model property too
+
+            _selectedCBCCategorisationIds = new List<int>();
+            Model.SelectedCBCIds = new List<int?>(); // Clear model property too
+        }
+
+        if (Model.AssistanceUnitId != _individualAssistanceUnitId)
+        {
+            _isVulnerabilityTypeDisabled = true;
+            _isAgeDisabled = true;
+            // If it's not an initial load AND we're disabling, clear the values
+            if (!isInitialLoad)
+            {
+                Model.SelectedVulnerabilityTypeIds?.Clear();
+                _selectedVulnerabilityTypeIds = new List<int>();
+                Model.StartAge = null;
+                Model.EndAge = null;
+            }
+        }
+        else
+        {
+            // Only set required if it's not disabled by assistance unit
+            _isVulnerabilityTypeRequired = true;
+        }
+
+        var selectedProgramme = _programmes.FirstOrDefault(p => p.Id == programmeId);
+        if (selectedProgramme == null)
+        {
+            StateHasChanged();
+            return;
+        }
+
+        switch (selectedProgramme.Code)
+        {
+            case "PA":
+                _isPovertyStatusRequired = true;
+                _isDistrictRequired = true;
+                _isCommunityValidationRequired = true;
+                if (!isInitialLoad) Model.CommunityValidationStatusId = _yesValidationId; // Apply default if not initial load
+                if (_ovcbProgramme != null)
+                {
+                    _filteredOtherProgrammes = _programmes.Where(p => p.Id != selectedProgramme.Id && p.Id != _ovcbProgramme.Id).ToList();
+                }
+                break;
+
+            case "OAP":
+                if (!isInitialLoad) { Model.StartAge = 70; Model.EndAge = 120; }
+                _isAgeDisabled = true;
+                var oapExclusions = new List<int?>();
+                if (_govPensionProgramme != null) oapExclusions.Add(_govPensionProgramme.Id);
+                if (_dgProgramme != null) oapExclusions.Add(_dgProgramme.Id);
+                if (!isInitialLoad)
+                {
+                    _selectedProgrammeIds = oapExclusions.Where(id => id.HasValue).Select(id => id.Value).ToList();
+                    Model.SelectedOtherProgrammeIds = _selectedProgrammeIds.Select(id => (int?)id).ToList();
+                }
+                break;
+
+            case "OVC-B":
+                _isPovertyStatusRequired = true;
+                _isVulnerabilityTypeRequired = true;
+                if (!isInitialLoad)
+                {
+                    Model.StartAge = 12;
+                    Model.EndAge = 18;
+                }
+                _isAgeDisabled = true;
+                _showSchoolEnrolment = true;
+                break;
+
+            case "LLA":
+            case "APC":
+                _isAgeDisabled = true;
+                _showModClearance = true;
+                break;
+
+            case "CGP":
+                _isPovertyStatusRequired = true;
+                _isCommunityValidationRequired = true;
+                _isCBCCategorisationRequired = true; // CGP also requires CBC Categorisation
+                if (!isInitialLoad) Model.CommunityValidationStatusId = _yesValidationId; // Apply default if not initial load
+                if (_ovcbProgramme != null)
+                {
+                    _filteredOtherProgrammes = _programmes.Where(p => p.Id != selectedProgramme.Id && p.Id != _ovcbProgramme.Id).ToList();
+                }
+                break;
+
+            case "DG":
+                _showDisabilityRegistry = true;
+                var dgExclusions = new List<int?>();
+                if (_govPensionProgramme != null) dgExclusions.Add(_govPensionProgramme.Id);
+                if (_oapProgramme != null) dgExclusions.Add(_oapProgramme.Id);
+                if (!isInitialLoad)
+                {
+                    _selectedProgrammeIds = dgExclusions.Where(id => id.HasValue).Select(id => id.Value).ToList();
+                    Model.SelectedOtherProgrammeIds = _selectedProgrammeIds.Select(id => (int?)id).ToList();
+                }
+                break;
+        }
+
+        StateHasChanged();
+    }
+
+    // Existing Multi-Select Helpers (Districts, Programmes)
+    private string GetDistrictNameById(int id) => Districts.FirstOrDefault(v => v.Id == id)?.Name ?? $"District {id}";
+    private string GetMultiSelectionDistrictText(IEnumerable<int> ids) => string.Join(", ", Districts.Where(v => ids.Contains(v.Id)).Select(v => v.Name));
+    private void OnDistrictsChanged(IEnumerable<int> values)
+    {
+        _selectedDistrictIds = values;
+        Model.SelectedLocationIds = values.Select(id => (int?)id).ToList();
+    }
+
+    private string GetDProgrammeNameById(int id) => _programmes.FirstOrDefault(v => v.Id == id)?.Name ?? $"Programme {id}";
+    private string GetMultiSelectionProgrammeText(IEnumerable<int> ids) => string.Join(", ", _programmes.Where(v => ids.Contains(v.Id)).Select(v => v.Name));
+    private void OnProgrammeChanged(IEnumerable<int> values)
+    {
+        _selectedProgrammeIds = values;
+        Model.SelectedOtherProgrammeIds = values.Select(id => (int?)id).ToList();
+    }
+
+    // NEW Multi-Select Helpers (Vulnerability Types)
+    private string GetVulnerabilityTypeNameById(int id) => _vulnerabilityTypes.FirstOrDefault(v => v.Id == id)?.Name ?? $"Vulnerability Type {id}";
+    private string GetMultiSelectionVulnerabilityTypeText(IEnumerable<int> ids) => string.Join(", ", _vulnerabilityTypes.Where(v => ids.Contains(v.Id)).Select(v => v.Name));
+    private void OnVulnerabilityTypesChanged(IEnumerable<int> values)
+    {
+        _selectedVulnerabilityTypeIds = values;
+        Model.SelectedVulnerabilityTypeIds = values.Select(id => (int?)id).ToList();
+    }
+
+    // NEW Multi-Select Helpers (Poverty Statuses)
+    private string GetPovertyStatusNameById(int id) => _povertyStatuses.FirstOrDefault(v => v.Id == id)?.Name ?? $"Poverty Status {id}";
+    private string GetMultiSelectionPovertyStatusText(IEnumerable<int> ids) => string.Join(", ", _povertyStatuses.Where(v => ids.Contains(v.Id)).Select(v => v.Name));
+    private void OnPovertyStatusesChanged(IEnumerable<int> values)
+    {
+        _selectedPovertyStatusIds = values;
+        Model.SelectedPovertyStatusIds = values.Select(id => (int?)id).ToList();
+    }
+
+    // NEW Multi-Select Helpers (CBC Categorisations)
+    private string GetCBCCategorisationNameById(int id) => _cbcCategorisations.FirstOrDefault(v => v.Id == id)?.Name ?? $"CBC Categorisation {id}";
+    private string GetMultiSelectionCBCCategorisationText(IEnumerable<int> ids) => string.Join(", ", _cbcCategorisations.Where(v => ids.Contains(v.Id)).Select(v => v.Name));
+    private void OnCBCCategorisationsChanged(IEnumerable<int> values)
+    {
+        _selectedCBCCategorisationIds = values;
+        Model.SelectedCBCIds = values.Select(id => (int?)id).ToList();
+    }
+
+    private async Task SaveAsync()
+    {
+        await form.Validate();
+        if (!form.IsValid)
+        {
+            Snackbar.Add("Please correct validation errors.", Severity.Error);
+            return;
+        }
+
+        LoadingService.Show();
+        try
+        {
+            EligibilityCriteria entity;
+            bool isNew = Model.Id == 0;
+
+            if (isNew)
+            {
+                entity = _mapper.Map<EligibilityCriteria>(Model);
+            }
+            else
+            {
+                entity = await _context.EligibilityCriterias
+                    .Include(ec => ec.EligibilityCriteriaLocations)
+                    .Include(ec => ec.EnrolledInOtherProgrammes)
+                    // Include new collections for update operations
+                    .Include(ec => ec.EligibilityCriteriaVulnerabilityTypes)
+                    .Include(ec => ec.EligibilityCriteriaPovertyStatuses)
+                    .Include(ec => ec.EligibilityCriteriaCBCs) // Ensure this is the correct navigation property name
+                    .FirstOrDefaultAsync(e => e.Id == Model.Id);
+                _mapper.Map(Model, entity);
+            }
+
+            // Update all multi-select collections manually
+            UpdateLocations(entity, _selectedDistrictIds);
+            UpdateOtherProgrammes(entity, _selectedProgrammeIds);
+            UpdateVulnerabilityTypes(entity, _selectedVulnerabilityTypeIds);
+            UpdatePovertyStatuses(entity, _selectedPovertyStatusIds);
+            UpdateCBCCategorisations(entity, _selectedCBCCategorisationIds);
+
+            if (isNew) _context.Add(entity); else _context.Update(entity);
+            await _context.SaveChangesAsync();
+
+            LoadingService.Hide();
+            Snackbar.Add("Programme Eligibility Criteria saved successfully!", Severity.Success);
+            Navigation.NavigateTo("/programme/eligibilitycriteria");
+        }
+        catch (Exception ex)
+        {
+            LoadingService.Hide();
+            Snackbar.Add($"An error occurred: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private void BackToList() => Navigation.NavigateTo("/programme/eligibilitycriteria");
+
+    // Existing Update Methods
+    private void UpdateLocations(EligibilityCriteria entity, IEnumerable<int> selectedIds)
+    {
+        entity.EligibilityCriteriaLocations.Clear();
+        if (selectedIds != null)
+        {
+            foreach (var id in selectedIds)
+            {
+                entity.EligibilityCriteriaLocations.Add(new EligibilityCriteriaLocation { DistrictId = id });
+            }
+        }
+    }
+
+    private void UpdateOtherProgrammes(EligibilityCriteria entity, IEnumerable<int> selectedIds)
+    {
+        entity.EnrolledInOtherProgrammes.Clear();
+        if (selectedIds != null)
+        {
+            foreach (var id in selectedIds)
+            {
+                entity.EnrolledInOtherProgrammes.Add(new EnrolledInOtherProgramme { ProgrammeId = id });
+            }
+        }
+    }
+
+    // NEW Update Methods for Multi-Selects
+    private void UpdateVulnerabilityTypes(EligibilityCriteria entity, IEnumerable<int> selectedIds)
+    {
+        entity.EligibilityCriteriaVulnerabilityTypes.Clear();
+        if (selectedIds != null)
+        {
+            foreach (var id in selectedIds)
+            {
+                entity.EligibilityCriteriaVulnerabilityTypes.Add(new EligibilityCriteriaVulnerabilityType { VulnerabilityTypeId = id });
+            }
+        }
+    }
+
+    private void UpdatePovertyStatuses(EligibilityCriteria entity, IEnumerable<int> selectedIds)
+    {
+        entity.EligibilityCriteriaPovertyStatuses.Clear();
+        if (selectedIds != null)
+        {
+            foreach (var id in selectedIds)
+            {
+                entity.EligibilityCriteriaPovertyStatuses.Add(new EligibilityCriteriaPovertyStatus { PovertyStatusId = id });
+            }
+        }
+    }
+
+    private void UpdateCBCCategorisations(EligibilityCriteria entity, IEnumerable<int> selectedIds)
+    {
+
+        entity.EligibilityCriteriaCBCs.Clear();
+        if (selectedIds != null)
+        {
+            foreach (var id in selectedIds)
+            {
+                entity.EligibilityCriteriaCBCs.Add(new EligibilityCriteriaCBC { CBCId = id });
+            }
+        }
+    }
+
+    private void BuildBreadcrumbs()
+    {
+        var pageTitle = Model.Id > 0 ? "Edit Programme Eligibility Criteria" : "Create Programme Eligibility Criteria";
+        _breadcrumbItems = new List<BreadcrumbItem>
+        {
+            new("Home", href: "/"),
+            new("Settings", href:null, icon: Icons.Material.Filled.Settings),
+            new("Programme Eligibility Criteria", href: "/programme/eligibilitycriteria"),
+            new(pageTitle, href: null, disabled: true)
+        };
+    }
+}

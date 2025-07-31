@@ -1,0 +1,37 @@
+﻿<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UserSecretsId>aspnet-MoGYSD.Web-dcd66c78-098a-4f00-a73f-dc23dca286c3</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Content Remove="Components\Missa\ProgrammesValidation\DownloadSuccessView.razor" />
+    <Content Remove="Components\Missa\ProgrammesValidation\DownloadValidationDataView.razor" />
+    <Content Remove="Components\Missa\ProgrammesValidation\HouseholdMemberValidation.razor" />
+    <Content Remove="Components\Missa\ProgrammesValidation\ValidationPage.razor" />
+    <Content Remove="Components\Missa\Programmes\CreateEdit - Copy.razor" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="BlazorCaptcha" Version="2.0.2" />
+    <PackageReference Include="CodeBeam.MudBlazor.Extensions" Version="8.2.1" />
+    <PackageReference Include="jose-jwt" Version="5.2.0" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="9.0.0" />
+    <PackageReference Include="MudBlazor" Version="8.7.0" />
+    <PackageReference Include="SixLabors.ImageSharp" Version="3.1.10" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\MoGYSD.Business\MoGYSD.Business.csproj" />
+    <ProjectReference Include="..\MoGYSD.Services\MoGYSD.Services.csproj" />
+    <ProjectReference Include="..\MoGYSD.ViewModels\MoGYSD.ViewModels.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="wwwroot\Files\Documents\" />
+  </ItemGroup>
+
+</Project>

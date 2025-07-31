@@ -1,0 +1,235 @@
+﻿@page "/facilitytype"
+@using MoGYSD.Business.Persistence
+@using MoGYSD.Business.Views.Missa.Setups
+@using MoGYSD.ViewModels.Missa.Setups 
+@using MoGYSD.Business.Models.Missa.Setups 
+
+<MudGrid Class="mb-3" AlignItems="Center" Justify="Justify.SpaceBetween">
+    <MudItem xs="12" md="6">
+        <MudText Typo="Typo.h2" Class="font-weight-bold"><b>Facility Types</b></MudText>
+        <MudText>
+            Enables setting up and managing facility types and their associated fees.
+        </MudText>
+    </MudItem>
+    <MudItem xs="12" md="6" Class="d-flex justify-end">
+        <MudBreadcrumbs Items="_breadcrumbItems" Class="custom-breadcrumb" />
+    </MudItem>
+</MudGrid>
+
+<MudExpansionPanels>
+    <SearchPanel Filter="@filterModel" OnFilterApplied="@ReloadTable" />
+</MudExpansionPanels>
+
+<MudPaper Class="p-4">
+    @if (UserProfileService.UserProfile.Contains("FACILITY TYPE:CREATE"))
+    {
+        <MudButton StartIcon="@Icons.Material.Filled.Add"
+                   Class="pull-right top-add-button mb-2"
+                   Variant="Variant.Filled"
+                   OnClick="AddNewFacilityType"
+                   DropShadow="true"
+                   Color="Color.Primary">
+            Add New Facility Type
+        </MudButton>
+    }
+
+    <MudDataGrid @ref="table" ServerData="@(LoadFacilityTypeData)" T="FacilityTypeView" Bordered="true" Striped="true" Hover="true" Dense="true" RowsPerPage="20">
+        <NoRecordsContent>
+            <MudText Typo="Typo.subtitle1" Class="my-4 text-muted text-center">
+                No facility types found. Try adjusting your filters.
+            </MudText>
+        </NoRecordsContent>
+        <ToolBarContent>
+            <MudText><b>Total Facility Types: @totalItems</b></MudText>
+        </ToolBarContent>
+        <Columns>
+            <PropertyColumn Property="x => x.Name" Title="Facility Type" />               
+            <TemplateColumn Title="Active" HeaderClass="fit">
+                <CellTemplate>
+                    <MudText Style="@($"{GetStatusStyle(context.Item.IsActive)} display:block; padding:4px; border-radius:6px; width:100%; text-align: center;")">
+                        @(context.Item.IsActive ? "Yes" : "No")
+                    </MudText>
+                </CellTemplate>
+            </TemplateColumn>
+            <TemplateColumn Title="Actions">
+                <CellTemplate>
+                    <MudMenu Icon="@Icons.Material.Filled.MoreVert" Color="Color.Primary" Dense="true">
+                        @if (UserProfileService.UserProfile.Contains("FACILITY TYPE:VIEW"))
+                        {
+                            <MudMenuItem OnClick="@(() => ViewFacilityTypeDetails(context.Item.Id))">
+                                <MudIcon Icon="@Icons.Material.Filled.Info" Class="me-2 text-primary" /> Details
+                            </MudMenuItem>
+                        }
+                        @if (UserProfileService.UserProfile.Contains("FACILITY TYPE:MODIFY"))
+                        {
+                            <MudMenuItem OnClick="@(() => EditFacilityType(context.Item.Id))">
+                                <MudIcon Icon="@Icons.Material.Filled.Edit" Class="me-2" /> Edit
+                            </MudMenuItem>
+
+                            @if (context.Item.IsActive)
+                            {
+                                <MudMenuItem OnClick="@(() => ToggleActivation(context.Item.Id, context.Item.Name, false))">
+                                    <MudIcon Icon="@Icons.Material.Filled.ToggleOff" Color="Color.Error" Class="me-2" /> Deactivate
+                                </MudMenuItem>
+                            }
+                            else
+                            {
+                                <MudMenuItem OnClick="@(() => ToggleActivation(context.Item.Id, context.Item.Name, true))">
+                                    <MudIcon Icon="@Icons.Material.Filled.ToggleOn" Color="Color.Success" Class="me-2" /> Activate
+                                </MudMenuItem>
+                            }
+                        }
+                    </MudMenu>
+                </CellTemplate>
+            </TemplateColumn>
+        </Columns>
+        <PagerContent>
+            <MudDataGridPager T="FacilityTypeView" PageSizes="@(new int[] { 10, 20, 50, 100 })" />
+        </PagerContent>
+    </MudDataGrid>
+</MudPaper>
+
+@code {
+   
+
+    private MudDataGrid<FacilityTypeView> table = default!;
+    private FacilityTypeSearchFilter filterModel = new();
+    private bool isLoading = false;
+    private int totalItems;
+    private List<BreadcrumbItem> _breadcrumbItems =
+     [
+        new("Home", href: "/", icon: Icons.Material.Filled.Home),
+        new("Settings", href: "/", icon: Icons.Material.Filled.Settings),
+        new("Facility Types", href: null, disabled: true)
+     ];
+
+    private async Task<GridData<FacilityTypeView>> LoadFacilityTypeData(GridState<FacilityTypeView> state)
+    {
+        isLoading = true;
+        try
+        {
+            if (_context == null)
+            {
+                Snackbar.Add("Database context is not available.", Severity.Error);
+                return new GridData<FacilityTypeView> { Items = Enumerable.Empty<FacilityTypeView>(), TotalItems = 0 };
+            }
+
+            // Assuming a database view named FacilityTypeView exists and is mapped in the DbContext
+            IQueryable<FacilityTypeView> query = _context.FacilityTypeView.AsNoTracking();
+
+            if (!string.IsNullOrWhiteSpace(filterModel.Name))
+            {
+                query = query.Where(x => x.Name != null && x.Name.Contains(filterModel.Name));
+            }
+            if (filterModel.IsActive.HasValue)
+            {
+                query = query.Where(x => x.IsActive == filterModel.IsActive.Value);
+            }
+
+            query = query.OrderBy(p => p.Name);
+
+            totalItems = await query.CountAsync();
+
+            var items = await query
+                .Skip(state.Page * state.PageSize)
+                .Take(state.PageSize)
+                .ToListAsync();
+
+            return new GridData<FacilityTypeView>
+            {
+                Items = items,
+                TotalItems = totalItems
+            };
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine(ex.ToString());
+            Snackbar.Add($"Error loading facility types: {ex.Message}", Severity.Error);
+            return new GridData<FacilityTypeView> { Items = Enumerable.Empty<FacilityTypeView>(), TotalItems = 0 };
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task ReloadTable()
+    {
+        if (table != null)
+        {
+            await table.ReloadServerData();
+        }
+    }
+
+    private void ViewFacilityTypeDetails(int id)
+    {
+        Navigation.NavigateTo($"/facilitytype/view/{id}");
+    }
+
+    private void EditFacilityType(int id)
+    {
+        Navigation.NavigateTo($"/facilitytype/edit/{id}");
+    }
+
+    private void AddNewFacilityType()
+    {
+        Navigation.NavigateTo("/facilitytype/add");
+    }
+
+    private string GetStatusStyle(bool isActive)
+    {
+        return isActive
+            ? "background-color:#e6f4ea; color:#2e7d32; border: 1px solid #c8e6c9;"
+            : "background-color:#fcebea; color:#c62828; border: 1px solid #f5c6cb;";
+    }
+
+    private async Task ToggleActivation(int id, string name, bool activate)
+    {
+        string action = activate ? "Activate" : "Deactivate";
+        var parameters = new DialogParameters
+        {
+            { "ContentText", $"Are you sure you want to {action.ToLower()} the facility type '{name}'?" }
+        };
+
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.ExtraSmall };
+        var dialog = DialogService.Show<ConfirmDialog>($"{action} Facility Type", parameters, options);
+
+        var result = await dialog.Result;
+        if (!result.Canceled)
+        {
+            await PerformToggleAsync(id, action);
+        }
+    }
+
+    private async Task PerformToggleAsync(int id, string action)
+    {
+        // Assuming the entity model is named 'FacilityType'
+        var facilityType = await _context.Set<FacilityType>()
+                                          .FirstOrDefaultAsync(p => p.Id == id);
+
+        if (facilityType == null)
+        {
+            Snackbar.Add("Facility Type not found.", Severity.Error);
+            return;
+        }
+
+        try
+        {
+          
+         
+          
+            facilityType.IsActive = !facilityType.IsActive;
+            facilityType.ModifiedOn = DateTime.UtcNow;
+
+            _genericService.Update(facilityType);
+            await _context.SaveChangesAsync();
+            Snackbar.Add($"Facility Type '{facilityType.Name}' has been {action.ToLower()}d.", Severity.Success);
+
+            await table.ReloadServerData();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error updating facility type: {ex.Message}", Severity.Error);
+        }
+    }
+}

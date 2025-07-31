@@ -1,0 +1,314 @@
+﻿@page "/programcommunityvalidation"
+@using MoGYSD.Business.Models.Nissa.Admin
+@using MoGYSD.Business.Persistence
+@using MoGYSD.Business.Views.Missa.Programmes
+@using MoGYSD.ViewModels.Missa.Programmes
+@using MoGYSD.Web.Components.Missa.ProgrammesValidation
+@inject NavigationManager Navigation
+@inject MoGYSD.Services.ISearchServiceFactory SearchServiceFactory
+@inject ISnackbar Snackbar
+@using Microsoft.EntityFrameworkCore 
+<MudGrid Class="mb-3" AlignItems="Center" Justify="Justify.SpaceBetween">
+    <MudItem xs="12" md="6">
+        <MudText Typo="Typo.h2" Class="font-weight-bold"><b>Programme Community Validation</b></MudText>
+        <MudText>
+          The module is used to create data that keeps BOMS accurate and aligned with NISSA dSR updates.
+        </MudText>
+    </MudItem>
+    <MudItem xs="12" md="6" Class="d-flex justify-end">
+        <MudBreadcrumbs Items="_breadcrumbItems" Class="custom-breadcrumb" />
+    </MudItem>
+</MudGrid>
+
+<MudExpansionPanels>
+    <MoGYSD.Web.Components.Missa.ProgrammesValidation.SearchPanel Filter="@filterModel"
+                                                                  OnFilterApplied="@ReloadTable" />
+</MudExpansionPanels>
+
+<MudPaper Class="p-4 mt-4">
+
+ 
+    @if (UserProfileService.UserProfile.Contains("PROGRAMME COMMUNITY VALIDATION:CREATE"))
+    {
+    <MudButton StartIcon="@Icons.Material.Filled.Add"
+               Class="pull-right top-add-button mb-2"
+               Variant="Variant.Filled"
+               Color="Color.Primary"
+               DropShadow="true"
+               OnClick="AddNewValidation">
+        Add New Programme Community Validation
+    </MudButton>
+    }
+
+    <MudDataGrid T="ValidationListView"
+                 @ref="table"
+                 ServerData="LoadValidationData"
+                 Bordered="true" Striped="true" Hover="true" Dense="true" RowsPerPage="20">
+
+        <ToolBarContent>
+            <MudText><b>Total Programme Community Validations: @totalItems</b></MudText>
+        </ToolBarContent>
+
+        <NoRecordsContent>
+            <MudText Typo="Typo.subtitle1" Class="my-4 text-muted text-center">
+                No Programme Community Validation List Found. Try adjusting your filters.
+            </MudText>
+        </NoRecordsContent>
+
+        <Columns>            
+            <PropertyColumn Property="x => x.StartDate" Title="Start Date" Format="dd-MMM-yyyy" />
+            <PropertyColumn Property="x => x.EndDate" Title="End Date" Format="dd-MMM-yyyy" />
+            <PropertyColumn Property="x => x.DistrictName" Title="District"  />
+            <PropertyColumn Property="x => x.CommunityCouncilName" Title="Community Council"  />           
+            <PropertyColumn Property="x => x.TotalMembers" Title="Total HHs Members"  />
+            <PropertyColumn Property="x => x.ValidatedMembers" Title="Validated HH Members"  />
+            <PropertyColumn Property="x => x.PendingValidation" Title="Pending Validation"  />           
+            <TemplateColumn Title="Actions">
+                <CellTemplate>
+                  
+                        <MudMenu Icon="@Icons.Material.Filled.MoreVert" Color="Color.Primary" Dense="true">
+                        @if (UserProfileService.UserProfile.Contains("PROGRAMME COMMUNITY VALIDATION:VIEW"))
+                        {
+                            <MudMenuItem OnClick="@(() => EditItem(context.Item.Id))">
+                            <MudIcon Icon="@Icons.Material.Filled.Edit" Class="me-2" /> Edit
+                        </MudMenuItem>
+                        <MudMenuItem OnClick="@(() => ViewDetails(context.Item.Id))">
+                            <MudIcon Icon="@Icons.Material.Filled.Info" Class="me-2 text-primary" /> View Households 
+                        </MudMenuItem>
+                            <MudMenuItem OnClick="@(() => ViewVillageSummary(context.Item.Id))">
+                                <MudIcon Icon="@Icons.Material.Filled.ViewList" Class="me-2 text-primary" /> View Villages Summary
+                            </MudMenuItem>
+                        }
+                        @if (UserProfileService.UserProfile.Contains("PROGRAMME COMMUNITY VALIDATION:VIEW"))
+                        {                       
+
+                                <MudMenuItem Style="display:none" OnClick="@(() => CloseValidation(context.Item,false))">
+                                    <MudIcon Icon="@Icons.Material.Filled.Close" Class="me-2 text-primary" /> Close
+                                </MudMenuItem>
+                           
+                        }
+                    </MudMenu>
+                   
+                </CellTemplate>
+            </TemplateColumn>
+        </Columns>
+
+        <PagerContent>
+            <MudDataGridPager T="ValidationListView" PageSizes="@(new int[] { 5, 10, 20, 50 })" />
+        </PagerContent>
+
+    </MudDataGrid>
+</MudPaper>
+
+
+
+
+@code {
+    private MudDataGrid<ValidationListView> table = default!;
+    private bool isLoading = false;
+    private string searchTerm = string.Empty;
+    private ValidationSearchCriteria filterModel = new();
+    private int totalItems;
+    private int _closedStatusId;
+    private List<BreadcrumbItem> _breadcrumbItems = new()
+    {
+        new("Home", href: "/", icon: Icons.Material.Filled.Home),     
+        new("Programme Community Validation", href: null, disabled: true)
+    };
+
+    // Download dialog state and data
+    private bool _showDownloadDialog = false;
+    private List<LookupItemViewModel> Districts = new();
+    private List<LookupItemViewModel> Councils = new();
+    private List<LookupItemViewModel> Villages = new();
+    private int SelectedDistrictId { get; set; }
+    private int SelectedCouncilId { get; set; }
+    private List<int> SelectedVillageIds { get; set; } = new();
+
+    private ValidationListView _selectedValidationList; // To store the context.Item
+
+    // Inject Search Services for lookups within the dialog
+    private MoGYSD.Services.ISearchService<District> DistrictSearchService { get; set; } = default!;
+    private MoGYSD.Services.ISearchService<CommunityCouncil> CommunityCouncilSearchService { get; set; } = default!;
+    private MoGYSD.Services.ISearchService<Village> VillageSearchService { get; set; } = default!;
+
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Initialize search services needed for the dialog's dropdowns
+        DistrictSearchService = SearchServiceFactory.Create<District>(useDbContext: true);
+        CommunityCouncilSearchService = SearchServiceFactory.Create<CommunityCouncil>(useDbContext: true);
+        VillageSearchService = SearchServiceFactory.Create<Village>(useDbContext: true);
+
+        DistrictSearchService.Initialize();
+        CommunityCouncilSearchService.Initialize();
+        VillageSearchService.Initialize();
+        var closedStatus = await _context.SystemCodeDetails
+      .FirstOrDefaultAsync(scd => scd.Code == "Closed");
+
+        if (closedStatus != null)
+        {
+            _closedStatusId = closedStatus.Id;
+        }
+    }
+
+    private async Task<GridData<ValidationListView>> LoadValidationData(GridState<ValidationListView> state)
+    {
+        isLoading = true;
+        try
+        {
+            if (_context == null)
+            {
+                Snackbar.Add("Database context is not available.", Severity.Error);
+                return new GridData<ValidationListView> { Items = Enumerable.Empty<ValidationListView>(), TotalItems = 0 };
+            }
+
+            var query = _context.ValidationListView.AsNoTracking();
+            if (!string.IsNullOrWhiteSpace(filterModel.Name))
+                query = query.Where(x => x.CommunityCouncilName.Contains(filterModel.Name)
+                || x.DistrictName.Contains(filterModel.Name));
+           
+            if (filterModel.DistrictId.HasValue)
+            {
+                query = query.Where(x => x.DistrictId == filterModel.DistrictId);
+            }
+            if (filterModel.CommunityCouncilId.HasValue)
+            {
+                query = query.Where(x => x.CommunityCouncilId == filterModel.CommunityCouncilId);
+            }
+            if (!string.IsNullOrWhiteSpace(searchTerm))
+            {
+                var term = searchTerm.Trim().ToLower();
+                query = query.Where(x =>                 
+                    x.CommunityCouncilName.ToLower().Contains(term) ||
+                    x.CreatedByName.ToLower().Contains(term));
+            }
+
+            bool sortApplied = false;
+            if (state.SortDefinitions.Any())
+            {
+                var sortDef = state.SortDefinitions.First();
+                if (!string.IsNullOrWhiteSpace(sortDef.SortBy))
+                {
+                    query = sortDef.Descending
+                        ? query.OrderByDescending(x => EF.Property<object>(x, sortDef.SortBy))
+                        : query.OrderBy(x => EF.Property<object>(x, sortDef.SortBy));
+                    sortApplied = true;
+                }
+            }
+
+            if (!sortApplied)
+            {
+                query = query.OrderByDescending(x => x.Id);
+            }
+
+            totalItems = await query.CountAsync();
+            var items = await query
+                .Skip(state.Page * state.PageSize)
+                .Take(state.PageSize)
+                .ToListAsync();
+
+            return new GridData<ValidationListView>
+            {
+                Items = items,
+                TotalItems = totalItems
+            };
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error loading validation lists: {ex.Message}", Severity.Error);
+            return new GridData<ValidationListView> { Items = Enumerable.Empty<ValidationListView>(), TotalItems = 0 };
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task ReloadTable()
+    {
+        if (table is not null)
+            await table.ReloadServerData();
+    }
+
+    private async Task OnSearchKeyUp(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            await ReloadTable();
+        }
+    }
+
+    private void ViewDetails(int id) => Navigation.NavigateTo($"/programcommunityvalidation/view/{id}");
+    private void ViewVillageSummary(int id) => Navigation.NavigateTo($"/programcommunityvalidation/viewsummary/{id}");
+
+    private void EditItem(int id) => Navigation.NavigateTo($"/programcommunityvalidation/edit/{id}");
+
+    private void AddNewValidation() => Navigation.NavigateTo("/programcommunityvalidation/add");
+    private void NavigateToValidationPage(int validationId, int? communityCouncilId)
+    {
+        Navigation.NavigateTo($"/validation?validationListId={validationId}&communityCouncilId={communityCouncilId}");
+    }
+
+
+
+
+
+    public class LookupItemViewModel
+    {
+        public int Id { get; set; }
+        public string Name { get; set; }
+    }
+    private async Task CloseValidation(ValidationListView item,bool close)
+    {
+        if (_closedStatusId == 0)
+        {
+            Snackbar.Add("System configuration error: 'Closed' status could not be found. Action cancelled.", Severity.Error);
+            return;
+        }
+
+        if (item.EndDate.HasValue && item.EndDate.Value.Date > DateTime.Today)
+        {
+            Snackbar.Add("The community validation list cannot be closed before validation end date.", Severity.Warning);
+            return;
+        }
+
+
+        string action = close ? "Close": "Cancel";
+        var parameters = new DialogParameters
+        {
+            { "ContentText", "Are you sure you want to close this community validation? This will set the status to Closed and update the End Date to today?" }
+        };
+
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.ExtraSmall };
+        var dialog = DialogService.Show<ConfirmDialog>($"{action} Programme Community Validation", parameters, options);
+        var result = await dialog.Result;
+        if (result.Canceled)
+        {
+            return;
+        }
+
+        try
+        {
+            var validationListToUpdate = await _context.ValidationLists.FindAsync(item.Id);
+
+            if (validationListToUpdate == null)
+            {
+                Snackbar.Add("Error: Community validation list not found.", Severity.Error);
+                return;
+            }
+
+            validationListToUpdate.StatusId = _closedStatusId;
+            validationListToUpdate.EndDate = DateTime.UtcNow;
+
+            await _context.SaveChangesAsync();
+
+            Snackbar.Add("Community validation list has been closed successfully.", Severity.Success);
+            await ReloadTable();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"An error occurred: {ex.Message}", Severity.Error);
+        }
+    }
+}

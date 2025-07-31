@@ -1,0 +1,315 @@
+﻿@page "/user-details/{UserId}"
+@using MoGYSD.Business.Models.Nissa.UserManagement
+@using MoGYSD.Business.Persistence
+@using MoGYSD.Business.Views.Nissa.Admin
+@using MoGYSD.Web.Components.Account.Pages
+@using MoGYSD.Web.Components.Shared.JsInterop
+@using Newtonsoft.Json
+
+<PageTitle>User Details</PageTitle>
+
+<MudGrid Class="mb-3" AlignItems="Center" Justify="Justify.SpaceBetween">
+    <MudItem xs="12" md="6">
+        <MudText Typo="Typo.h2" Class="font-weight-bold"><b>Users</b></MudText>
+        <MudText>
+            Enables view user details. It stores user profiles, account status, and other relevant details.
+        </MudText>
+    </MudItem>
+    <MudItem xs="12" md="6" Class="d-flex justify-end">
+        <MudBreadcrumbs Items="_breadcrumbItems" Class="custom-breadcrumb" />
+    </MudItem>
+</MudGrid>
+
+
+<MudPaper Class="pa-4">
+    <MudCard Class="pa-6">
+        <MudCardHeader>
+            <MudText Typo="Typo.h2"><b>User Details</b></MudText>
+        </MudCardHeader>
+        <MudCardContent>
+            <MudGrid>
+                <!-- Status Row -->
+                <MudItem xs="12">
+                    <MudText>
+                        <b>User Status:</b>
+                        @if (User.IsActive)
+                        {
+                          <b>Active</b>
+                        }
+                        else
+                        {
+                          <b>Not Active</b>
+                        }
+                    </MudText>
+                </MudItem>
+
+                <!-- User Identity -->
+                <MudItem xs="12" sm="6" md="3">
+                    <MudText><b>First Name:</b> @User.FirstName</MudText>
+                </MudItem>
+                <MudItem xs="12" sm="6" md="3">
+                    <MudText><b>Middle Name:</b> @User.MiddleName</MudText>
+                </MudItem>
+                <MudItem xs="12" sm="6" md="3">
+                    <MudText><b>Surname:</b> @User.Surname</MudText>
+                </MudItem>
+                <MudItem xs="12" sm="6" md="3">
+                    <MudText><b>ID Type:</b> @User.IDType</MudText>
+                </MudItem>
+                <MudItem xs="12" sm="6" md="3">
+                    <MudText><b>ID Number:</b> @User.IDNumber</MudText>
+                </MudItem>
+                <MudItem xs="12" sm="6" md="3">
+                    <MudText><b>Sex:</b> @User.SexDescription</MudText>
+                </MudItem>
+                <MudItem xs="12" sm="6" md="3">
+                    <MudText><b>Phone Number:</b> @User.PhoneNumber</MudText>
+                </MudItem>
+                <MudItem xs="12" sm="6" md="3">
+                    <MudText><b>Email:</b> @User.Email</MudText>
+                </MudItem>
+                <MudItem xs="12" sm="6" md="3">
+                    <MudText><b>Source Of Registration:</b> @User.SourceOfRegistration</MudText>
+                </MudItem>
+                <MudItem xs="12" sm="6" md="3">
+                    <MudText><b>Role:</b> @User.RoleName</MudText>
+                </MudItem>
+                <MudItem xs="12" sm="6" md="3">
+                    <MudText><b>Privacy Protocols Accepted:</b> @(User.PrivacyProtocolsAccepted ? "Yes" : "No")</MudText>
+                </MudItem>
+                <MudItem xs="12" sm="6" md="3">
+                    <MudText><b>Supervisor:</b> @(User.IsSupervisor ? "Yes" : "No")</MudText>
+                </MudItem>
+                <MudItem xs="12" sm="6" md="3">
+                    <MudText><b>Created Date:</b> @(User.CreatedOn?.ToString("dd-MMM-yyyy") ?? "")</MudText>
+                </MudItem>
+                <MudItem xs="12" sm="6" md="3">
+                    <MudText><b>Modified Date:</b> @(User.ModifiedOn?.ToString("dd-MMM-yyyy") ?? "")</MudText>
+                </MudItem>
+            </MudGrid>
+                   
+        </MudCardContent>
+    </MudCard>
+    <MudCard Class="pa-6 mt-2">
+        <MudCardHeader>
+            <MudText Typo="Typo.h2"><b>Access Level</b></MudText>
+        </MudCardHeader>
+        <MudCardContent>
+            <MudGrid>
+                <MudItem xs="12" sm="6" class="mb-4">
+                    <MudPaper Class="pa-4">
+                        <MudText Typo="Typo.h4">
+                            <b>Districts</b>
+                        </MudText>
+                        <MudItem xs="12" sm="6" md="3" class="mt-2">
+                            @foreach (var district in Districts)
+                            {
+                                <MudText><b>@district.Name</b></MudText>
+                            }
+                        </MudItem>
+                    </MudPaper>
+                </MudItem>
+
+                <MudItem xs="12" sm="6" class="mb-4">
+                    <MudPaper Class="pa-4">
+                        <MudText Typo="Typo.h4">
+                            <b>Community Councils</b>
+                        </MudText>
+                        @foreach (var communityCouncil in CommunityCouncils)
+                        {
+                            <MudItem xs="12" sm="6" md="3" class="mt-2">
+                                <MudText><b>@communityCouncil.CommunityCouncilName</b></MudText>
+                            </MudItem>
+                        }
+                    </MudPaper>
+                </MudItem>
+
+                <MudItem xs="12" sm="6" class="mb-4">
+                    <MudPaper Class="pa-4">
+                        <MudText Typo="Typo.h4">
+                            <b>Villages</b>
+                        </MudText>
+                        @foreach (var village in Villages)
+                        {
+                            <MudItem xs="12" sm="6" md="3" class="mt-2">
+                                <MudText><b>@village.Name</b></MudText>
+                            </MudItem>
+                        }
+                    </MudPaper>
+                </MudItem>
+
+                <MudItem xs="12" sm="6" class="mb-4">
+                    <MudPaper Class="pa-4">
+                        <MudText Typo="Typo.h4">
+                            <b>Registration Centres</b>
+                        </MudText>
+                        @foreach (var registrationCentre in RegistrationCentres)
+                        {
+                            <MudItem xs="12" sm="6" md="3" class="mt-2">
+                                <MudText><b>@registrationCentre.RegistrationCentreName</b></MudText>
+                            </MudItem>
+                        }
+                        @* <a href="@FilePathHelper.ToWebUrl(User.RegistrationCentreMapUrl)" target="_blank" class="mud-typography mud-typography-body2 mud-text-primary">View Map</a> *@
+
+                    </MudPaper>
+                </MudItem>
+
+            </MudGrid>
+
+        </MudCardContent>
+    </MudCard>
+@if (documents is not null && documents.Any())
+{
+    <MudCard Class="pa-6 mt-2">
+        <MudCardHeader>
+            <MudText Typo="Typo.h2"><b>Supporting Document</b></MudText>
+        </MudCardHeader>
+
+        <MudCardContent>
+                <MudDivider Class="my-4" />
+                <MudText Typo="Typo.subtitle2" Class="mb-2">Uploaded National ID / Passport</MudText>
+                <MudSimpleTable Dense Hover>
+                    <tbody>
+                        @foreach (var dto in documents)
+                        {
+                            <tr @onclick="() => OnDownloadFile(dto.Url)" style="cursor:pointer">
+                                <td><Thumbnail FileName="@dto.Name" FileUrl="@dto.Url" /></td>
+                                <td><FileSizeFormatter FileSizeInBytes="@dto.Size" /></td>
+                            </tr>
+                        }
+                    </tbody>
+                </MudSimpleTable>
+        </MudCardContent>
+    </MudCard>
+}
+@if (PhotoDocuments is not null && PhotoDocuments.Any())
+{
+    <MudCard Class="pa-6 mt-2">
+        <MudCardHeader>
+            <MudText Typo="Typo.h2"><b>Photo Document</b></MudText>
+        </MudCardHeader>
+        <MudCardContent>
+                <MudDivider Class="my-4" />
+                <MudText Typo="Typo.subtitle2" Class="mb-2">Uploaded Photo</MudText>
+                <MudSimpleTable Dense Hover>
+                    <tbody>
+                        @foreach (var dto in PhotoDocuments)
+                        {
+                            <tr @onclick="() => OnDownloadFile(dto.Url)" style="cursor:pointer">
+                                <td><Thumbnail FileName="@dto.Name" FileUrl="@dto.Url" /></td>
+                                <td><FileSizeFormatter FileSizeInBytes="@dto.Size" /></td>
+                            </tr>
+                        }
+                    </tbody>
+                </MudSimpleTable>
+        </MudCardContent>
+    </MudCard>
+}
+    <MudButton Color="Color.Secondary" Variant="Variant.Filled" OnClick="GoBack" Class="mt-4">Back</MudButton>
+</MudPaper>
+<style>
+    @@import url("https://cdn.jsdelivr.net/npm/@@fancyapps/ui@@5.0.36/dist/fancybox/fancybox.css");
+
+    .fancybox__container {
+        --fancybox-bg: rgba(24, 24, 27, 0.85);
+        z-index: 9999;
+    }
+</style>
+@code {
+    [Parameter]
+    public string UserId { get; set; } = default!;
+
+    public UserSummaryView User { get; set; } = new();
+
+    private List<RegistrationImage>? documents = null;
+    private List<RegistrationImage> PhotoDocuments = null;
+    private List<DistrictView> Districts = new();
+    private List<CommunityCouncilView> CommunityCouncils = new();
+    private List<VillageView> Villages = new();
+    private List<RegistrationCentreVillageView> RegistrationCentres = new();
+
+    private List<BreadcrumbItem> _breadcrumbItems =
+    [
+        new("Home", href: "/", icon: Icons.Material.Filled.Home),
+        new("Security", href: null, icon: Icons.Material.Filled.Security),
+        new("Users", href: "/security/user", icon: Icons.Material.Filled.SupervisedUserCircle),
+        new("User Detail", href: null, disabled: true, icon: Icons.Material.Filled.Details)
+    ];
+
+    void GoBack() => Navigation.NavigateTo("/security/user");
+
+    protected override async Task OnInitializedAsync()
+    {
+        using var context = _dbContextFactory.CreateDbContext();
+
+        User = await context.UserSummaryView
+            .FirstOrDefaultAsync(u => u.Id == UserId);
+
+        if (!string.IsNullOrEmpty(User.Documents))
+        {
+            documents = JsonConvert.DeserializeObject<List<RegistrationImage>>(User.Documents);
+        }
+
+        if (!string.IsNullOrEmpty(User.PhotoDocuments))
+        {
+            PhotoDocuments = JsonConvert.DeserializeObject<List<RegistrationImage>>(User.PhotoDocuments);
+        }
+
+        var districtId = await context.UserDistrictAssignments.Where(a => a.ApplicationUserId == User.Id).Select(d => d.DistrictId).ToListAsync();
+        if (districtId.Any())
+        {
+            Districts = await context.DistrictView
+                .Where(d => districtId.Contains(d.Id))
+                .ToListAsync();
+        }
+
+        var communityCouncilId = await context.UserCommunityCouncilAssignments
+            .Where(a => a.ApplicationUserId == User.Id)
+            .Select(c => c.CommunityCouncilId)
+            .ToListAsync();
+
+        if (communityCouncilId.Any())
+        {
+            CommunityCouncils = await context.CommunityCouncilView
+                .Where(c => communityCouncilId.Contains(c.Id))
+                .ToListAsync();
+        }
+
+        var villageId = await context.UserVillageAssignments
+            .Where(a => a.ApplicationUserId == User.Id)
+            .Select(v => v.VillageId)
+            .ToListAsync();
+
+        if (villageId.Any())
+        {
+            Villages = await context.VillageView
+                .Where(v => villageId.Contains(v.Id))
+                .ToListAsync();
+        }
+
+        var registrationCentreId = await context.UserRegistrationCentreAssignments
+            .Where(a => a.ApplicationUserId == User.Id)
+            .Select(r => r.RegistrationCentreId)
+            .ToListAsync();
+
+        if (registrationCentreId.Any())
+        {
+            RegistrationCentres = await context.RegistrationCentreVillageView
+                .Where(r => registrationCentreId.Contains(r.RegistrationCentreId.Value))
+                .GroupBy(c => c.RegistrationCentreId)
+                .Select(g => g.First()) // or another representative item
+                .ToListAsync();
+        }
+    }
+
+    private async Task OnDownloadFile(string? str)
+    {
+        var fileURL = FilePathHelper.ToWebUrl(str);
+        // if (!string.IsNullOrWhiteSpace(fileURL))
+        // {
+        //     await JSRuntime.InvokeVoidAsync("open", fileURL, "_blank");
+        // }
+        await new Fancybox(JSRuntime).Preview(fileURL ?? string.Empty, []);
+    }
+}
+

@@ -1,0 +1,169 @@
+﻿@using MoGYSD.Business.Views.HouseHoldListings
+
+<MudDialog Class="blur dialog-background" TitleClass="blur dialog-background-title" ContentClass="dialog-background-surface py-10" ActionsClass="dialog-background-surface">
+    <DialogContent>
+        <!-- General Info Card -->
+        <MudCard Class="mb-3">
+            <MudCardContent>
+                <MudGrid Spacing="2">
+                    <MudItem xs="12" sm="6">
+                        <MudText><b>District Name:</b> @Model.DistrictName</MudText>
+                    </MudItem>
+
+                    <MudItem xs="12" sm="6">
+                        <MudText><b>Community Council Name:</b> @Model.CommunityCouncilName</MudText>
+                    </MudItem>
+
+                    <MudItem xs="12" sm="6">
+                        <MudText><b>HH Listing Activity:</b> @Model.HHListingActivityName</MudText>
+                    </MudItem>
+
+                    <MudItem xs="12" sm="6">
+                        <MudText><b>Total Participants:</b> @Model.TotalNumberofCBCParticipants</MudText>
+                    </MudItem>
+
+                    <MudItem xs="12" sm="6">
+                        <MudText><b>Organisation:</b> @Model.PartnerName</MudText>
+                    </MudItem>
+
+                    <MudItem xs="12" sm="6">
+                        <MudText><b>Responsible Person:</b> @Model.ContactPersonName</MudText>
+                    </MudItem>
+
+                    <MudItem xs="12" sm="6">
+                        <MudText><b>Date CBC Conducted:</b> @Model.DateCBCConducted.ToString("dd-MMM-yyyy")</MudText>
+                    </MudItem>
+                </MudGrid>
+            </MudCardContent>
+        </MudCard>
+
+        <!-- Villages Card -->
+        <MudCard>
+            <MudCardContent>
+                <MudText Typo="Typo.h6" Class="mb-3"><b>Villages</b></MudText>
+                <MudGrid Spacing="2">
+                    @foreach (var village in VillageName)
+                    {
+                        <MudItem xs="12" sm="6" md="4">
+                            <MudPaper Elevation="2" Class="pa-3 d-flex align-center">
+                                <MudIcon Icon="@Icons.Material.Filled.LocationOn" Color="Color.Primary" Class="me-2" />
+                                <MudText Typo="Typo.body1">@village</MudText>
+                            </MudPaper>
+                        </MudItem>
+                    }
+                </MudGrid>
+            </MudCardContent>
+        </MudCard>
+    </DialogContent>
+
+    <DialogActions>
+        <MudItem xs="6" Class="d-flex justify-start">
+            <MudButton OnClick="Cancel"
+                       Variant="Variant.Filled"
+                       Color="Color.Secondary"
+                       Size="Size.Small"
+                       Class="ml-0">Back
+            </MudButton>
+        </MudItem>
+        <MudItem xs="6" Class="d-flex justify-end">
+            @if (!IsView)
+            {
+                if (Model.StatusName == "In Progress")
+                {
+                    <MudButton Variant="Variant.Filled" Color="Color.Success" OnClick="CloseCBCActivity">
+                        Close CBC Activity
+                    </MudButton>
+                }
+                else if (Model.StatusName.Trim().ToLower() == "open")
+                {
+                    <MudButton Variant="Variant.Filled" Color="Color.Success" OnClick="SendToProgress">
+                        In Progress
+                    </MudButton>
+                }
+            }
+        </MudItem>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter]
+    private IMudDialogInstance Dialog { get; set; }
+    [Parameter] public CbcActivitiesView Model { get; set; }
+    [Parameter] public bool IsView { get; set; }
+    public List<string> VillageName = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        VillageName = await _context.CbcActivityVillageView
+        .Where(a => a.CbcActivityId == Model.Id)
+        .Select(a => a.VillageName)
+        .ToListAsync();
+    }
+
+    private void Cancel() => Dialog.Cancel();
+
+    private async Task CloseCBCActivity()
+    {
+        var confirmed = await DialogServiceHelper.ShowConfirmationDialogAsync(DialogService, "Are you sure you want to close this CBC categorization?");
+        if (confirmed)
+        {
+            await UpdateStatusAndNotify("Closed", "closed", "Closed", "closed successfully");
+        }
+    }
+
+    private async Task SendToProgress()
+    {
+        var confirmed = await DialogServiceHelper.ShowConfirmationDialogAsync(DialogService, "Are you sure you want to close this CBC categorization?");
+        if (confirmed)
+        {
+            await UpdateStatusAndNotify("In Progress", "In Progress", "In Progress", "set in progress successfully");
+        }
+    }
+
+    private async Task UpdateStatusAndNotify(string code, string subjectSuffix, string action, string successMessage)
+    {
+        try
+        {
+            var statusId = await _context.SystemCodeDetailsView
+                .Where(p => p.Code == code)
+                .Select(p => p.Id)
+                .FirstOrDefaultAsync();
+
+            if (statusId == 0)
+            {
+                Snackbar.Add("Status not found", Severity.Error, cfg => cfg.RequireInteraction = true);
+                return;
+            }
+            var update = await _context.CbcActivities.Where(h => h.Id == Model.Id).FirstOrDefaultAsync();
+            update.StatusId = statusId;
+            await _genericService.Update(update);
+
+            // await InvokeAsync(async () =>
+            // {
+            //     // var emailData = new EmailViewModel<ActionHHListingReviewEmail>
+            //     // {
+            //     //     To = Model.CreatedByEmail,
+            //     //     IsHtml = true,
+            //     //     Subject = $"{Model.HHListingActivityName} {subjectSuffix}",
+            //     //     Email = new ActionHHListingReviewEmail
+            //     //     {
+            //     //         FirstName = Model.CreatedByName,
+            //     //         Action = action
+            //     //     }
+            //     // };
+
+            //     // await EmailService.SendEmailAsync(emailData).ConfigureAwait(false);
+
+            // });
+            Snackbar.Add($"CBC activity plan {successMessage}", Severity.Success);
+            LoadingService.Hide();
+            Dialog.Close(DialogResult.Ok(true));
+
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Unexpected error: {ex.Message}", Severity.Error, cfg => cfg.RequireInteraction = true);
+            return;
+        }
+    }
+}

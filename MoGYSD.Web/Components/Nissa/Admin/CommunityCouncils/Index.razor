@@ -1,0 +1,216 @@
+﻿@page "/admin/councils"
+@using System.Linq.Expressions
+@using MoGYSD.Business.Models.Nissa.Admin
+@using MoGYSD.Business.Persistence
+@using MoGYSD.Business.Views.Nissa.Admin
+@using MoGYSD.ViewModels.Nissa.Administration
+@using MoGYSD.Web.Components.Autocompletes
+
+<PageTitle>Community Councils</PageTitle>
+
+<MudGrid Class="mb-3" AlignItems="Center" Justify="Justify.SpaceBetween">
+    <MudItem xs="12" md="6">
+        <MudText Typo="Typo.h2" Class="font-weight-bold"><b>Community Councils</b></MudText>
+        <MudText>
+            Enables the creation, updating, and referencing of community councils to respective constituencies.
+        </MudText>
+    </MudItem>
+    <MudItem xs="12" md="6" Class="d-flex justify-end">
+        <MudBreadcrumbs Items="_breadcrumbItems" Class="custom-breadcrumb" />
+    </MudItem>
+</MudGrid>
+
+<MudExpansionPanels Elevation="1">
+    <MudExpansionPanel Text="Expand to apply search filter">
+        <MudGrid>
+            <MudItem xs="12" sm="6">
+                <MudTextField Variant="Variant.Outlined" @bind-Value="_quickName"
+                              Label="Search by Name" Class="mb-3" />
+
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <DistrictAutocomplete Variant="Variant.Outlined" Label="Search by District Name" ResetValueOnEmptyText="true"
+                                        @bind-Value="_quickFilterDistrict"
+                                        Class="mb-3" />
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <CommunityCouncilAutocomplete Variant="Variant.Outlined" Label="Search by Community Council Name" ResetValueOnEmptyText="true"
+                                                @bind-Value="_quickFilter"
+                                                Class="mb-3" />
+            </MudItem>
+        </MudGrid>
+
+        <div class="d-flex justify-content-between">
+            <MudButton Variant="Variant.Filled" Color="Color.Secondary" OnClick="OnClearClicked" Size="Size.Small">
+                Clear
+            </MudButton>
+
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="OnSearchClicked" Size="Size.Small">
+                Search
+            </MudButton>
+        </div>
+    </MudExpansionPanel>
+</MudExpansionPanels>
+
+<MudPaper Class="pa-4">
+    @if (UserProfileService.UserProfile.Contains("COMMUNITY COUNCIL:CREATE"))
+    {
+        <MudButton EndIcon="@Icons.Material.Filled.Add" Class="pull-right top-add-button mb-2 mt-2" Variant="Variant.Filled"
+                    OnClick="AddNew" DropShadow="true" Color="Color.Primary">Add New</MudButton>
+    }
+    <MudDataGrid T="CommunityCouncilView" Items="data" Bordered="true" Dense="true" RowsPerPage="20">
+        <NoRecordsContent>
+            <MudText Typo="Typo.subtitle1" Class="my-4 text-muted text-center">
+                No Community Council found. Try adjusting your filters.
+            </MudText>
+        </NoRecordsContent>
+        <ToolBarContent>
+            <MudText><b>Total Community Council(s): @data.Count</b></MudText>
+        </ToolBarContent>
+        <Columns>
+
+            <PropertyColumn Property="x => x.DistrictName" Title="District Name" />
+            <PropertyColumn Property="x => x.ConstituencyName" Title="Constituency Name" />
+            <PropertyColumn Property="x => x.CommunityCouncilName" Title="Community Council Name" />
+            <PropertyColumn Property="x => x.Code" Title="Unique Code" />
+            <TemplateColumn Title="Active" HeaderClass="fit">
+                <CellTemplate>
+                    <MudText Style="@($"{GetStatusStyle(context.Item.IsActive)} display:block; padding:4px; border-radius:6px; width:100%; text-align: center;")">
+                        @(context.Item.IsActive ? "Yes" : "No")
+                    </MudText>
+                </CellTemplate>
+            </TemplateColumn>
+            <TemplateColumn Title="Edit">
+                <CellTemplate>
+                    @if (UserProfileService.UserProfile.Contains("COMMUNITY COUNCIL:MODIFY"))
+                    {
+                        <MudStack Row="true" Spacing="1" AlignItems="AlignItems.Center">
+                            <MudIconButton Class="table-action-item" Icon="@Icons.Material.Filled.Edit" Color="Color.Secondary" OnClick="@(() => Edit(context.Item))" />
+
+                            @* <MudIconButton Class="table-action-item" Icon="@Icons.Material.Filled.Delete" Color="Color.Error" OnClick="@(() => Delete(context.Item.Id))" /> *@
+                        </MudStack>                        
+                    }
+                </CellTemplate>
+            </TemplateColumn>
+
+        </Columns>
+
+        <PagerContent>
+            <MudDataGridPager T="CommunityCouncilView" />
+        </PagerContent>
+    </MudDataGrid>
+</MudPaper>
+
+@code {
+    private List<CommunityCouncilView> data = new ();
+    private int? _quickFilter;
+    private int? _quickFilterDistrict;
+    private string _quickName = string.Empty;
+
+    private List<BreadcrumbItem> _breadcrumbItems =
+    [
+        new("Home", href: "/", icon: Icons.Material.Filled.Home),
+        new("Settings", href: null, icon: Icons.Material.Filled.Settings),
+        new("Geographical Settings", href: null, icon: Icons.Material.Filled.AdminPanelSettings),
+        new("Community Councils", href: null, disabled: true, icon: Icons.Material.Filled.Domain)
+    ];
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!UserProfileService.UserProfile.Contains("COMMUNITY COUNCIL:VIEW"))
+        {
+            Navigation.NavigateTo("/AccessDenied");
+        }
+        await Init();
+    }
+
+    private async Task OnSearchClicked()
+    {
+        await Init(_quickFilterDistrict, _quickFilter, _quickName);
+    }
+
+    private async Task OnClearClicked()
+    {
+        _quickFilter = null;
+        _quickFilterDistrict = null;
+        _quickName = null;
+        await Init();
+    }
+
+    private async Task Init(int? districtId = null, int? cCId = null, string searchByName = null)
+    {
+        try
+        {
+            var query = _context.CommunityCouncilView.AsNoTracking();
+
+            if (!string.IsNullOrEmpty(searchByName))
+            {
+                query = query.Where(n => n.DistrictName.ToLower().Contains(searchByName.ToLower()) || 
+                n.ConstituencyName.ToLower().Contains(searchByName.ToLower()) ||
+                n.CommunityCouncilName.ToLower().Contains(searchByName.ToLower()));
+            }
+
+            if (districtId != null)
+            {
+                query = query.Where(d => d.DistrictId == districtId);
+            }
+
+            if (cCId != null)
+            {
+                query = query.Where(d => d.Id == cCId);
+            }
+
+
+
+            data = await query.OrderBy(a => a.DistrictId).ThenBy(a => a.ConstituencyId).ThenBy(a => a.Id).ToListAsync();
+
+        }
+        catch (Exception ex)
+        {
+            LoadingService.Hide();
+            Snackbar.Add($"An unexpected error occurred: {(ex.InnerException is null ? ex.Message : ex.InnerException.Message)}", Severity.Error, config => { config.RequireInteraction = true; });
+            return;
+        }
+    }
+
+
+    private string GetStatusStyle(bool isActive)
+    {
+        return isActive
+            ? "background-color:#e6f4ea; color:#2e7d32; border: 1px solid #c8e6c9;"
+            : "background-color:#fcebea; color:#c62828; border: 1px solid #f5c6cb;";
+    }
+
+    private async Task AddNew()
+    {
+        var model = new CommunityCouncilViewModel{IsActive = true};
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Small, FullWidth = true };
+        var parameters = new DialogParameters
+        {
+            { "Model", model }
+        };
+        var dialogRef = await DialogService.ShowAsync<CreateEdit>("Add Community Council", parameters, options);
+        var state = await dialogRef.Result;
+        if (state is not null && !state.Canceled)
+        {
+            await Init();
+        }
+    }
+
+    private async Task Edit(CommunityCouncilView view)
+    {
+        var model = _mapper.Map<CommunityCouncilViewModel>(view);
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Small, FullWidth = true };
+        var parameters = new DialogParameters
+        {
+            { "Model", model }
+        };
+        var dialogRef = await DialogService.ShowAsync<CreateEdit>("Edit Community Council", parameters, options);
+        var state = await dialogRef.Result;
+
+        if (state is not null && !state.Canceled)
+        {
+            await Init();
+        }
+    }
+}

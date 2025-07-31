@@ -1,0 +1,271 @@
+﻿@page "/eligibility/view/{Id:int}"
+
+@using Microsoft.EntityFrameworkCore
+@using MoGYSD.Business.Models.Missa.EligibilityTests
+@using MoGYSD.ViewModels.Missa.Eligibility
+@using static MoGYSD.Web.Components.Missa.EligibilityTesting.CreateEdit
+
+@inject NavigationManager Navigation
+@inject ISnackbar Snackbar
+
+@if (_isLoading)
+{
+    <div class="d-flex justify-center pa-10">
+        <MudProgressCircular Color="Color.Primary" Indeterminate="true" />
+    </div>
+}
+else if (Model.Id > 0)
+{
+    <MudGrid Class="mb-3" AlignItems="Align.Center" Justify="Justify.SpaceBetween">
+        <MudItem xs="12" md="6">
+            <MudText Typo="Typo.h4" Class="font-weight-bold">@HeaderText</MudText>
+        </MudItem>
+        <MudItem xs="12" md="6" Class="d-flex justify-start justify-sm-end">
+            <MudBreadcrumbs Items="_breadcrumbItems" Class="custom-breadcrumb" />
+        </MudItem>
+    </MudGrid>
+
+    <MudPaper Class="pa-4 pa-md-6 mb-6" Elevation="3">
+        <MudCard Elevation="0" Outlined="true">
+            <MudCardHeader>
+                <CardHeaderContent>
+                    <MudText Typo="Typo.h5" Class="font-weight-bold"><b>Eligibility Test Details</b></MudText>
+                </CardHeaderContent>
+            </MudCardHeader>
+            <MudCardContent>
+                <MudGrid Spacing="3">
+                    <MudItem xs="12" sm="6" md="4">
+                        <MudText><b>Programme:</b> @_programmeName</MudText>
+                    </MudItem>
+                    <MudItem xs="12" sm="6" md="4">
+                        <MudText><b>Programme Quota:</b> @Model.Quota</MudText>
+                    </MudItem>
+                    <MudItem xs="12" sm="6" md="4">
+                        <MudText><b>District:</b> @_districtName</MudText>
+                    </MudItem>
+                  
+                    <MudItem xs="12">
+                        <MudText><b>Description:</b> @(string.IsNullOrWhiteSpace(Model.Description) ? "" : Model.Description)</MudText>
+                    </MudItem>
+                </MudGrid>
+            </MudCardContent>
+        </MudCard>
+
+@if (_resultSummary is not null)
+{
+    <MudDivider Class="my-6" />
+
+    <div class="d-flex align-center">
+        <MudText Typo="Typo.h5" Class="font-weight-bold">Eligibility Test Summary</MudText>
+    </div>
+
+    <MudGrid Spacing="3" Class="mt-4">
+     <MudItem xs="12" sm="6" md="4" lg="2">
+            <MudCard Elevation="2" Class="pa-0">
+                <MudToolBar Class="mud-theme-info" Dense="true">
+                    <MudText Typo="Typo.h6">Processed</MudText>
+                </MudToolBar>
+                <MudCardContent Class="d-flex align-center justify-center pa-4">
+                    <MudText Typo="Typo.h3">@_resultSummary.TotalProcessed</MudText>
+                </MudCardContent>            
+                <MudCardActions>
+                     <MudButton  Variant="Variant.Text" Color="Color.Primary" Class="ml-auto" @onclick='() => OpenStatusListDialogAsync("Processed")'>View</MudButton>
+                </MudCardActions>
+            </MudCard>
+        </MudItem>
+
+  
+        <MudItem xs="12" sm="6" md="4" lg="2">
+            <MudCard Elevation="2" Class="pa-0">
+                <MudToolBar Class="mud-theme-primary" Dense="true">
+                    <MudText Typo="Typo.h6">Eligible</MudText>
+                </MudToolBar>
+                <MudCardContent Class="d-flex align-center justify-center pa-4">
+                    <MudText Typo="Typo.h3">@_resultSummary.TotalEligible</MudText>
+                </MudCardContent>
+                <MudCardActions>
+                    <MudButton Variant="Variant.Text" Color="Color.Primary" Class="ml-auto" @onclick='() => OpenStatusListDialogAsync("Eligible")'>View</MudButton>
+                </MudCardActions>
+            </MudCard>
+        </MudItem>
+
+        <MudItem xs="12" sm="6" md="4" lg="2">
+            <MudCard Elevation="2" Class="pa-0">
+                <MudToolBar Class="mud-theme-success" Dense="true">
+                    <MudText Typo="Typo.h6">Selected</MudText>
+                </MudToolBar>
+                <MudCardContent Class="d-flex align-center justify-center pa-4">
+                    <MudText Typo="Typo.h3">@_resultSummary.TotalSelected</MudText>
+                </MudCardContent>
+                <MudCardActions>
+                    <MudButton Variant="Variant.Text" Color="Color.Success" Class="ml-auto" @onclick='() => OpenStatusListDialogAsync("Selected")'>View</MudButton>
+                </MudCardActions>
+            </MudCard>
+        </MudItem>
+
+        <MudItem xs="12" sm="6" md="4" lg="2">
+            <MudCard Elevation="2" Class="pa-0">
+                <MudToolBar Class="mud-theme-warning" Dense="true">
+                    <MudText Typo="Typo.h6">Waiting List</MudText>
+                </MudToolBar>
+                <MudCardContent Class="d-flex align-center justify-center pa-4">
+                    <MudText Typo="Typo.h3">@_resultSummary.TotalWaitlisted</MudText>
+                </MudCardContent>
+                <MudCardActions>
+                    <MudButton Variant="Variant.Text" Color="Color.Warning" Class="ml-auto" @onclick='() => OpenStatusListDialogAsync("WaitListed")'>View</MudButton>
+                </MudCardActions>
+            </MudCard>
+        </MudItem>
+
+        <MudItem xs="12" sm="6" md="4" lg="2">
+            <MudCard Elevation="2" Class="pa-0">
+                <MudToolBar Class="mud-theme-error" Dense="true">
+                    <MudText Typo="Typo.h6">Not Eligible</MudText>
+                </MudToolBar>
+                <MudCardContent Class="d-flex align-center justify-center pa-4">
+                    <MudText Typo="Typo.h3">@_resultSummary.TotalNotEligible</MudText>
+                </MudCardContent>
+                <MudCardActions>
+                    <MudButton Variant="Variant.Text" Color="Color.Error" Class="ml-auto" @onclick='() => OpenStatusListDialogAsync("Not Eligible")'>View</MudButton>
+                </MudCardActions>
+            </MudCard>
+        </MudItem>
+    </MudGrid>
+}
+
+    </MudPaper>
+
+    <MudPaper Class="pa-4" Elevation="0">
+        <MudButton Variant="Variant.Filled"
+                   Color="Color.Secondary"
+                   OnClick="Cancel"
+                   StartIcon="@Icons.Material.Filled.ArrowBack">
+            Back
+        </MudButton>
+    </MudPaper>
+}
+else
+{
+    <MudAlert Severity="Severity.Error">The requested eligibility test could not be found.</MudAlert>
+}
+
+
+@code {
+    [Parameter]
+    public int Id { get; set; }
+
+    private bool _isLoading = true;
+    private EligibilityTestViewModel Model = new();
+    private EligibilityResultSummary? _resultSummary;
+    private string HeaderText = "Eligibility Testing";
+    private List<BreadcrumbItem> _breadcrumbItems = new();
+    
+    private string _programmeName = "";
+    private string _districtName = "";
+    private string _communityCouncilName = "";
+    private string _villageName = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        var testEntity = await _context.EligibilityTests.FindAsync(Id);
+
+        if (testEntity == null)
+        {
+            Snackbar.Add("Error: Eligibility test not found.", Severity.Error);
+            Navigation.NavigateTo("/eligibility/eligibilitytesting");
+            return;
+        }
+
+        Model = _mapper.Map<EligibilityTestViewModel>(testEntity);
+
+        await LoadDisplayNamesAsync();
+        LoadResultSummary();
+
+         var pageTitle = "View Eligibility Testing";
+               
+                _breadcrumbItems = new List<BreadcrumbItem>
+        {
+            new BreadcrumbItem("Home", href: "/", icon: Icons.Material.Filled.Home),
+            new BreadcrumbItem("Community Validation", href: "/eligibity-list", icon: Icons.Material.Filled.FactCheck),
+            new BreadcrumbItem(pageTitle, href: null, disabled: true)
+        };
+        
+        _isLoading = false;
+    }
+
+    private async Task LoadDisplayNamesAsync()
+    {
+       
+        _programmeName = await _context.Programmes
+            .Where(p => p.Id == Model.ProgrammeId) 
+            .Select(p => p.Name)
+            .FirstOrDefaultAsync() ?? "Not Found";
+      
+        
+        var locations = await _context.EligibilityTestDistricts
+            .Where(etd => etd.EligibilityTestId == Model.Id) 
+            .Select(etd => etd.District.Name)
+            .Distinct() 
+            .ToListAsync(); 
+       
+        _districtName = locations.Any() ? string.Join(", ", locations) : "All Districts";
+    }
+    
+    
+    private void LoadResultSummary()
+    {
+        var details = _context.EligibilityTestsView
+                                .AsNoTracking()
+                                .FirstOrDefault(m => m.Id == Model.Id);
+
+        if (details is not null)
+        {
+            _resultSummary = new EligibilityResultSummary
+            {
+                TotalProcessed = details.TotalProcessed,
+                TotalEligible = details.TotalEligiblePreQuota,
+                TotalSelected = details.TotalSelected,
+                TotalWaitlisted = details.TotalWaitlisted,
+                TotalNotEligible = details.TotalNotEligible
+            };
+        }
+    }
+    private async Task OpenDetailsDialogAsync()
+    {
+        // Removed `allDetails` query and parameter. The dialog fetches its own data.
+        var parameters = new DialogParameters
+        {
+            ["DialogTitle"] = "All Test Results",
+            ["EligibilityTestId"] = Model.Id
+        };
+        var options = new DialogOptions() { MaxWidth = MaxWidth.ExtraLarge, FullWidth = true };
+        DialogService.Show<EligibilityDetailsDialog>("Eligibility Test Results", parameters, options);
+    }
+
+    private async Task OpenStatusListDialogAsync(string? status)
+    {
+        if (Model.Id == 0) return;
+
+        // Removed `allDetails` query and parameter. The dialog fetches its own data.
+        var dialogTitle = status switch
+        {
+            "Processed" => "Processed Households",
+            "Eligible" => "Eligible Households",
+            "Selected" => "Selected Households",
+            "WaitListed" => "Waitlisted Households",
+            "Not Eligible" => "Not Eligible Households",
+            _ => "All Test Results"
+        };
+
+        var parameters = new DialogParameters
+        {
+            ["DialogTitle"] = dialogTitle,
+            ["EligibilityTestId"] = Model.Id,
+            ["InitialStatusFilter"] = status
+        };
+
+        var options = new DialogOptions() { MaxWidth = MaxWidth.ExtraLarge, FullWidth = true, CloseOnEscapeKey = true };
+        DialogService.Show<EligibilityDetailsDialog>(dialogTitle, parameters, options);
+    }
+    private void Cancel() => Navigation.NavigateTo("/eligibility/eligibilitytesting");
+}

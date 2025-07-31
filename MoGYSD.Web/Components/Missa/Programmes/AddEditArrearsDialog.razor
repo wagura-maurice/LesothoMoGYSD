@@ -1,0 +1,78 @@
+﻿@using System.ComponentModel.DataAnnotations
+@using MoGYSD.ViewModels.Missa.Programmes
+
+<MudDialog>
+    <TitleContent>
+        <MudText Typo="Typo.h6">
+            <MudIcon Icon="@(Arrears.Id == 0 ? Icons.Material.Filled.Add : Icons.Material.Filled.Edit)" Class="mr-3 mb-n1" />
+            @(Arrears.Id == 0 ? "Add New Arrears" : "Edit Arrears")
+        </MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudForm @ref="_form" Model="@Arrears" ValidationDelay="0">
+            <MudGrid>
+                <MudItem xs="12">
+                    <MudTextField @bind-Value="Arrears.MaximumCycles"
+                                  For="@(() => Arrears.MaximumCycles)"
+                                  Label="Maximum Cycles"
+                                  Variant="Variant.Outlined" Required InputType="InputType.Number" /> 
+                </MudItem>
+                <MudItem xs="12">
+                    <SystemCodeAutocomplete Variant="Variant.Outlined" Label="Form of Penalty"
+                                            For="@(() => Arrears.PenaltyId)"
+                                            @bind-Value="Arrears.PenaltyId"
+                                            ParentCode="FormOfPenalty" Required="true" />
+                </MudItem>
+                <MudItem xs="12" sm="6" md="4">
+                    <MudSelect T="bool"
+                               Label="Accruals After Penalty"
+                               @bind-Value="Arrears.AccruedAfterPenalty"
+                               Required="true"
+                               Clearable="true"
+                               Variant="Variant.Outlined">
+                        <MudSelectItem Value="@true">Yes</MudSelectItem>
+                        <MudSelectItem Value="@false">No</MudSelectItem>
+                    </MudSelect>
+                </MudItem>
+
+                <MudItem xs="12" sm="6" md="4">
+                    <MudSelect T="bool"
+                               Label="Accruals Over Fiscal Year"
+                               @bind-Value="Arrears.ArrearsOverYear"
+                               Required="true"
+                               Clearable="true"
+                               Variant="Variant.Outlined">
+                        <MudSelectItem Value="@true">Yes</MudSelectItem>
+                        <MudSelectItem Value="@false">No</MudSelectItem>
+                    </MudSelect>
+                </MudItem>     
+           
+
+            
+               
+            </MudGrid>
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel" Variant="Variant.Filled" Color="Color.Secondary">Close</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Submit">Save</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] MudBlazor.IMudDialogInstance MudDialog { get; set; }
+    [Parameter] public ArrearsConfigurationViewModel Arrears { get; set; } = new();
+
+    private MudBlazor.MudForm _form;
+
+    private void Cancel() => MudDialog.Cancel();
+
+    private async Task Submit()
+    {
+        await _form.Validate();
+        if (_form.IsValid)
+        {
+            MudDialog.Close(MudBlazor.DialogResult.Ok(Arrears));
+        }
+    }
+}

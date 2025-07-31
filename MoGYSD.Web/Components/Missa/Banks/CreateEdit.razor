@@ -1,0 +1,177 @@
+﻿@page "/bank/add"
+@page "/bank/edit/{Id:int}"
+
+@using MoGYSD.Business.Models.Missa.Setups
+@using MoGYSD.ViewModels.Missa.Setups
+@using System.Globalization
+
+<PageTitle>@(Id.HasValue ? "Edit Bank" : "Create Bank")</PageTitle>
+
+<MudGrid Class="mb-4" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween">
+    <MudItem xs="12" md="6">
+        <MudText Typo="Typo.h4" GutterBottom="false">@HeaderText</MudText>
+    </MudItem>
+    <MudItem xs="12" md="6" Class="d-flex justify-end">
+        <MudBreadcrumbs Items="_breadcrumbItems" Class="custom-breadcrumb" />
+    </MudItem>
+</MudGrid>
+
+<MudPaper Elevation="2" Class="pa-4">
+    <MudForm @ref="bankForm" Model="@Model" @bind-IsValid="_isFormValid">
+        <MudGrid Spacing="3">
+            <MudItem xs="12" sm="6">
+                <MudTextField @bind-Value="Model.Name"
+                              Label="Bank Name"
+                              For="@(() => Model.Name)"
+                              Variant="Variant.Outlined"
+                              Required="true"
+                              RequiredError="Bank name is required."
+                              Counter="100" />
+            </MudItem>
+
+            <MudItem xs="12" sm="6">
+                <MudTextField @bind-Value="Model.BankDescription"
+                              Label="Bank Description"
+                              For="@(() => Model.BankDescription)"
+                              Variant="Variant.Outlined"
+                              Counter="250"
+                              Lines="3" />
+            </MudItem>
+
+            <MudItem xs="12" Class="d-flex justify-space-between mt-4">
+                <MudButton Variant="Variant.Filled"
+                           Color="Color.Secondary"
+                           OnClick="BackToList"
+                           Class="me-2">
+                    Back
+                </MudButton>
+
+                <MudButton Variant="Variant.Filled"
+                           Color="Color.Primary"
+                           OnClick="SaveAsync"                         
+                           Class="me-2">
+                    @if (_isWorking)
+                    {
+                        <MudProgressCircular Class="ms-n1" Size="Size.Small" Indeterminate="true" />
+                        <MudText Class="ms-2">Saving...</MudText>
+                    }
+                    else
+                    {
+                        <span>@(Model.Id > 0 ? "Update Bank" : "Save Bank")</span>
+                    }
+                </MudButton>
+            </MudItem>
+        </MudGrid>
+    </MudForm>
+</MudPaper>
+
+@code {
+    [Parameter]
+    public int? Id { get; set; }
+
+    private MudForm bankForm;
+    private BankViewModel Model { get; set; } = new();
+    private bool _isWorking = false;
+    private bool _isFormValid;
+    private string HeaderText = "Create New Bank";
+    private List<BreadcrumbItem> _breadcrumbItems;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (Id.HasValue && Id.Value > 0)
+        {
+            HeaderText = "Edit Bank";
+            var entity = await _context.Set<Bank>().AsNoTracking().FirstOrDefaultAsync(x => x.Id == Id);
+
+            if (entity != null)
+            {
+                Model = _mapper.Map<BankViewModel>(entity);
+            }
+            else
+            {
+                Snackbar.Add("Bank not found.", Severity.Error);
+                Navigation.NavigateTo("/banks");
+                return;
+            }
+        }
+
+        var pageTitle = Id.HasValue ? "Edit Bank" : "Create Bank";
+        _breadcrumbItems =
+        [
+            new("Home", href: "/", icon: Icons.Material.Filled.Home),
+            new("Settings", href: "/banks", icon: Icons.Material.Filled.Settings),
+            new("Banks", href: "/banks"),
+            new(pageTitle, href: null, disabled: true)
+        ];
+    }
+
+    private async Task SaveAsync()
+    {
+        await bankForm.Validate();
+        if (!bankForm.IsValid)
+        {
+            Snackbar.Add("Please fix form errors before proceeding.", Severity.Error);
+            return;
+        }
+
+        _isWorking = true;
+        Model.Name = Model.Name?.ToUpperInvariant();
+        if (!string.IsNullOrWhiteSpace(Model.BankDescription))
+        {
+            TextInfo textInfo = CultureInfo.CurrentCulture.TextInfo;
+            Model.BankDescription = textInfo.ToTitleCase(Model.BankDescription.ToLower());
+        }
+        try
+        {
+            if (Model.Id > 0)
+            {
+                var entity = await _context.Set<Bank>().FindAsync(Model.Id);
+                if (entity != null)
+                {
+                    _mapper.Map(Model, entity);
+                    entity.ModifiedOn = DateTime.UtcNow;
+                    _genericService.Update(entity,false);
+                    await _context.SaveChangesAsync();
+                    Snackbar.Add("Bank updated successfully.", Severity.Success);
+                    Navigation.NavigateTo("/banks");
+                }
+            }
+            else
+            {
+                bool isDuplicate = await _context.Set<Bank>()
+                                                 .AnyAsync(b => b.Name.ToLower() == Model.Name.ToLower());
+                if (isDuplicate)
+                {
+                    Snackbar.Add("A bank with this name already exists.", Severity.Error);
+                    _isWorking = false;
+                    return;
+                }
+
+                var entity = _mapper.Map<Bank>(Model);
+                entity.CreatedOn = DateTime.UtcNow;
+                _genericService.Add(entity,false);
+                await _context.SaveChangesAsync();
+                Snackbar.Add("Bank created successfully.", Severity.Success);
+                Navigation.NavigateTo("/banks");
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine(ex.ToString());
+            Snackbar.Add("An error occurred while saving the bank.", Severity.Error);
+        }
+        finally
+        {
+            _isWorking = false;
+        }
+    }
+    private string ToSentenceCase(string input)
+    {
+        if (string.IsNullOrWhiteSpace(input))
+            return input;
+
+        input = input.Trim();
+        return char.ToUpperInvariant(input[0]) + input.Substring(1).ToLowerInvariant();
+    }
+    private void BackToList() => Navigation.NavigateTo("/banks");
+}

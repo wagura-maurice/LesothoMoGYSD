@@ -1,0 +1,340 @@
+﻿@page "/household-listing-plans-create"
+@page "/household-listing-plans-edit/{Id:int}"
+
+@using MoGYSD.Business.Models.Nissa.HouseHoldListings
+@using MoGYSD.Business.Views.HouseHoldListings
+@using MoGYSD.ViewModels.Nissa.HouseHoldListings
+
+<PageTitle>Household Listing Plan Data</PageTitle>
+
+<MudGrid Class="mb-3" Justify="Justify.SpaceBetween">
+    <MudItem xs="12" md="6">
+        <MudText Typo="Typo.h2" Class="font-weight-bold"><b>@HeaderText</b></MudText>
+        <MudText>
+            Used to capture household listing plan information as provided by the communities at the district level.
+        </MudText>
+    </MudItem>
+    <MudItem xs="12" md="6" Class="d-flex justify-end">
+        <MudBreadcrumbs Items="_breadcrumbItems" Class="custom-breadcrumb" />
+    </MudItem>
+</MudGrid>
+
+<MudPaper Elevation="3">
+    <MudTabs @bind-ActivePanelIndex="_activeTab" KeepPanelsAlive="true">
+        <MudTabPanel Text="Household Listing Activity">
+            <MudPaper Class="pa-8 ma-2" >
+                <MudForm @ref="form">
+                    <MudGrid>
+                        <MudItem xs="12" sm="6" md="4">
+                            <DistrictAutocomplete Variant="Variant.Outlined" Label="District"
+                                                For="@(() => Model.DistrictId)"
+                                                @bind-Value="Model.DistrictId"
+                                                DistrictsWithPlans="@DistrictsWithPlans">
+                            </DistrictAutocomplete>
+                        </MudItem>
+                        <MudItem xs="12" sm="6" md="4">
+                            <DistrictRegistrationAutocomplete Label="Registration Activity" Variant="Variant.Outlined"
+                                                              For="@(() => Model.DistrictRegistrationPlanId)"
+                                                              Value="Model.DistrictRegistrationPlanId"
+                                                              ValueChanged="OnRegistrationSelected">
+                            </DistrictRegistrationAutocomplete>
+                        </MudItem>
+                        <MudItem xs="12" sm="6" md="4">
+                            <MudTextField Variant="Variant.Outlined" @bind-Value="MasterRegistrionName"
+                                          Label="Master Registrion Name" ReadOnly="true" />
+                        </MudItem>
+                        <MudItem xs="12" sm="6" md="4">
+                            <MudTextField Variant="Variant.Outlined" T="int" @bind-Value="TotalHH"
+                                          Label="Expected number of households" ReadOnly="true" />
+                        </MudItem>
+                        <MudItem xs="12" sm="6" md="4">
+                            <MudTextField Variant="Variant.Outlined" @bind-Value="Model.HHListingActivityName" For="@(() => Model.HHListingActivityName)"
+                                          Label="HH Listing Plan Name" />
+                        </MudItem>
+                        <MudItem xs="12" sm="6" md="4">
+                            <PartnersAutocomplete Label="Responsible Organisation" Variant="Variant.Outlined"
+                                                          For="@(() => Model.PartnersId)"
+                                                          Value="Model.PartnersId"
+                                                        ValueChanged="OnPartnerChanged">
+                            </PartnersAutocomplete>
+                        </MudItem>
+                        <MudItem xs="12" sm="6" md="4">
+                            <ContactPersonsAutocomplete Label="Responsible Person" Variant="Variant.Outlined"
+                                                    For="@(() => Model.ContactPersonId)"
+                                                    @bind-Value="Model.ContactPersonId"
+                                                    IsCascading="true"
+                                                    PartnerId="Model.PartnersId">
+                            </ContactPersonsAutocomplete>
+                        </MudItem>
+                        
+                        <MudItem xs="12" sm="6" md="4">
+                            <MudDatePicker Variant="Variant.Outlined"  @bind-Date="Model.ProjectedStartDate"
+                                           Label="Projected Start Date"
+                                           Required="true"
+                                           For="@(() => Model.ProjectedStartDate)" MinDate="DateTime.Today" />
+                        </MudItem>
+                        <MudItem xs="12" sm="6" md="4">
+                            <MudDatePicker Variant="Variant.Outlined"  @bind-Date="Model.ProjectedEndDate"
+                                           Label="Projected End Date"
+                                           For="@(() => Model.ProjectedEndDate)" MinDate="Model.ProjectedStartDate ?? DateTime.Today" />
+                        </MudItem>
+                        <MudItem xs="12" sm="6" md="4">
+                            <MudDatePicker Variant="Variant.Outlined"  @bind-Date="Model.ActualStartDate"
+                                           Label="Actual Start Date"
+                                           For="@(() => Model.ActualStartDate)" />
+                        </MudItem>
+                        <MudItem xs="12" sm="6" md="4">
+                            <MudDatePicker Variant="Variant.Outlined"  @bind-Date="Model.ActualEndDate"
+                                           Label="Actual End Date"
+                                           For="@(() => Model.ActualEndDate)" />
+                        </MudItem>
+
+                        <MudItem xs="12" class="d-flex justify-space-between">
+                            <MudButton Variant="Variant.Filled"
+                                       Color="Color.Primary"
+                                       OnClick="NextStepFromTab0">
+                                Save
+                            </MudButton>
+                        </MudItem>
+                    </MudGrid>
+                </MudForm>
+            </MudPaper>
+        </MudTabPanel>
+        <MudTabPanel Text="Household Listing Activity Areas" Disabled="@(_firstEnd)">
+            <MudPaper Class="pa-8 ma-2">
+                <MudButton StartIcon="@Icons.Material.Filled.Add" Class="pull-right top-add-button mb-2 mt-2" Variant="Variant.Filled"
+                           OnClick="AddListingActivityAreas" DropShadow="true" Color="Color.Primary">Add Listing Activity Areas</MudButton>
+                @if (listingAreaView?.Any() == true)
+                {
+                    <MudText Typo="Typo.h4" Class="mt-4 mb-2"><b>Listing Plan Name : @listingAreaView.First().HHListingPlanName</b></MudText>
+                }
+                <MudDataGrid T="CCHouseHoldListingAreaView" Items="listingAreaView" Bordered="true" Dense="true">
+                    <Columns>
+                        @* <PropertyColumn Property="x => x.HHListingPlanName" Title="HH Listing Plan Name" /> *@
+                        <PropertyColumn Property="x => x.CommunityCouncilName" Title="Community Council Name" />
+
+                        <TemplateColumn Title="Edit">
+                            <CellTemplate>
+                                <MudStack Row="true" Spacing="1" AlignItems="AlignItems.Center">
+                                    <MudIconButton Class="table-action-item" Icon="@Icons.Material.Filled.Edit" Color="Color.Secondary" OnClick="@(() => Edit(context.Item))" />
+
+                                </MudStack>
+                            </CellTemplate>
+                        </TemplateColumn>
+                    </Columns>
+                    <PagerContent>
+                        <MudDataGridPager T="CCHouseHoldListingAreaView" />
+                    </PagerContent>
+                </MudDataGrid>
+            </MudPaper>
+        </MudTabPanel>
+
+    </MudTabs>
+</MudPaper>
+
+@code {
+    [Parameter] public int? Id { get; set; }
+    [Parameter] public HHListingPlanViewModel Model { get; set; } = new();
+    private List<CCHouseHoldListingAreaView> listingAreaView = new();
+    private int statusId;
+    private MudForm form;
+    public List<int>? DistrictsWithPlans { get; set; }
+    public string MasterRegistrionName { get; set; }
+    public int TotalHH { get; set; }
+    private int _activeTab = 0;
+    private bool _firstEnd = true;
+    private string HeaderText = "HouseHold Listing Plan data";
+    private List<BreadcrumbItem> _breadcrumbItems;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!UserProfileService.UserProfile.Contains("HOUSEHOLD LISTING PLANS:CREATE") && !UserProfileService.UserProfile.Contains("HOUSEHOLD LISTING PLANS:MODIFY"))
+        {
+            Navigation.NavigateTo("/AccessDenied");
+        }
+        statusId = await _context.SystemCodeDetailsView
+            .Where(x => x.Code == "Open" && x.ParentCode == "Status")
+            .Select(x => x.Id)
+            .FirstOrDefaultAsync();
+
+        var approvedId = await _context.SystemCodeDetailsView
+            .Where(x => x.Code == "Approved" && x.ParentCode == "Status")
+            .Select(x => x.Id)
+            .FirstOrDefaultAsync();
+
+        DistrictsWithPlans = await _context.DistrictRegistrationPlans
+            .Where(x => x.StatusId == approvedId)
+            .Select(d => d.DistrictId)
+            .Distinct()
+            .ToListAsync();
+
+        if (Id.HasValue && Id.Value > 0)
+        {
+            HeaderText = "Edit Household Listing Plan";
+            _firstEnd = false;
+            var data = await _context.HHListingPlanView.Where(h => h.Id == Id).FirstOrDefaultAsync();
+            if(data != null)
+            {
+                MasterRegistrionName = data.MasterRegistrationPlanName;
+                TotalHH = data.ExpectedNoHouseholds.Value;
+                Model = _mapper.Map<HHListingPlanViewModel>(data);
+                listingAreaView = await _context.CCHouseHoldListingAreaView.Where(p => p.HHListingPlanId == Model.Id).ToListAsync();
+            }
+        }
+        else
+        {
+            HeaderText = "Add Household Listing Plan";
+
+        }
+
+        _breadcrumbItems = new List<BreadcrumbItem>
+        {
+            new BreadcrumbItem("Home", href: "/", icon: Icons.Material.Filled.Home),
+            new("Household Listing", href: "/", icon: Icons.Material.Filled.NextPlan),
+            new BreadcrumbItem("Household Listing Plans", href: "/household-listing-plans", icon: Icons.Material.Filled.ManageAccounts),
+            new BreadcrumbItem(HeaderText, href: null, disabled: true)
+        };
+    }
+
+    private async Task OnRegistrationSelected(int? selectedId)
+    {
+        Model.DistrictRegistrationPlanId = selectedId;
+
+        if (selectedId.HasValue)
+        {
+            var registration = await _context.DistrictRegistrationPlanView
+                .FirstOrDefaultAsync(r => r.Id == selectedId.Value);
+
+            if (registration is not null)
+            {
+                Model.DistrictRegistrationPlanId = registration.Id;
+                MasterRegistrionName = registration.MasterRegistrationName;
+                TotalHH = registration.ExpectedNoHouseholds;
+            }
+        }
+        else
+        {
+            Model.DistrictRegistrationPlanId = null;
+            MasterRegistrionName = string.Empty;
+            TotalHH = 0;
+        }
+    }
+
+    private async Task NextStepFromTab0()
+    {
+        await form.Validate();
+
+        if (form.IsValid)
+        {
+            if (Model.Id > 0)
+            {
+                try
+                {
+                    LoadingService.Show();
+                    var dataToUpdate = _mapper.Map<HHListingPlan>(Model);
+                    SentenceCaseService.ProcessEntityStrings(dataToUpdate);
+                    await _genericService.Update(dataToUpdate);
+
+                    LoadingService.Hide();
+                    Snackbar.Add("Listing plan updated successfully", Severity.Success);
+                }
+                catch (Exception ex)
+                {
+                    LoadingService.Hide();
+                    Snackbar.Add($"An unexpected error occurred: {(ex.InnerException is null ? ex.Message : ex.InnerException.Message)}", Severity.Error, config => { config.RequireInteraction = true; });
+                    return;
+                }
+            }
+            else
+            {
+                try
+                {
+                    LoadingService.Show();
+                    Model.StatusId = statusId; // Set default status to 'Open'
+                    Model.CreatedById = UserProfileService.UserId;
+                    Model.CreatedOn = DateTime.Now;
+                    var addData = _mapper.Map<HHListingPlan>(Model);
+                    await _context.HHListingPlans.AddAsync(addData);
+                    await _context.SaveChangesAsync();
+                    // var id = await _genericService.Add(addData);
+                    Model.Id = addData.Id;
+                    LoadingService.Hide();
+                    _firstEnd = false;
+                    Snackbar.Add("Listing plan saved successfully", Severity.Success);
+                    _activeTab = 1;
+                }
+                catch (Exception ex)
+                {
+                    LoadingService.Hide();
+                    Snackbar.Add(
+                        $"An unexpected error occurred: {(ex.InnerException is null ? ex.Message : ex.InnerException.Message)}",
+                        Severity.Error,
+                        config => { config.RequireInteraction = true; }
+                    );
+                    return;
+                }
+
+            }
+        }
+        else
+        {
+            Snackbar.Add("Please fill in all required fields.", Severity.Error);
+        }
+    }
+
+    private async Task AddListingActivityAreas()
+    {
+        var model = new CCHouseHoldListingAreaViewModel();
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Small, FullWidth = true };
+        var parameters = new DialogParameters
+        {
+            { "Model", model },
+            { "HHListingPlanId", Model.Id},
+            { "DistrictId", Model.DistrictId},
+            { "DistrictRegistrationPlanId", Model.DistrictRegistrationPlanId},
+        };
+        var dialogRef = await DialogService.ShowAsync<CreateListingAreas>("Add Household Listing Activity Area", parameters, options);
+        var state = await dialogRef.Result;
+        if (state is not null && !state.Canceled)
+        {
+            listingAreaView = await _context.CCHouseHoldListingAreaView.Where(p => p.HHListingPlanId == Model.Id).ToListAsync();
+            // StateHasChanged();
+
+        }
+    }
+
+    private async Task Edit(CCHouseHoldListingAreaView data)
+    {
+        var model = _mapper.Map<CCHouseHoldListingAreaViewModel>(data);
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Small, FullWidth = true };
+        var parameters = new DialogParameters
+        {
+            { "Model", model },
+            { "HHListingPlanId", Model.Id},
+            { "DistrictId", Model.DistrictId},
+            { "DistrictRegistrationPlanId", Model.DistrictRegistrationPlanId},
+        };
+        var dialogRef = await DialogService.ShowAsync<CreateListingAreas>("Edit Household Listing Activity Area", parameters, options);
+        var state = await dialogRef.Result;
+        if (state is not null && !state.Canceled)
+        {
+            listingAreaView = await _context.CCHouseHoldListingAreaView.Where(p => p.HHListingPlanId == Model.Id).ToListAsync();
+            // StateHasChanged();
+
+        }
+    }
+
+    private void OnPartnerChanged(int? id)
+    {
+        Model.PartnersId = id;
+
+        if(id.HasValue)
+        {
+            Model.ContactPersonId = null;
+        }
+        else
+        {
+            Model.ContactPersonId = null;
+        }
+    }
+}

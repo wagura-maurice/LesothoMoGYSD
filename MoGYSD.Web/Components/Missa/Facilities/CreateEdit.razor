@@ -1,0 +1,433 @@
+﻿@page "/facility/add"
+@page "/facility/edit/{Id:int}"
+
+@using System.Globalization
+@using MoGYSD.Business.Models.Missa.Setups
+@using MoGYSD.Business.ViewModels.Missa.Setups
+@using MoGYSD.ViewModels.Missa.Setups
+@using MoGYSD.ViewModels.Nissa.Administration
+
+<PageTitle>@(Id.HasValue ? "Edit Facility" : "Create Facility")</PageTitle>
+
+<MudGrid Class="mb-4" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween">
+    <MudItem xs="12" md="6">
+        <MudText Typo="Typo.h4" GutterBottom="false">@HeaderText</MudText>
+    </MudItem>
+    <MudItem xs="12" md="6" Class="d-flex justify-end">
+        <MudBreadcrumbs Items="_breadcrumbItems" Class="custom-breadcrumb" />
+    </MudItem>
+</MudGrid>
+
+<MudPaper Elevation="2" Class="pa-4">
+    <MudForm @ref="facilityForm" Model="@Model" @bind-IsValid="@_isFormValid">
+        <MudGrid Spacing="3">
+
+            <MudItem xs="12" sm="6" md="4">
+                <MudTextField @bind-Value="Model.Code"
+                              Label="Facility Code"
+                              For="@(() => Model.Code)"
+                              Variant="Variant.Outlined"
+                              Required="true"
+                              RequiredError="Facility code is required."
+                              Counter="20" />
+            </MudItem>
+
+            <MudItem xs="12" sm="6" md="4">
+                <MudTextField @bind-Value="Model.Name"
+                              Label="Facility Name"
+                              For="@(() => Model.Name)"
+                              Variant="Variant.Outlined"
+                              Required="true"
+                              RequiredError="Facility name is required."
+                              Counter="50" />
+            </MudItem>
+
+            <MudItem xs="12" sm="6" md="4">
+                <FacilityTypeAutocomplete Variant="Variant.Outlined" Label="Facility Type"
+                                          For="@(() => Model.FacilityTypeId)"
+                                          @bind-Value="Model.FacilityTypeId"
+                                          Required="true"
+                                          RequiredError="Facility type is required." />
+            </MudItem>
+            <MudItem xs="12" sm="6" md="4">
+                <SystemCodeAutocomplete Variant="Variant.Outlined" Label="Category"
+                                        For="@(() => Model.CategoryId)"
+                                        @bind-Value="Model.CategoryId"
+                                        ParentCode="FacilityCategory">
+                </SystemCodeAutocomplete>
+            </MudItem>
+
+            <MudItem xs="12" sm="6" md="4">
+                <BanksAutoComplete Variant="Variant.Outlined" Label="Bank"
+                                   For="@(() => Model.BankId)"
+                                   @bind-Value="Model.BankId"
+                                   Required="true"
+                                   RequiredError="Bank is required." />
+            </MudItem>
+
+            <MudItem xs="12" sm="6" md="4">
+                <MudTextField @bind-Value="Model.AccountNo"
+                              Label="Account No"
+                              For="@(() => Model.AccountNo)"
+                              Variant="Variant.Outlined"
+                              Required="true"
+                              RequiredError="Account No is required."
+                              Counter="20" />
+            </MudItem>
+
+            <MudItem xs="12" sm="6" md="4">
+                <MudTextField @bind-Value="Model.BranchCode"
+                              Label="Branch Code"
+                              For="@(() => Model.BranchCode)"
+                              Variant="Variant.Outlined"
+                              Required="true"
+                              RequiredError="Branch Code is required."
+                              Counter="20" />
+            </MudItem>
+
+            <MudItem xs="12" sm="6" md="4">
+                <MudTextField @bind-Value="Model.IdentificationNumber"
+                              Label="Identification Number"
+                              For="@(() => Model.IdentificationNumber)"
+                              Variant="Variant.Outlined"
+                              Required="true"
+                              RequiredError="Identification Number is required." />
+            </MudItem>
+
+            <MudItem xs="12" sm="6" md="4">
+                <MudTextField @bind-Value="Model.HeadName"
+                              Label="Head's Name"
+                              For="@(() => Model.HeadName)"
+                              Variant="Variant.Outlined"
+                              Required="true"
+                              RequiredError="Head Name is required." />
+            </MudItem>
+
+            <MudItem xs="12" sm="6" md="4">
+                <MudTextField @bind-Value="Model.HeadSurname"
+                              Label="Head's Surname"
+                              For="@(() => Model.HeadSurname)"
+                              Variant="Variant.Outlined"
+                              Required="true"
+                              RequiredError="Head Surname is required." />
+            </MudItem>
+
+            <MudItem xs="12" sm="6" md="4">
+                <MudTextField @bind-Value="Model.HeadEmail"
+                              Label="Head's Email"
+                              For="@(() => Model.HeadEmail)"
+                              InputType="InputType.Email"
+                              Variant="Variant.Outlined" />
+            </MudItem>
+
+            <MudItem xs="12" sm="6" md="4">
+                <MudAutocomplete Variant="Variant.Outlined" T="CountryCodeViewModel"
+                                 @bind-Value="SelectedCountry"
+                                 Label="Select Country Code"
+                                 CoerceText="false"
+                                 ResetValueOnEmptyText="true"
+                                 SearchFunc="@SearchCountries"
+                                 ToStringFunc="@(c => c != null ? $"{c.Flag} {c.Name} ({c.PhoneCode})" : string.Empty)"
+                                 Clearable="true">
+                    <ItemTemplate>
+                        <MudStack>
+                            <MudText>@context.Flag @context.Name</MudText>
+                            <MudText Typo="Typo.caption">@context.PhoneCode</MudText>
+                        </MudStack>
+                    </ItemTemplate>
+                </MudAutocomplete>
+            </MudItem>
+            <MudItem xs="12" sm="6" md="4">
+                <MudTextField Variant="Variant.Outlined" @bind-Value="Model.HeadPhoneNumber" Label="Head Phone Number" For="() => Model.HeadPhoneNumber" Required="true" MaxLength="10" />
+            </MudItem>
+             <MudItem xs="12">
+                        <MudText Typo="Typo.subtitle1" Class="mt-4 mb-2"><b>Select Class/ Grades</b></MudText>
+                        <MudValidation For="@(() => Model.SelectedGradesIds)">
+                            <MudPaper Outlined="true" Class="pa-2" Style="max-height: 200px; overflow-y: auto;">
+                                <MudGrid Spacing="1">
+                            @foreach (var grade in _grades)
+                                    {
+                                        <MudItem xs="12" sm="6" md="4" lg="3">
+                                    <MudCheckBox T="bool" @bind-Value="@grade.IsSelected" Label="@grade.Name" Dense="true"/>
+                                        </MudItem>
+                                    }
+                                </MudGrid>
+                            </MudPaper>
+                        </MudValidation>
+                    </MudItem>
+            <MudItem xs="12" Class="d-flex justify-space-between mt-4">
+                <MudButton Variant="Variant.Filled"
+                           Color="Color.Secondary"
+                           OnClick="BackToList"
+                           Class="me-2">
+                    Back
+                </MudButton>
+
+                <MudButton Variant="Variant.Filled"
+                           Color="Color.Primary"
+                           OnClick="SaveAsync"                       
+                           Class="me-2">
+                        @if (_isWorking)
+                        {
+                            <MudProgressCircular Class="ms-n1" Size="Size.Small" Indeterminate="true" />
+                            <MudText Class="ms-2">Saving...</MudText>
+                        }
+                        else
+                        {
+                            <span>@(Model.Id > 0 ? "Update Facility" : "Save Facility")</span>
+                        }
+                </MudButton>
+            </MudItem>
+        </MudGrid>
+    </MudForm>
+</MudPaper>
+
+@code {
+    [Parameter]
+    public int? Id { get; set; }
+
+    private MudForm facilityForm;
+    private FacilityViewModel Model { get; set; } = new();
+    private bool _isWorking = false;
+    private bool _isFormValid;
+    private string HeaderText = "Create Facility";
+    private List<BreadcrumbItem> _breadcrumbItems;
+    private List<CountryCodeViewModel> CountryCodes { get; set; } = new();
+    private List<GradesSelectionViewModel> _grades = new();
+    // This property correctly syncs the selected country object with the model's ID
+    private CountryCodeViewModel _selectedCountry;
+    private CountryCodeViewModel SelectedCountry
+    {
+        get => _selectedCountry;
+        set
+        {
+            _selectedCountry = value;           
+        }
+    }
+    public class GradesSelectionViewModel
+    {
+        public int Id { get; set; }
+        public string Name { get; set; }
+        public bool IsSelected { get; set; }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        CountryCodes = CountryCodeDataService.GetCountries();
+        SelectedCountry = CountryCodes.FirstOrDefault(c => c.Code == "LS");
+        var allDbgrades = await _context.Grades.AsNoTracking().OrderBy(d => d.Code).ToListAsync();
+        var savedGardesIds = new HashSet<int>();
+
+        if (Id.HasValue && Id.Value > 0)
+        {
+            HeaderText = "Edit Facility";
+            var entity = await _context.Facilities
+                                        .Include(f => f.Grades) 
+                                        .AsNoTracking()
+                                        .FirstOrDefaultAsync(x => x.Id == Id.Value);
+            if (entity != null)
+            {
+                Model = _mapper.Map<FacilityViewModel>(entity);
+                if (entity.Grades != null)
+                {
+                    savedGardesIds = entity.Grades.Select(g => g.Id).ToHashSet();
+                }
+            }
+            else
+            {
+                Snackbar.Add("Facility not found.", Severity.Error);
+                Navigation.NavigateTo("/facility");
+                return;
+            }
+        }
+        else
+        {
+            HeaderText = "Create Facility";
+            Model.IsActive = true;          
+            SelectedCountry = CountryCodes.FirstOrDefault(c => c.Code == "LS") ?? CountryCodes.FirstOrDefault();
+        }
+
+        _grades = allDbgrades.Select(d => new GradesSelectionViewModel
+        {
+            Id = d.Id,
+            Name = d.Code,
+            IsSelected = savedGardesIds.Contains(d.Id)
+        }).ToList();
+
+        var pageTitle = Id.HasValue ? "Edit Facility" : "Create Facility";
+        _breadcrumbItems =
+        [
+            new("Home", href: "/", icon: Icons.Material.Filled.Home),
+            new("Settings", href: "/facility", icon: Icons.Material.Filled.Settings),
+            new("Facilities", href: "/facility"),
+            new(pageTitle, href: null, disabled: true)
+        ];
+    }
+
+    private async Task SaveAsync()
+    {
+        await facilityForm.Validate();
+        if (!facilityForm.IsValid)
+        {
+            Snackbar.Add("Please fix form errors before proceeding.", Severity.Error);
+            return;
+        }
+
+        _isWorking = true;
+
+        NormalizeCode(Model);
+        Model.Code = Model.Code?.ToUpperInvariant();
+        if (!string.IsNullOrWhiteSpace(Model.Name))
+        {
+            Model.Name = CultureInfo.CurrentCulture.TextInfo.ToTitleCase(Model.Name.ToLower());
+        }
+        if (!string.IsNullOrWhiteSpace(Model.HeadName))
+        {
+            Model.HeadName = CultureInfo.CurrentCulture.TextInfo.ToTitleCase(Model.HeadName.ToLower());
+        }
+        if (!string.IsNullOrWhiteSpace(Model.HeadSurname))
+        {
+            Model.HeadSurname = CultureInfo.CurrentCulture.TextInfo.ToTitleCase(Model.HeadSurname.ToLower());
+        }
+        try
+        {
+            var selectedGradeIds = _grades.Where(g => g.IsSelected).Select(g => g.Id).ToHashSet();
+        
+            if (Model.Id > 0)
+            {
+                var entity = await _context.Set<Facility>().FirstOrDefaultAsync(x => x.Id == Id.Value);
+                if (entity != null)
+                {
+              
+                    _mapper.Map(Model, entity);
+                    entity.ModifiedOn = DateTime.UtcNow;
+
+                    await SyncGrades(entity, selectedGradeIds);
+                   
+
+                    await _genericService.Update(entity,false);
+
+                 
+
+                    Snackbar.Add("Facility updated successfully.", Severity.Success);
+                    Navigation.NavigateTo("/facility");
+                }
+            }
+            else
+            {
+                bool isDuplicate = await _context.Set<Facility>()
+                    .AnyAsync(f => f.Name.ToLower() == Model.Name.ToLower());
+
+                if (isDuplicate)
+                {
+                    Snackbar.Add("A facility with this name already exists.", Severity.Error);
+                    _isWorking = false;
+                    return;
+                }
+              
+                var entity = _mapper.Map<Facility>(Model);
+             
+                entity.CreatedOn = DateTime.UtcNow;
+
+                if (selectedGradeIds.Any())
+                {
+                    var gradesToAssign = await _context.Grades
+                        .Where(g => selectedGradeIds.Contains(g.Id)).ToListAsync();
+                    entity.Grades = gradesToAssign;
+                }
+
+        
+                entity.ModifiedOn = DateTime.UtcNow;
+
+                _context.Facilities.Add(entity);
+                await _context.SaveChangesAsync();
+
+                Snackbar.Add("Facility created successfully.", Severity.Success);
+                Navigation.NavigateTo("/facility");
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine(ex);
+            Snackbar.Add("An error occurred while saving the facility.", Severity.Error);
+        }
+        finally
+        {
+            _isWorking = false;
+        }
+    }
+
+    private void NormalizeCode(FacilityViewModel model)
+    {
+        if (!string.IsNullOrWhiteSpace(model.Code))
+        {
+            model.Code = model.Code.ToUpper();
+        }
+    }
+
+    private void NormalizeTextFields(Facility entity)
+    {
+        TextInfo textInfo = CultureInfo.CurrentCulture.TextInfo;
+
+        if (!string.IsNullOrWhiteSpace(entity.Code))
+            entity.Code = entity.Code.ToUpper();
+
+        if (!string.IsNullOrWhiteSpace(entity.Name))
+            entity.Name = textInfo.ToTitleCase(entity.Name.ToLower());
+
+        if (!string.IsNullOrWhiteSpace(entity.HeadName))
+            entity.HeadName = textInfo.ToTitleCase(entity.HeadName.ToLower());
+
+        if (!string.IsNullOrWhiteSpace(entity.HeadSurname))
+            entity.HeadSurname = textInfo.ToTitleCase(entity.HeadSurname.ToLower());
+    }
+
+    private async Task SyncGrades(Facility entity, HashSet<int> selectedGradeIds)
+    {
+        var gradesToRemove = entity.Grades.Where(g => !selectedGradeIds.Contains(g.Id)).ToList();
+        foreach (var grade in gradesToRemove)
+        {
+            entity.Grades.Remove(grade);
+        }
+
+        var existingGradeIds = entity.Grades.Select(g => g.Id).ToHashSet();
+        var newGradeIds = selectedGradeIds.Where(id => !existingGradeIds.Contains(id)).ToList();
+
+        if (newGradeIds.Any())
+        {
+            var gradesToAdd = await _context.Grades.Where(g => newGradeIds.Contains(g.Id)).ToListAsync();
+            foreach (var grade in gradesToAdd)
+            {
+                entity.Grades.Add(grade);
+            }
+        }
+    }
+
+
+    private async Task<IEnumerable<CountryCodeViewModel>> SearchCountries(string value, CancellationToken token)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return CountryCodes.Take(20);
+        
+        var terms = value.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+
+        return CountryCodes.Where(x =>
+            terms.All(term =>
+                x.Name.Contains(term, StringComparison.OrdinalIgnoreCase) ||
+                x.PhoneCode.Contains(term) ||
+                x.Code.Contains(term, StringComparison.OrdinalIgnoreCase)))
+            .OrderBy(x => x.Name)
+            .Take(20);
+    }
+    private string ToSentenceCase(string input)
+    {
+        if (string.IsNullOrWhiteSpace(input))
+            return input;
+
+        input = input.Trim();
+        return char.ToUpperInvariant(input[0]) + input.Substring(1).ToLowerInvariant();
+    }
+
+
+    private void BackToList() => Navigation.NavigateTo("/facility");
+}

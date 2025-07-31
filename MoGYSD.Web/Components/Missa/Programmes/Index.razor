@@ -1,0 +1,297 @@
+﻿@page "/programmes"
+@using MoGYSD.Business.Persistence
+@using MoGYSD.Business.Views.Missa.Programmes
+@using MoGYSD.ViewModels.Missa.Programmes
+@using MoGYSD.Business.Models.Missa.ProgrammeConfiguration
+<MudGrid Class="mb-3" AlignItems="Center" Justify="Justify.SpaceBetween">
+    <MudItem xs="12" md="6">
+        <MudText Typo="Typo.h2" Class="font-weight-bold"><b>Programme Configuration</b></MudText>
+        <MudText>
+           Enables setting up and updating programme configurations information.
+        </MudText>
+    </MudItem>
+    <MudItem xs="12" md="6" Class="d-flex justify-end">
+        <MudBreadcrumbs Items="_breadcrumbItems" Class="custom-breadcrumb" />
+    </MudItem>
+</MudGrid>
+<MudExpansionPanels>
+    <SearchPanel Filter="@filterModel"
+    OnFilterApplied="@ReloadTable" />
+</MudExpansionPanels>
+  
+<MudPaper Class="p-4">
+    @if (UserProfileService.UserProfile.Contains("PROGRAMME CONFIGURATION:CREATE"))
+    {
+    <MudButton StartIcon="@Icons.Material.Filled.Add"
+               Class="pull-right top-add-button mb-2"
+               Variant="Variant.Filled"
+               OnClick="AddNewProgramme"
+               DropShadow="true"
+               Color="Color.Primary">
+        Add New Programme
+    </MudButton>
+    }
+
+    <MudDataGrid @ref="table" ServerData="@(LoadProgrammeData)" T="ProgrammeView"  Bordered="true" Striped="true" Hover="true" Dense="true" RowsPerPage="20">   
+        <NoRecordsContent>
+            <MudText Typo="Typo.subtitle1" Class="my-4 text-muted text-center">
+                No programmes found. Try adjusting your filters.
+            </MudText>
+        </NoRecordsContent>
+        <ToolBarContent>
+            <MudText><b>Total Programmmes: @totalItems</b></MudText>
+        </ToolBarContent>
+        <Columns>
+            <PropertyColumn Property="x => x.Code" Title="Code"  />
+            <PropertyColumn Property="x => x.Name" Title="Programme Name"  />
+            <PropertyColumn Property="x => x.AssistanceUnitDescription" Title="Assistance Unit"  />
+            <TemplateColumn Title="Payment Mode Allowed">
+                <CellTemplate>
+                    @string.Join(", ", context.Item.PaymentModesAllowedDescriptionsList)
+                </CellTemplate>
+            </TemplateColumn>
+
+
+            <PropertyColumn Property="x => x.ProxiesAllowed" Title="Proxies Allowed"  />
+       <PropertyColumn Property="x => x.Amount" Title="Payment Amount (Loti)" Format="N2" CellStyle="text-align: right;" />
+
+
+            <TemplateColumn Title="Active">
+                <CellTemplate>
+                    <MudText Style="@($"{GetStatusStyle(context.Item.IsActive)} display:block; padding:4px; border-radius:6px; width:100%; text-align: center;")">
+                        @(context.Item.IsActive ? "Yes" : "No")
+                    </MudText>
+                </CellTemplate>
+            </TemplateColumn>
+            <TemplateColumn Title="Actions">
+                <CellTemplate>
+                    <MudMenu Icon="@Icons.Material.Filled.MoreVert" Color="Color.Primary" Dense="true">
+                         @if (UserProfileService.UserProfile.Contains("PROGRAMME CONFIGURATION:VIEW")  && context.Item.IsActive)
+                        {
+                            <MudMenuItem OnClick="@(() => ViewProgrammeDetails(context.Item.Id))">
+                                <MudIcon Icon="@Icons.Material.Filled.Info" Class="me-2 text-primary" /> Details
+                            </MudMenuItem>
+
+                            <MudMenuItem OnClick="@(() => EditProgramme(context.Item.Id))">
+                                <MudIcon Icon="@Icons.Material.Filled.Edit" Class="me-2" /> Edit
+                            </MudMenuItem>
+                         }
+                          @if (UserProfileService.UserProfile.Contains("PROGRAMME CONFIGURATION:MODIFY"))
+                        {
+                         
+                        @if (context.Item.IsActive)
+                        {
+                           
+                            <MudMenuItem OnClick="@(() => ToggleActivation(context.Item.Id, context.Item.Name, false))">
+                                <MudIcon Icon="@Icons.Material.Filled.ToggleOff" Color="Color.Error" Class="me-2" /> Deactivate
+                            </MudMenuItem>
+                        }
+                        else
+                        {
+                              <MudMenuItem OnClick="@(() => ViewProgrammeDetails(context.Item.Id))">
+                                <MudIcon Icon="@Icons.Material.Filled.Info" Class="me-2 text-primary" /> Details
+                            </MudMenuItem>
+                            <MudMenuItem OnClick="@(() => ToggleActivation(context.Item.Id, context.Item.Name, true))">
+                                <MudIcon Icon="@Icons.Material.Filled.ToggleOn" Color="Color.Success" Class="me-2" /> Activate
+                            </MudMenuItem>
+                        }
+                      }
+                           
+                        
+                    </MudMenu>
+                </CellTemplate>
+            </TemplateColumn>
+          
+            
+        </Columns>
+        <PagerContent>
+            <MudDataGridPager T="ProgrammeView" PageSizes="@(new int[] { 5, 10, 20, 50 })" />
+        </PagerContent>
+    </MudDataGrid>
+</MudPaper>
+
+@code {
+  
+    private MudDataGrid<ProgrammeView> table = default!;
+    private ProgrammeSearchFilter filterModel = new();
+    private bool isLoading = false;
+    private int totalItems;
+    private List<BreadcrumbItem> _breadcrumbItems =
+     [
+        new("Home", href: "/", icon: Icons.Material.Filled.Home),   
+        new("Settings", href: "/", icon: Icons.Material.Filled.Settings),
+        new("Programme Configuration", href: null, disabled: true)
+     ];
+
+
+    private async Task<GridData<ProgrammeView>> LoadProgrammeData(GridState<ProgrammeView> state)
+    {
+        isLoading = true;
+        try
+        {
+            if (_context == null)
+            {
+                Snackbar.Add("Database context is not available.", Severity.Error);
+                return new GridData<ProgrammeView> { Items = Enumerable.Empty<ProgrammeView>(), TotalItems = 0 };
+            }
+
+            IQueryable<ProgrammeView> query = _context.ProgrammeView.AsNoTracking();
+
+          
+           
+            if (!string.IsNullOrWhiteSpace(filterModel.Code))
+            {
+                query = query.Where(x => x.Code != null && x.Code.Contains(filterModel.Code));
+            }
+            if (!string.IsNullOrWhiteSpace(filterModel.Name))
+            {
+                query = query.Where(x => x.Name != null && x.Name.Contains(filterModel.Name));
+            }
+            if (filterModel.AssistanceUnitId.HasValue)
+            {
+                query = query.Where(x => x.AssistanceUnitId == filterModel.AssistanceUnitId);
+            }
+            if (filterModel.ProgramTypeId.HasValue)
+            {
+                query = query.Where(x => x.ProgramTypeId == filterModel.ProgramTypeId);
+            }
+            if (filterModel.PaymentFrequencyId.HasValue)
+            {
+                query = query.Where(x => x.PaymentFrequencyId == filterModel.PaymentFrequencyId);
+            }
+            if (filterModel.ProxiesAllowed.HasValue)
+            {
+                query = query.Where(x => x.ProxiesAllowed == filterModel.ProxiesAllowed);
+            }
+            if (filterModel.Amount.HasValue)
+            {
+                query = query.Where(x => x.Amount == filterModel.Amount);
+            }
+            if (filterModel.IsActive.HasValue)
+            {
+                query = query.Where(x => x.IsActive == filterModel.IsActive.Value);
+            }
+
+            bool sortApplied = false;
+            if (state.SortDefinitions.Any())
+            {
+                var sortDefinition = state.SortDefinitions.First();
+                if (!string.IsNullOrEmpty(sortDefinition.SortBy))
+                {
+                   
+                    if (!sortApplied)
+                    { 
+                    }
+                }
+            }
+
+            if (!sortApplied) 
+            {
+                query = query.OrderByDescending(p => p.Id); 
+            }        
+
+
+            totalItems = await query.CountAsync();
+
+            var items = await query
+                .Skip(state.Page * state.PageSize)
+                .Take(state.PageSize)
+                .ToListAsync();
+          
+            return new GridData<ProgrammeView>
+            {
+             
+                Items = items.OrderByDescending(p => p.Id).ToList(), 
+                TotalItems = totalItems
+            };
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine(ex.ToString());
+            Snackbar.Add($"Error loading programmes: {ex.Message}", Severity.Error);
+            return new GridData<ProgrammeView> { Items = Enumerable.Empty<ProgrammeView>(), TotalItems = 0 };
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task ReloadTable()
+    {
+        if (table != null)
+        {
+            await table.ReloadServerData();
+        }
+    }
+
+    private void ViewProgrammeDetails(int programmeId)
+    {
+        Navigation.NavigateTo($"/programmes/view/{programmeId}");
+    }
+
+    private void EditProgramme(int programmeId)
+    {
+        Navigation.NavigateTo($"/programmes/edit/{programmeId}");
+    }
+
+    private async Task AddNewProgramme()
+    {
+        Navigation.NavigateTo("/programmes/add");
+        await Task.CompletedTask;
+    }
+     private string GetStatusStyle(bool isActive)
+    {
+        return isActive
+            ? "background-color:#e6f4ea; color:#2e7d32; border: 1px solid #c8e6c9;"
+            : "background-color:#fcebea; color:#c62828; border: 1px solid #f5c6cb;";
+    }
+    private async Task ToggleActivation(int programmeId, string programmeName, bool activate)
+    {
+        string action = activate ? "Activate" : "Deactivate";
+        var parameters = new DialogParameters
+    {
+        { "ContentText", $"Are you sure you want to {action.ToLower()} the programme '{programmeName}'?" }
+    };
+
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.ExtraSmall };
+        var dialog = DialogService.Show<ConfirmDialog>($"{action} Programme", parameters, options);
+       
+        var result = await dialog.Result;
+        if (!result.Canceled)
+        {
+            await PerformToggleAsync(programmeId, action);
+        }
+    }
+    
+
+    private async Task PerformToggleAsync(int programmeId, string action)
+    {
+        var programme = await _context.Set<Programmes>()
+                                      .FirstOrDefaultAsync(p => p.Id == programmeId);
+
+        if (programme == null)
+        {
+            Snackbar.Add("Programme not found.", Severity.Error);
+            return;
+        }
+
+        try
+        {
+            programme.IsActive = !programme.IsActive;
+            programme.ModifiedOn = DateTime.UtcNow;
+
+            _genericService.Update(programme);
+              await _context.SaveChangesAsync(); 
+            Snackbar.Add($"Programme '{programme.Name}' has been {action.ToLower()}d.", Severity.Success);
+            
+            await table.ReloadServerData();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error updating programme: {ex.Message}", Severity.Error);
+        }
+    }
+
+
+}

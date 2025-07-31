@@ -1,0 +1,65 @@
+﻿@using MoGYSD.Business.Models.Missa.ProgrammeConfiguration
+@using MoGYSD.Business.Persistence
+@using MoGYSD.Business.Views.Missa.EligibilityTests
+@using MoGYSD.Web.Components.Autocompletes
+@using MoGYSD.ViewModels.Missa.Eligibility
+
+<MudExpansionPanel Text="Expand to apply search filter" IsInitiallyExpanded="true">
+    <PanelContent>
+        <MudGrid Class="mt-2">
+            <MudItem xs="12" sm="6" md="4">
+                <MudTextField Variant="Variant.Outlined" @bind-Value="Filter.Name" Label="Search by Name" />
+            </MudItem>
+
+            <MudItem xs="12" sm="6" md="4">
+                <ProgramsAutoComplete Variant="Variant.Outlined"  Label="Programme"
+                                      For="@(() => Filter.ProgrammeId)"
+                                      @bind-Value="Filter.ProgrammeId" />
+            </MudItem>
+
+            <MudItem xs="12" sm="6" md="4">
+                <DistrictAutocomplete Variant="Variant.Outlined" Label="District"
+                                      For="@(() => Filter.DistrictId)"
+                                      @bind-Value="Filter.DistrictId" />
+            </MudItem>
+            
+            
+            <MudItem xs="12" class="d-flex justify-end mt-4">
+                <MudButton Variant="Variant.Filled"
+                           Color="Color.Primary"
+                           OnClick="ApplyFilterClicked"
+                           Class="me-2">
+                    Apply Filter
+                </MudButton>
+
+                <MudButton Variant="Variant.Outlined"
+                           Color="Color.Secondary"
+                           OnClick="ClearFilterClicked">
+                    Clear
+                </MudButton>
+            </MudItem>
+        </MudGrid>
+    </PanelContent>
+</MudExpansionPanel>
+
+@code {
+    [Parameter] public EligibilityTestingCriteria Filter { get; set; } = new();
+    [Parameter] public EventCallback OnFilterApplied { get; set; }
+
+    private async Task ApplyFilterClicked()
+    {
+        await OnFilterApplied.InvokeAsync();
+    }
+
+    private async Task ClearFilterClicked()
+    {         
+        Filter.Name = null;
+        Filter.ProgrammeId = null;
+        Filter.DistrictId = null;
+        Filter.CommunityCouncilId = null;
+        Filter.VillageId = null; 
+        StateHasChanged();
+        await OnFilterApplied.InvokeAsync();
+        await OnFilterApplied.InvokeAsync();
+    }
+}

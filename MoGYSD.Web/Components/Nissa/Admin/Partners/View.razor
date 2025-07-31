@@ -1,0 +1,290 @@
+﻿@page "/admin/partners/details/{Id:int}"
+@using MoGYSD.Business.Models.Nissa.Admin
+@using MoGYSD.Business.Persistence
+@using MoGYSD.Business.Views.Nissa.Admin
+@using MoGYSD.ViewModels.Nissa.Administration
+
+@inject IApprovalService _approvalService
+<MudPaper Class="p-4">
+    @if (Model == null)
+    {
+        <MudProgressCircular Color="Color.Primary" Indeterminate="true" />
+    }
+    else
+    {
+        <MudCard Class="mb-4">
+            <MudCardHeader>
+                <MudText Typo="Typo.h3" Align="Align.Center" Class="fw-bold">
+                    <b>Partner Names - @Model.PartnerName</b>
+                </MudText>
+            </MudCardHeader>
+            <MudCardContent>
+                <MudGrid>
+                    <MudItem xs="12" sm="6">
+                        <MudText><b>Organisation Type:</b> @Model.OrgTypeName</MudText>
+                    </MudItem>
+                    <MudItem xs="12" sm="6">
+                        <MudText><b>Physical Address:</b> @Model.PhysicalAddress</MudText>
+                    </MudItem>
+                    <MudItem xs="12" sm="6">
+                        <MudText><b>Postal Address:</b> @Model.PostalAddress</MudText>
+                    </MudItem>
+                    <MudItem xs="12" sm="6">
+                        <MudText><b>Telephone Number:</b> @Model.TelephoneNumber</MudText>
+                    </MudItem>
+                    <MudItem xs="12" sm="6">
+                        <MudText><b>Mobile Number:</b> @Model.MobileNumber</MudText>
+                    </MudItem>
+                    <MudItem xs="12" sm="6">
+                        <MudText><b>Email Address:</b> @Model.EmailAddress</MudText>
+                    </MudItem>
+                    <MudItem xs="12" sm="6">
+                        <MudText><b>District:</b> @Model.DistrictName</MudText>
+                    </MudItem>
+                    <MudItem xs="12" sm="6">
+                        <MudText><b>Status:</b> @Model.StatusName</MudText>
+                    </MudItem>
+                    <MudItem xs="12" sm="6">
+                        <MudText><b>Privacy Protocols Accepted:</b> @(Model.PrivacyProtocolsAccepted == true ? "Yes" : "No")</MudText>
+                    </MudItem>
+                    @if (!string.IsNullOrWhiteSpace(Model.RegistrationPurposeName))
+                    {
+                        <MudItem xs="12" sm="6">
+                            <MudText><b>Registration Purpose:</b> @Model.RegistrationPurposeName</MudText>
+                        </MudItem>
+                    }
+
+                    @if (!string.IsNullOrWhiteSpace(Model.OtherPurpose))
+                    {
+                        <MudItem xs="12" sm="6">
+                            <MudText><b>Other Purpose:</b> @Model.OtherPurpose</MudText>
+                        </MudItem>
+                    }
+
+                    @if (!string.IsNullOrWhiteSpace(Model.DetailedRemarks))
+                    {
+                        <MudItem xs="12" sm="6">
+                            <MudText><b>Detailed Remarks:</b> @Model.DetailedRemarks</MudText>
+                        </MudItem>
+                    }
+
+                </MudGrid>
+            </MudCardContent>
+        </MudCard>
+        <MudCard Class="mb-3">
+            <MudTable Items="ContactPersons" Dense="true">
+                <HeaderContent>
+                    <MudTh>Names</MudTh>
+                    <MudTh>Email</MudTh>
+                    <MudTh>Mobile</MudTh>
+                    <MudTh>Edit</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd>@context.FirstName </MudTd>
+                    <MudTd>@context.EmailAddress</MudTd>
+                    <MudTd>@context.MobileNumber</MudTd>
+                    <MudTd>
+                        <MudStack Row="true" Spacing="1" AlignItems="AlignItems.Center">
+                            <MudIconButton Class="table-action-item" Icon="@Icons.Material.Filled.Edit" Color="Color.Secondary" OnClick="@(() => Edit(context))" />
+                        </MudStack>
+                    </MudTd>
+                </RowTemplate>
+            </MudTable>
+        </MudCard>
+
+        <!-- Navigation Buttons and Alert Section -->
+        <MudGrid Class="mt-4 align-items-start">
+            <!-- Left Button: Back -->
+            <MudItem xs="6">
+                <MudButton Variant="Variant.Filled" Color="Color.Secondary" OnClick="Back">
+                    Back
+                </MudButton>
+            </MudItem>
+
+            <!-- Right Side: Conditional Buttons and Alert -->
+            <MudItem xs="6" Class="d-flex flex-column align-end">
+                @if (Model.StatusName.Trim().ToLower() == "under review" && !Model.IsActive)
+                {
+                    <MudButton Variant="Variant.Filled" Color="Color.Success" OnClick="() => Approve(true, false)">
+                        Approve
+                    </MudButton>
+                }
+                else if (Model.StatusName.Trim().ToLower() == "open" && !Model.IsActive)
+                {
+                    @if (ContactPersons.Count == 0)
+                    {
+                        <MudAlert Severity="Severity.Warning" Variant="Variant.Filled" Dense="true" Class="mb-2">
+                            Please include at least one contact person before sending to review.
+                        </MudAlert>
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="AddContactPerson">
+                            Add Contact Person
+                        </MudButton>
+                    }
+                    else
+                    {
+                        <MudButton Variant="Variant.Filled" Color="Color.Success" OnClick="() => Approve(false, false)">
+                            Send to review
+                        </MudButton>
+                    }
+                }
+                else if (Model.StatusName.Trim().ToLower() == "approved" && !Model.IsActive)
+                {
+                    <MudButton Variant="Variant.Filled" Color="Color.Success" OnClick="() => Approve(false, true)">
+                        Close
+                    </MudButton>
+                }
+            </MudItem>
+        </MudGrid>
+
+    }
+</MudPaper>
+
+@code {
+    [Parameter] public int Id { get; set; }
+
+    private void Back()
+    {
+        Navigation.NavigateTo("/admin/partners");
+    }
+
+    private PartnerView? Model { get; set; }
+    private List<ContactPersonViewModel> ContactPersons { get; set; } = new();
+
+    private async Task Approve(bool isApproval, bool isClosed)
+    {
+        var dialogData = isApproval ? "approve" : isClosed ? "close" : "send to review";
+        var result = await DialogServiceHelper.ShowConfirmationDialogAsync(DialogService, $"Are you sure you want to {dialogData} {Model.PartnerName}?");
+        if (result)
+        {
+            try
+            {
+                LoadingService.Show();
+                var entity = _genericService.GetById<Partner>(Id);
+                if (entity == null)
+                {
+                    Snackbar.Add($"Partner with ID {Id} not found.", Severity.Error, config => { config.RequireInteraction = true; });
+                    return;
+                }
+
+                entity.IsActive = isApproval ? true : false;
+                entity.StatusId = isApproval ? _context.SystemCodeDetailsView
+                     .Where(x => x.ParentCode == "Status" && x.Code == "Approved")
+                     .Select(x => x.Id)
+                     .FirstOrDefault()
+                     :
+                     isClosed ?
+                     _context.SystemCodeDetailsView
+                     .Where(x => x.ParentCode == "Status" && x.Code == "Closed")
+                     .Select(x => x.Id)
+                     .FirstOrDefault()
+                     :
+                     _context.SystemCodeDetailsView
+                     .Where(x => x.ParentCode == "Status" && x.Code == "Under Review")
+                     .Select(x => x.Id)
+                     .FirstOrDefault();
+
+                await _genericService.Update(entity);
+
+
+                await _approvalService.CreateApprovalAsync(entity.StatusId, entity.Id.ToString(), "Partners");
+
+                Snackbar.Add($"Partner {Model.PartnerName} {dialogData} successfully", Severity.Success);
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add($"An unexpected error occurred: {ex.Message}", Severity.Error, config => { config.RequireInteraction = true; });
+                return;
+
+            }
+            finally
+            {
+                LoadingService.Hide();
+                Navigation.NavigateTo("/admin/partners");
+            }
+        }
+
+    }
+
+    protected override void OnInitialized()
+    {
+        Init();
+    }
+
+    private void Init()
+    {
+        Model = _context.PartnerView.Where(i => i.Id == Id).FirstOrDefault();
+        var partner = _context.ContactPersons.AsNoTracking().Where(p => p.PartnerId == Id).ToList();
+        ContactPersons = _mapper.Map<List<ContactPersonViewModel>>(partner);
+        StateHasChanged();
+    }
+
+    private async Task Edit(ContactPersonViewModel contactPerson)
+    {
+        var parameters = new DialogParameters
+        {
+            { "Model", contactPerson }
+        };
+        var options = new DialogOptions
+        {
+            CloseButton = true,
+            MaxWidth = MaxWidth.Small,
+            FullWidth = true
+        };
+        var dialogRef = await DialogService.ShowAsync<CreateEditContactPerson>("Edit contact person", parameters, options);
+        var result = await dialogRef.Result;
+        if (result is not null && !result.Canceled)
+        {
+            var updatedContactPerson = result.Data as ContactPersonViewModel;
+            if (updatedContactPerson != null)
+            {
+                try
+                {
+                    // Update the contact person in the list
+                    var data = _mapper.Map<ContactPerson>(updatedContactPerson);
+                    await _genericService.Update(data);
+                    Snackbar.Add("Contact person updated successfully.", Severity.Success);
+
+                }
+                catch (Exception ex)
+                {
+                    Snackbar.Add($"An unexpected error occurred: {ex.Message}", Severity.Error, config => { config.RequireInteraction = true; });
+                    return;
+                }
+            }
+        }
+    }
+
+    private async Task AddContactPerson()
+    {
+        var model = new ContactPersonViewModel { PartnerId = Id };
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Small, FullWidth = true };
+        var parameters = new DialogParameters
+        {
+            { "Model", model }
+        };
+        var dialogRef = await DialogService.ShowAsync<CreateEditContactPerson>("Add contact person", parameters, options);
+        var result = await dialogRef.Result;
+        if (result is not null && !result.Canceled)
+        {
+            try
+            {
+                LoadingService.Show();
+                model = (ContactPersonViewModel)result.Data;
+                var entity = _mapper.Map<ContactPerson>(model);
+                await _genericService.Add(entity);
+                Init();
+                LoadingService.Hide();
+                Snackbar.Add($"Contact Person {model.FirstName} saved successfully", Severity.Success);
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add($"An unexpected error occurred: {ex.Message}", Severity.Error, config => { config.RequireInteraction = true; });
+                return;
+            }
+            finally
+            {
+                LoadingService.Hide();
+            }
+        }
+    }
+}

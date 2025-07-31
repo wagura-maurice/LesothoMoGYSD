@@ -1,0 +1,59 @@
+﻿@page "/Account/ConfirmEmail"
+
+@using System.Text
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.AspNetCore.WebUtilities
+@using MoGYSD.Business.Models.Nissa.UserManagement
+@using MoGYSD.Business.Persistence
+
+@layout EmptyLayout
+
+@inject NavigationManager Navigation
+@inject UserManager<ApplicationUser> UserManager
+@inject ILogger<ConfirmEmail> Logger
+@inject IHttpContextAccessor HttpContextAccessor
+
+<PageTitle>Confirm email</PageTitle>
+
+<h1>Confirm email</h1>
+<StatusMessage Message="@statusMessage" />
+
+@code {
+    private string? statusMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var uri = Navigation.ToAbsoluteUri(Navigation.Uri);
+        var queryParams = System.Web.HttpUtility.ParseQueryString(uri.Query);
+
+        var userId = queryParams["userId"];
+        var codeParam = queryParams["code"];
+
+        if (string.IsNullOrWhiteSpace(userId) || string.IsNullOrWhiteSpace(codeParam))
+        {
+            statusMessage = "Invalid confirmation link.";
+            return;
+        }
+
+        var user = await UserManager.FindByIdAsync(userId);
+        if (user == null)
+        {
+            statusMessage = $"Error loading user with ID '{userId}'";
+            return;
+        }
+
+        try
+        {
+            var decodedCode = Encoding.UTF8.GetString(WebEncoders.Base64UrlDecode(codeParam));
+            var result = await UserManager.ConfirmEmailAsync(user, decodedCode);
+            statusMessage = result.Succeeded
+                ? "Thank you for confirming your email address. You will receive an email with your password once your account has been approved."
+                : "There was an error confirming your email.";
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Email confirmation failed.");
+            statusMessage = "Error decoding the confirmation code.";
+        }
+    }
+}

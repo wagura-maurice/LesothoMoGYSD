@@ -1,0 +1,238 @@
+﻿@page "/household-listing-plan-details/{Id:int}"
+@using MoGYSD.Business.Models.Nissa.HouseHoldListings
+@using MoGYSD.Business.Views.HouseHoldListings
+@using MoGYSD.ViewModels.Email
+
+<PageTitle>Household Listing Plan Details</PageTitle>
+
+<MudGrid Class="mb-3" Justify="Justify.SpaceBetween">
+    <MudItem xs="12" md="6">
+        <MudText Typo="Typo.h2" Class="font-weight-bold"><b>Household Listing Plan Details</b></MudText>
+        <MudText>
+            Used to capture household listing plan information as provided by the communities at the district level.
+        </MudText>
+    </MudItem>
+    <MudItem xs="12" md="6" Class="d-flex justify-end">
+        <MudBreadcrumbs Items="_breadcrumbItems" Class="custom-breadcrumb" />
+    </MudItem>
+</MudGrid>
+<MudPaper Class="p-4" Elevation="1">
+    <MudCard Class="mb-3">
+        <MudCardHeader>
+            <MudText Typo="Typo.h3"><b>@Model.DistrictName Household List Plan</b></MudText>
+        </MudCardHeader>
+        <MudCardContent>
+            <MudGrid>
+                <!-- First Row -->
+                <MudItem xs="12" sm="6" md="4">
+                    <MudText><b>Master Registration Name:</b> @Model.MasterRegistrationPlanName</MudText>
+                </MudItem>
+
+                <MudItem xs="12" sm="6" md="4">
+                    <MudText><b>District Registration Name:</b> @Model.DistrictRegistrationPlanName</MudText>
+                </MudItem>
+
+                <MudItem xs="12" sm="6" md="4">
+                    <MudText><b>HH Listing Activity Name:</b> @Model.HHListingActivityName</MudText>
+                </MudItem>
+
+                <MudItem xs="12" sm="6" md="4">
+                    <MudText><b>District:</b> @Model.DistrictName</MudText>
+                </MudItem>
+
+                <MudItem xs="12" sm="6" md="4">
+                    <MudText><b>Expected No. Households:</b> @Model.ExpectedNoHouseholds?.ToString("N0")</MudText>
+                </MudItem>
+
+                <MudItem xs="12" sm="6" md="4">
+                    <MudText><b>Partner Name:</b> @Model.PartnerName</MudText>
+                </MudItem>
+
+                <MudItem xs="12" sm="6" md="4">
+                    <MudText><b>Contact Person Name:</b> @Model.ContactPersonName</MudText>
+                </MudItem>
+
+                <MudItem xs="12" sm="6" md="4">
+                    <MudText><b>Projected Start Date:</b> @(Model.ProjectedStartDate?.ToString("dd-MMM-yyyy") ?? "N/A")</MudText>
+                </MudItem>
+
+                <MudItem xs="12" sm="6" md="4">
+                    <MudText><b>Projected End Date:</b> @(Model.ProjectedEndDate?.ToString("dd-MMM-yyyy") ?? "N/A")</MudText>
+                </MudItem>
+
+                <MudItem xs="12" sm="6" md="4">
+                    <MudText><b>Actual Start Date:</b> @(Model.ActualStartDate?.ToString("dd-MMM-yyyy") ?? "Not started")</MudText>
+                </MudItem>
+
+                <MudItem xs="12" sm="6" md="4">
+                    <MudText><b>Actual End Date:</b> @(Model.ActualEndDate?.ToString("dd-MMM-yyyy") ?? "Not completed")</MudText>
+                </MudItem>
+            </MudGrid>
+        </MudCardContent>
+    </MudCard>
+    <MudCard Class="mb-3">
+        <MudCardHeader>
+            <MudText Typo="Typo.h3"><b>Household List Areas</b></MudText>
+        </MudCardHeader>
+        <MudCardContent>
+            <MudPaper Class="pa-8 ma-2">
+                <MudDataGrid T="CCHouseHoldListingAreaView" Items="listingAreaView" Bordered="true" Dense="true">
+                    <Columns>
+                        <PropertyColumn Property="x => x.HHListingPlanName" Title="HH Listing Plan Name" />
+                        <PropertyColumn Property="x => x.CommunityCouncilName" Title="Community Council Name" />
+                    </Columns>
+                    <PagerContent>
+                        <MudDataGridPager T="CCHouseHoldListingAreaView" />
+                    </PagerContent>
+                </MudDataGrid>
+            </MudPaper>
+        </MudCardContent>
+    </MudCard>
+    <MudGrid Class="mt-4">
+        <MudItem xs="6" Class="d-flex justify-start">
+            <MudButton Color="Color.Secondary" Variant="Variant.Filled" Size="Size.Small" OnClick="@GoBack">
+                Back
+            </MudButton>
+        </MudItem>
+
+        <MudItem xs="6" Class="d-flex justify-end">
+            @if (Model.StatusName == "Under Review")
+            {
+                @if (UserProfileService.UserProfile.Contains("HOUSEHOLD LISTING PLANS:APPROVE"))
+                {
+                    <MudButton Variant="Variant.Filled" Color="Color.Success" OnClick="ApproveRegistration">
+                        Approve
+                    </MudButton>                    
+                }
+            }
+            else if (Model.StatusName.Trim().ToLower() == "approved")
+            {
+                @if (UserProfileService.UserProfile.Contains("HOUSEHOLD LISTING PLANS:APPROVE"))
+                {
+                    <MudButton Variant="Variant.Filled" Color="Color.Success" OnClick="CloseRegistration">
+                        Close Registration
+                    </MudButton>                    
+                }
+            }
+            else if (Model.StatusName.Trim().ToLower() == "open")
+            {
+                <MudButton Variant="Variant.Filled" Color="Color.Success" OnClick="SendToReview">
+                    Submit To Review
+                </MudButton>
+            }
+        </MudItem>
+    </MudGrid>
+</MudPaper>
+
+@code {
+    [Parameter] public int Id { get; set; } // From route
+
+    private HHListingPlanView Model { get; set; } = new();
+    private List<CCHouseHoldListingAreaView> listingAreaView = new();
+    private List<BreadcrumbItem> _breadcrumbItems =
+    [
+        new("Home", href: "/", icon: Icons.Material.Filled.Home),
+        new("HouseHold Listing", href: "/", icon: Icons.Material.Filled.ViewList),
+        new("Household Listing Plans", href: "/household-listing-plans", icon: Icons.Material.Filled.ManageAccounts),
+        new("Household Listing Plan Details", href: null, disabled: true, icon: Icons.Material.Filled.Details)
+    ];
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!UserProfileService.UserProfile.Contains("HOUSEHOLD LISTING PLANS:VIEW"))
+        {
+            Navigation.NavigateTo("/AccessDenied");
+        }
+
+        // Load Model from database using Id
+        Model = await _context.HHListingPlanView.AsNoTracking().FirstOrDefaultAsync(x => x.Id == Id) ?? new HHListingPlanView();
+        if(Model != null && Model.Id > 0)
+        {
+            listingAreaView = await _context.CCHouseHoldListingAreaView.AsNoTracking().Where(p => p.HHListingPlanId == Model.Id).ToListAsync();
+        }
+    }
+
+    private void GoBack()
+    {
+        Navigation.NavigateTo("/household-listing-plans"); // Or whatever list page
+    }
+
+    private async Task CloseRegistration()
+    {
+        var confirmed = await DialogServiceHelper.ShowConfirmationDialogAsync(DialogService, "Are you sure you want to close this plan?");
+        if (confirmed)
+        {
+            await UpdateStatusAndNotify("Closed", "closed", "Closed", "closed successfully");
+        }
+    }
+
+    private async Task ApproveRegistration()
+    {
+        var confirmed = await DialogServiceHelper.ShowConfirmationDialogAsync(DialogService, "Are you sure you want to approve this plan?");
+        if (confirmed)
+        {
+            await UpdateStatusAndNotify("Approved", "approved", "Approved", "approved successfully");
+        }
+    }
+
+    private async Task SendToReview()
+    {
+        var confirmed = await DialogServiceHelper.ShowConfirmationDialogAsync(DialogService, "Are you sure you want to send this plan for review?");
+        if (confirmed)
+        {
+            await UpdateStatusAndNotify("Under Review", "send to review", "SendBack", "sent to review");
+        }
+    }
+
+    private async Task UpdateStatusAndNotify(string code, string subjectSuffix, string action, string successMessage)
+    {
+        try
+        {
+            LoadingService.Show();
+
+            var statusId = await _context.SystemCodeDetailsView
+                .Where(p => p.Code == code)
+                .Select(p => p.Id)
+                .FirstOrDefaultAsync();
+
+            if (statusId == 0)
+            {
+                Snackbar.Add("Status not found", Severity.Error, cfg => cfg.RequireInteraction = true);
+                return;
+            }
+
+            Model.StatusId = statusId;
+            var data = _mapper.Map<HHListingPlan>(Model);
+            await _genericService.Update(data);
+
+            var emailData = new EmailViewModel<ActionHHListingPlanEmail>
+            {
+                To = Model.CreatedByEmail,
+                IsHtml = true,
+                Subject = $"{Model.DistrictRegistrationPlanName} {subjectSuffix}",
+                Email = new ActionHHListingPlanEmail
+                {
+                    FirstName = Model.CreatedByName,
+                    Action = action
+                }
+            };
+
+            await EmailService.SendEmailAsync(emailData).ConfigureAwait(false);
+
+            Snackbar.Add($"Household listing plan {successMessage}", Severity.Success);
+
+            GoBack();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Unexpected error: {ex.Message}", Severity.Error, cfg => cfg.RequireInteraction = true);
+            return;
+        }
+        finally
+        {
+            LoadingService.Hide();
+        }
+    }
+}
+
+

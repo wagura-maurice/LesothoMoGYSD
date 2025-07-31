@@ -1,0 +1,230 @@
+﻿@page "/security/userprofile"
+
+@using System.ComponentModel.DataAnnotations
+@using Microsoft.AspNetCore.Identity
+@using MoGYSD.Business.Models.Nissa.UserManagement
+@using MoGYSD.Business.Persistence
+@using MoGYSD.Business.Views.Nissa.Admin
+
+@inject UserManager<ApplicationUser> UserManager
+
+<PageTitle>User Profile</PageTitle>
+
+<MudGrid Class="mb-3" AlignItems="Center" Justify="Justify.SpaceBetween">
+    <MudItem xs="12" md="6">
+        <MudText Typo="Typo.h2" Class="font-weight-bold"><b>User Profile</b></MudText>
+    </MudItem>
+    <MudItem xs="12" md="6" Class="d-flex justify-end">
+        <MudBreadcrumbs Items="_breadcrumbItems" />
+    </MudItem>
+</MudGrid>
+@if (model is null)
+{
+    <MudProgressLinear Color="Color.Primary" Indeterminate="true" Class="my-7" />
+}
+else
+{
+    <MudTabs Outlined="true" Position="Position.Top" Rounded="true" Border="true" Elevation="6"
+             ApplyEffectsToContainer="true" Class="mt-8 mx-auto" PanelClass="pa-6" Style="max-width: 700px;">
+        <MudTabPanel Text="👤 Profile">
+            <MudForm Model="@model" @ref="@_form" Class="d-flex flex-column align-center" Style="gap:1.5rem;">
+                <MudGrid Justify="Justify.Center" Spacing="3" Style="width: 100%; max-width: 600px;">
+                    <!-- Profile Picture Section -->
+                    <MudItem xs="12" class="d-flex justify-center">
+                        <MudAvatar Style="height:140px; width:140px; font-size:2.5rem; box-shadow: 0 0 8px rgba(0,0,0,0.15); border: 2px solid var(--mud-palette-primary);">
+                            @(string.IsNullOrEmpty(model.FirstName) ? "👤" : model.FirstName.ToUpper().Substring(0, 1))
+                        </MudAvatar>
+                    </MudItem>
+
+                    <!-- Role Badge -->
+                    @if (model.RoleName is not null)
+                    {
+                        <MudItem xs="12" class="d-flex justify-center">
+                            <MudChip T="string" Color="Color.Primary" Size="MudBlazor.Size.Medium" Class="px-4" Style="font-weight:600;">
+                                🏷️ @model.RoleName
+                            </MudChip>
+                        </MudItem>
+                    }
+
+                    <!-- Personal Information Section -->
+                    <MudItem xs="12">
+                        <MudText Typo="Typo.h6" Class="mb-3" Color="Color.Primary">Personal Information</MudText>
+                    </MudItem>
+
+                    <MudItem xs="12" sm="6" md="4">
+                        <MudTextField Variant="Variant.Outlined" For="@(() => model.FirstName)" @bind-Value="model.FirstName"
+                                      Label="First Name" Margin="Margin.Dense" Required="true" />
+                    </MudItem>
+
+                    <MudItem xs="12" sm="6" md="4">
+                        <MudTextField Variant="Variant.Outlined" For="@(() => model.MiddleName)" @bind-Value="model.MiddleName"
+                                      Label="Middle Name" Margin="Margin.Dense" />
+                    </MudItem>
+
+                    <MudItem xs="12" sm="6" md="4">
+                        <MudTextField Variant="Variant.Outlined" For="@(() => model.Surname)" @bind-Value="model.Surname"
+                                      Label="Surname" Margin="Margin.Dense" Required="true" />
+                    </MudItem>
+
+                    <!-- Contact Information Section -->
+                    <MudItem xs="12">
+                        <MudText Typo="Typo.h6" Class="mb-3" Color="Color.Primary">Contact Information</MudText>
+                    </MudItem>
+
+                    <MudItem xs="12" sm="6" md="4">
+                        <MudTextField Variant="Variant.Outlined" For="@(() => model.Email)" @bind-Value="model.Email"
+                                      Label="📧 Email" ReadOnly="true" Margin="Margin.Dense" />
+                    </MudItem>
+
+                    <MudItem xs="12" sm="6" md="4">
+                        <MudTextField Variant="Variant.Outlined" For="@(() => model.PhoneNumber)" @bind-Value="model.PhoneNumber"
+                                      Label="📱 Phone Number" ReadOnly="true" Margin="Margin.Dense" />
+                    </MudItem>
+                </MudGrid>
+            </MudForm>
+        </MudTabPanel>
+
+        <MudTabPanel Text="🔒 Change Password">
+            <MudForm Model="@_changepassword" @ref="@_passwordform" Class="d-flex flex-column align-center" Style="gap:1.5rem; max-width: 350px; margin:auto;">
+                <MudGrid Spacing="3" Justify="Justify.Center" Style="width: 100%;">
+                    <MudItem xs="12">
+                        <MudText Typo="Typo.h6" Class="mb-3" Color="Color.Primary">Password Change</MudText>
+                    </MudItem>
+
+                    <MudItem xs="12">
+                        <MudTextField Variant="Variant.Outlined" InputType="InputType.Password"
+                                      Label="Current Password"
+                                      For="@(() => _changepassword.CurrentPassword)"
+                                      @bind-Value="_changepassword.CurrentPassword"
+                                      Required="true"
+                                      AdornmentIcon="@Icons.Material.Filled.Lock" />
+                    </MudItem>
+
+                    <MudItem xs="12">
+                        <MudTextField Variant="Variant.Outlined" InputType="InputType.Password"
+                                      Label="New Password"
+                                      For="@(() => _changepassword.NewPassword)"
+                                      @bind-Value="_changepassword.NewPassword"
+                                      Required="true"
+                                      AdornmentIcon="@Icons.Material.Filled.Password" />
+                    </MudItem>
+
+                    <MudItem xs="12">
+                        <MudTextField Variant="Variant.Outlined" InputType="InputType.Password"
+                                      Label="Confirm New Password"
+                                      For="@(() => _changepassword.ConfirmPassword)"
+                                      @bind-Value="_changepassword.ConfirmPassword"
+                                      Required="true"
+                                      AdornmentIcon="@Icons.Material.Filled.Password" />
+                    </MudItem>
+
+                    <MudItem xs="12" class="d-flex justify-end">
+                        <MudButton Color="Color.Primary" OnClick="@(async () => await ChangePassword())"
+                                   Disabled="@_submitting" Variant="Variant.Filled" EndIcon="@Icons.Material.Filled.ChangeCircle">
+                            @if (_submitting)
+                            {
+                                <MudProgressCircular Class="me-2" Size="MudBlazor.Size.Small" Indeterminate="true" />
+                                <MudText Class="ms-2">Processing...</MudText>
+                            }
+                            else
+                            {
+                                <MudText>Update Password</MudText>
+                            }
+                        </MudButton>
+                    </MudItem>
+                </MudGrid>
+            </MudForm>
+        </MudTabPanel>
+    </MudTabs>
+
+}
+
+@code {
+    [Inject] protected IServiceProvider Services { get; init; } = null!;
+    private UserSummaryView model = new();
+    private MudForm? _form;
+    private MudForm? _passwordform;
+    private ChangePasswordModel _changepassword { get; } = new();
+    private bool _submitting;
+    private string _currentUserEmail = string.Empty;
+
+    // private UserManager<ApplicationUser> UserManager = null!;
+
+    private List<BreadcrumbItem> _breadcrumbItems =
+    [
+        new("Home", href: "/", icon: Icons.Material.Filled.Home),
+        new("Security", href:  null, icon: Icons.Material.Filled.Security),
+        new("UserProfile", href: null, disabled: true, icon: Icons.Material.Filled.People)
+    ];
+
+    [CascadingParameter] private Task<AuthenticationState> AuthState { get; set; } = default!;
+
+    protected override async Task OnInitializedAsync()
+    {
+        UserManager = Services.GetRequiredService<UserManager<ApplicationUser>>();
+        var state = await AuthState;
+        _currentUserEmail = state.User.Identity?.Name ?? string.Empty;
+
+        if (_currentUserEmail is not null)
+        {
+           model = await _context.UserSummaryView.AsNoTracking().Where(p => p.Email == _currentUserEmail).FirstOrDefaultAsync();
+        }
+    }
+
+    private async Task ChangePassword()
+    {
+        await _passwordform.Validate();
+
+        if (!_passwordform.IsValid)
+            return;
+
+        _submitting = true;
+        try
+        {
+            await _passwordform!.Validate();
+            if (_passwordform!.IsValid)
+            {
+                var user = await UserManager.FindByEmailAsync(model.Email);
+
+                if(user is null)
+                {
+                    Snackbar.Add($"{"User not found"}", Severity.Error);
+                }
+
+                var result = await UserManager.ChangePasswordAsync(user, _changepassword.CurrentPassword, _changepassword.NewPassword);
+                if (result.Succeeded)
+                {
+                    Snackbar.Add($"{"Password changed successfully"}", Severity.Info);
+                }
+                else
+                {
+                    Snackbar.Add($"{string.Join(",", result.Errors.Select(x => x.Description).ToArray())}", Severity.Error);
+                }
+            }
+        }
+        finally
+        {
+            _submitting = false;
+        }
+    }
+
+    private class ChangePasswordModel
+    {
+        [Required]
+        [StringLength(100, ErrorMessage = "The {0} must be at least {2} and at max {1} characters long.", MinimumLength = 6)]
+        [DataType(DataType.Password)]
+        [Display(Name = "Password")]
+        public string CurrentPassword { get; set; } = "";
+
+        [Required]
+        [StringLength(100, ErrorMessage = "The {0} must be at least {2} and at max {1} characters long.", MinimumLength = 6)]
+        [DataType(DataType.Password)]
+        [Display(Name = "Password")]
+        public string NewPassword { get; set; } = "";
+
+        [DataType(DataType.Password)]
+        [Display(Name = "Confirm password")]
+        [Compare("NewPassword", ErrorMessage = "The password and confirmation password do not match.")]
+        public string ConfirmPassword { get; set; } = "";
+    }
+}

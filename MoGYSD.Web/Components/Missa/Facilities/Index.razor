@@ -1,0 +1,170 @@
+﻿@page "/facility"
+@using MoGYSD.Business.Persistence
+@using MoGYSD.Business.Views.Missa.Setups
+@using MoGYSD.ViewModels.Missa.Setups
+@using MoGYSD.Business.Models.Missa.Setups
+
+<MudGrid Class="mb-3" AlignItems="Center" Justify="Justify.SpaceBetween">
+    <MudItem xs="12" md="6">
+        <MudText Typo="Typo.h2" Class="font-weight-bold"><b>Facilities</b></MudText>
+        <MudText>
+            Enables setting up and managing facilities and their associated details.
+        </MudText>
+    </MudItem>
+    <MudItem xs="12" md="6" Class="d-flex justify-end">
+        <MudBreadcrumbs Items="_breadcrumbItems" Class="custom-breadcrumb" />
+    </MudItem>
+</MudGrid>
+
+<MudExpansionPanels>
+    <SearchPanel Filter="@filterModel" OnFilterApplied="@ReloadTable" />
+</MudExpansionPanels>
+
+<MudPaper Class="p-4">
+    @if (UserProfileService.UserProfile.Contains("FACILITIES:CREATE"))
+    {
+        <MudButton StartIcon="@Icons.Material.Filled.Add"
+                   Class="pull-right top-add-button mb-2"
+                   Variant="Variant.Filled"
+                   OnClick="AddNewFacility"
+                   DropShadow="true"
+                   Color="Color.Primary">
+            Add New Facility
+        </MudButton>
+    }
+
+    <MudDataGrid @ref="table" ServerData="@(LoadFacilityData)" T="FacilityView" Bordered="true" Striped="true" Hover="true" Dense="true" RowsPerPage="20">
+        <NoRecordsContent>
+            <MudText Typo="Typo.subtitle1" Class="my-4 text-muted text-center">
+                No facilities found. Try adjusting your filters.
+            </MudText>
+        </NoRecordsContent>
+        <ToolBarContent>
+            <MudText><b>Total Facilities: @totalItems</b></MudText>
+        </ToolBarContent>
+        <Columns>
+            <PropertyColumn Property="x => x.Code" Title="Code" />
+            <PropertyColumn Property="x => x.FacilityName" Title="Facility Name" />
+            <PropertyColumn Property="x => x.FacilityTypeName" Title="Facility Type" />
+            <PropertyColumn Property="x => x.CategoryName" Title="Category" />
+            <PropertyColumn Property="x => x.HeadName" Title="Head Name" />
+            <PropertyColumn Property="x => x.BankName" Title="Bank" />
+            <TemplateColumn Title="Actions">
+                <CellTemplate>
+                    <MudMenu Icon="@Icons.Material.Filled.MoreVert" Color="Color.Primary" Dense="true">
+                        @if (UserProfileService.UserProfile.Contains("FACILITIES:VIEW"))
+                        {
+                            <MudMenuItem OnClick="@(() => ViewFacilityDetails(context.Item.Id))">
+                                <MudIcon Icon="@Icons.Material.Filled.Info" Class="me-2 text-primary" /> Details
+                            </MudMenuItem>
+                        }
+                        @if (UserProfileService.UserProfile.Contains("FACILITIES:MODIFY"))
+                        {
+                            <MudMenuItem OnClick="@(() => EditFacility(context.Item.Id))">
+                                <MudIcon Icon="@Icons.Material.Filled.Edit" Class="me-2" /> Edit
+                            </MudMenuItem>
+                        }
+                    </MudMenu>
+                </CellTemplate>
+            </TemplateColumn>
+        </Columns>
+        <PagerContent>
+            <MudDataGridPager T="FacilityView" PageSizes="@(new int[] { 10, 20, 50, 100 })" />
+        </PagerContent>
+    </MudDataGrid>
+</MudPaper>
+
+@code {
+    private MudDataGrid<FacilityView> table = default!;
+    private FacilitiesSearchFilter filterModel = new();
+    private bool isLoading = false;
+    private int totalItems;
+    private List<BreadcrumbItem> _breadcrumbItems =
+     [
+        new("Home", href: "/", icon: Icons.Material.Filled.Home),
+        new("Settings", href: "/", icon: Icons.Material.Filled.Settings),
+        new("Facilities", href: null, disabled: true)
+     ];
+
+    private async Task<GridData<FacilityView>> LoadFacilityData(GridState<FacilityView> state)
+    {
+        isLoading = true;
+        try
+        {
+            if (_context == null)
+            {
+                Snackbar.Add("Database context is not available.", Severity.Error);
+                return new GridData<FacilityView> { Items = Enumerable.Empty<FacilityView>(), TotalItems = 0 };
+            }
+
+            // Query the database view for facilities
+            IQueryable<FacilityView> query = _context.FacilityView.AsNoTracking();
+
+            // Apply filters
+            if (!string.IsNullOrWhiteSpace(filterModel.Code))
+            {
+                query = query.Where(x => x.Code != null && x.FacilityName.Contains(filterModel.Code));
+            }
+            if (!string.IsNullOrWhiteSpace(filterModel.Name))
+            {
+                query = query.Where(x => x.FacilityName != null && x.FacilityName.Contains(filterModel.Name));
+            }
+            if (filterModel.FacilityTypeId.HasValue)
+            {
+                query = query.Where(x => x.FacilityTypeId == filterModel.FacilityTypeId.Value);
+            }
+            if (filterModel.CategoryId.HasValue)
+            {
+                query = query.Where(x => x.CategoryId == filterModel.CategoryId.Value);
+            }
+
+            query = query.OrderBy(p => p.FacilityName);
+
+            totalItems = await query.CountAsync();
+
+            var items = await query
+                .Skip(state.Page * state.PageSize)
+                .Take(state.PageSize)
+                .ToListAsync();
+
+            return new GridData<FacilityView>
+            {
+                Items = items,
+                TotalItems = totalItems
+            };
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine(ex.ToString());
+            Snackbar.Add($"Error loading facilities: {ex.Message}", Severity.Error);
+            return new GridData<FacilityView> { Items = Enumerable.Empty<FacilityView>(), TotalItems = 0 };
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task ReloadTable()
+    {
+        if (table != null)
+        {
+            await table.ReloadServerData();
+        }
+    }
+
+    private void ViewFacilityDetails(int id)
+    {
+        Navigation.NavigateTo($"/facility/view/{id}");
+    }
+
+    private void EditFacility(int id)
+    {
+        Navigation.NavigateTo($"/facility/edit/{id}");
+    }
+
+    private void AddNewFacility()
+    {
+        Navigation.NavigateTo("/facility/add");
+    }
+}

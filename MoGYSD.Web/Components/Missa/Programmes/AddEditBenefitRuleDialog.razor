@@ -1,0 +1,75 @@
+﻿@using System.ComponentModel.DataAnnotations
+@using MoGYSD.ViewModels.Missa.Programmes 
+
+<MudDialog>
+    <TitleContent>
+        <MudText Typo="Typo.h6">
+            <MudIcon Icon="@(BenefitRule.Id == 0 ? Icons.Material.Filled.Add : Icons.Material.Filled.Edit)" Class="mr-3 mb-n1" />
+            @(BenefitRule.Id == 0 ? "Add New Benefit Rule" : "Edit Benefit Rule")
+        </MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudForm @ref="_form" Model="@BenefitRule" ValidationDelay="0">
+            <MudGrid>
+                <MudItem xs="12">
+                    <MudTextField Label="Minimum HH Members"
+                                  @bind-Value="BenefitRule.MinHHMembers"
+                                  For="@(() => BenefitRule.MinHHMembers)"
+                                  Required="true"
+                                  Variant="Variant.Outlined"
+                                  InputType="InputType.Number" />
+                </MudItem>
+                <MudItem xs="12">
+                    <MudTextField Label="Maximum HH Members"
+                                  @bind-Value="BenefitRule.MaxHHMembers"
+                                  For="@(() => BenefitRule.MaxHHMembers)"
+                                  Required="true"
+                                  Variant="Variant.Outlined"
+                                  InputType="InputType.Number"
+                                  Validation="@(ValidateMaxHHMembers)" /> 
+                </MudItem>
+                <MudItem xs="12">
+                    <MudTextField Label="Benefit Amount (Loti)"
+                                  @bind-Value="BenefitRule.Amount"
+                                  For="@(() => BenefitRule.Amount)"
+                                  Required="true"
+                                  Adornment="Adornment.End" AdornmentText="LSL"
+                                  Format="N2"
+                                  Variant="Variant.Outlined" InputType="InputType.Number" />
+                </MudItem>
+             
+            </MudGrid>
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel" Variant="Variant.Filled" Color="Color.Secondary">Close</MudButton>
+        <MudButton  Variant="Variant.Filled" Color="Color.Primary" OnClick="Submit">Save</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] IMudDialogInstance MudDialog { get; set; }
+    [Parameter] public BenefitRuleViewModel BenefitRule { get; set; } = new();
+
+    private MudForm _form;
+
+    private void Cancel() => MudDialog.Cancel();
+
+    private async Task Submit()
+    {
+        await _form.Validate();
+        if (_form.IsValid)
+        {
+            MudDialog.Close(DialogResult.Ok(BenefitRule));
+        }
+    }
+
+    private string ValidateMaxHHMembers(int maxHH)
+    {
+        if (maxHH > 30)
+            return "Maximum HH members cannot exceed 30.";
+        if (BenefitRule.MinHHMembers.HasValue && maxHH < BenefitRule.MinHHMembers.Value)
+            return "Maximum HH members cannot be less than Minimum HH members.";
+        return null;
+    }
+}

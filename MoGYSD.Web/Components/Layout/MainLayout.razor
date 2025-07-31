@@ -1,0 +1,101 @@
+﻿@using MoGYSD.Business.Persistence
+@inherits LayoutComponentBase
+
+@* Required *@
+<MudThemeProvider />
+<MudPopoverProvider />
+
+@* Needed for dialogs *@
+<MudDialogProvider />
+
+@* Needed for snackbars *@
+<MudSnackbarProvider />
+@inject IUserService UserService
+
+
+@if (IsLoading || _isSwitching)
+{
+    <MudOverlay Style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+                            z-index: 1000; background-color: rgba(255, 255, 255, 0.6);" />
+
+    <MudProgressCircular Color="Color.Primary"
+                         Indeterminate="true"
+                         Size="Size.Small"
+                         Style="position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+                                    z-index: 1101;" />
+}
+<div class="page">
+    <div class="sidebar">
+        <NavMenu />
+    </div>
+
+    <main>
+        <div class="top-row px-4">
+            <TopNavBar />
+            @* <a href="https://learn.microsoft.com/aspnet/core/" target="_blank">About</a> *@
+        </div>
+
+        <article class="content px-4 main-layout">
+            @Body
+        </article>
+    </main>
+</div>
+
+<div id="blazor-error-ui" data-nosnippet>
+    An unhandled error has occurred.
+    <a href="." class="reload">Reload</a>
+    <span class="dismiss">🗙</span>
+</div>
+@code{
+    [Inject] private IJSRuntime JS { get; set; } = default!;
+
+    private bool _isSwitching = false;
+    private bool IsLoading;
+    private bool _shouldReinitJs = false;
+
+    protected override void OnInitialized()
+    {
+        UserService.OnSystemChanged += OnSystemChanged;
+        LoadingService.OnLoadingChanged += state =>
+        {
+            IsLoading = state;
+            InvokeAsync(StateHasChanged);
+        };
+        Navigation.LocationChanged += (_, __) =>
+        {
+            // Optionally handle navigation state here
+            InvokeAsync(StateHasChanged);
+        };
+    }
+
+    private void OnSystemChanged()
+    {
+        _isSwitching = true;
+        _shouldReinitJs = true;
+        InvokeAsync(StateHasChanged);
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender || _shouldReinitJs)
+        {
+            _shouldReinitJs = false;
+
+            await JS.InvokeVoidAsync("feather.replace");
+            await JS.InvokeVoidAsync("Layout.init");
+            // await JS.InvokeVoidAsync("App.init");
+
+            if (_isSwitching)
+            {
+                _isSwitching = false;
+                // await InvokeAsync(StateHasChanged);
+                StateHasChanged();
+            }
+        }
+    }
+
+    public void Dispose()
+    {
+        UserService.OnSystemChanged -= OnSystemChanged;
+    }
+}

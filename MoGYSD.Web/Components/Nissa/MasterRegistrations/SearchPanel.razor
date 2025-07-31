@@ -1,0 +1,74 @@
+﻿@using MoGYSD.Business.Persistence
+@using MoGYSD.Web.Components.Autocompletes
+<MudExpansionPanel Text="Expand to apply search filter">
+    <MudGrid>
+        <MudItem xs="12" sm="6" md="3">
+            <MudTextField Variant="Variant.Outlined" @bind-Value="Filter.Name" Label="Search by Name" />
+        </MudItem>
+
+        <MudItem xs="12" sm="6" md="3">
+            <SystemCodeAutocomplete Variant="Variant.Outlined" Label="Search by Status"
+                                    For="@(() => Filter.StatusId)"
+                                    @bind-Value="Filter.StatusId"
+                                    ParentCode="Status">
+            </SystemCodeAutocomplete>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="3">
+            <SystemCodeAutocomplete Variant="Variant.Outlined" Label="Search by Data Collection Type"
+                                    For="@(() => Filter.DataCollectionTypeId)"
+                                    @bind-Value="Filter.DataCollectionTypeId"
+                                    ParentCode="DataCollectionApproach">
+            </SystemCodeAutocomplete>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="3">
+            <SystemCodeAutocomplete Variant="Variant.Outlined" Label="Search by Plan Type"
+                                    For="@(() => Filter.PlanTypeId)"
+                                    @bind-Value="Filter.PlanTypeId"
+                                    ParentCode="PlanType">
+            </SystemCodeAutocomplete>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="3">
+            <PMTFormulasAutocomplete Label="Search by PMT Formula" Variant="Variant.Outlined"
+                                     For="@(() => Filter.PMTFormulaId)"
+                                     @bind-Value="Filter.PMTFormulaId">
+            </PMTFormulasAutocomplete>
+        </MudItem>
+
+        <MudItem xs="12">
+            <div class="d-flex justify-content-between mt-2">
+                <MudButton Variant="Variant.Filled"
+                           Color="Color.Secondary"
+                           StartIcon="@Icons.Material.Filled.Clear"
+                           OnClick="ClearFilter"
+                           Class="ml-2">
+                    Clear
+                </MudButton>
+                <MudButton Variant="Variant.Filled"
+                           Color="Color.Primary"
+                           StartIcon="@Icons.Material.Filled.Search"
+                           OnClick="OnFilter">
+                    Search
+                </MudButton>
+            </div>
+        </MudItem>
+    </MudGrid>
+</MudExpansionPanel>
+
+@code {
+    [Parameter] public MasterRegistrationSearchFilter Filter { get; set; } = new();
+    [Parameter] public EventCallback OnFilterApplied { get; set; }
+
+    private async Task OnFilter()
+    {
+        await OnFilterApplied.InvokeAsync();
+    }
+    private async Task ClearFilter()
+    {
+        Filter.PMTFormulaId = null;
+        Filter.Name = null;
+        Filter.StatusId = null;
+        Filter.DataCollectionTypeId = null;
+        Filter.PlanTypeId = null;
+        await OnFilterApplied.InvokeAsync();
+    }    
+}

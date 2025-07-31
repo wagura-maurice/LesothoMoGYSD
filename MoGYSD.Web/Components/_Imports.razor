@@ -1,0 +1,40 @@
+﻿@using System.Net.Http
+@using System.Net.Http.Json
+@using AutoMapper
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Components.Forms
+@using Microsoft.AspNetCore.Components.Routing
+@using Microsoft.AspNetCore.Components.Web
+@using Microsoft.AspNetCore.Components.Web.Virtualization
+@using Microsoft.EntityFrameworkCore
+@using Microsoft.JSInterop
+
+@using MoGYSD.Business.Persistence
+@using MoGYSD.Business.Persistence.Extensions
+@using MoGYSD.Services
+@using MoGYSD.Web
+@using MoGYSD.Web.Components
+@using MoGYSD.Web.Components.Account
+@using MoGYSD.Web.Components.Shared
+@using MoGYSD.Web.Components.Shared.Helpers
+@using MudBlazor
+@using MudExtensions
+@using static Microsoft.AspNetCore.Components.Web.RenderMode
+@using MoGYSD.Web.Components.Autocompletes
+
+@inject LoadingService LoadingService
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+@inject IJSRuntime JSRuntime
+@inject NavigationManager Navigation
+@inject ApplicationDbContext _context
+@inject IDbContextFactory<ApplicationDbContext> _dbContextFactory
+@inject GenericService _genericService
+@inject AuthenticationStateProvider AuthStateProvider
+@inject IdentityRedirectManager RedirectManager
+@inject IMapper _mapper
+@inject IEmailService EmailService
+@inject ISentenceCaseService SentenceCaseService
+@inject IUserService UserService
+@inject UserProfileService UserProfileService
+

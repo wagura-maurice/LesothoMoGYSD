@@ -1,0 +1,679 @@
+﻿@page "/eligibility/add"
+@page "/eligibility/edit/{Id:int}"
+
+@using Microsoft.Data.SqlClient
+@using Microsoft.EntityFrameworkCore
+@using MoGYSD.Business.Models.Missa.EligibilityTests
+@using MoGYSD.Business.Models.Missa.ProgrammeConfiguration
+@using MoGYSD.Business.Models.Nissa.Admin
+@using MoGYSD.Business.Models.Nissa.HouseHoldEnumerations
+@using MoGYSD.ViewModels.Missa.Eligibility
+@using System.Data
+
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+@inject NavigationManager Navigation
+
+@* --- UI REMAINS THE SAME --- *@
+<MudOverlay Visible="_isProcessingOverlayVisible" DarkBackground="true" ZIndex="11">
+    <MudProgressCircular Color="Color.Primary" Indeterminate="true" Size="Size.Large" />
+    <MudText Class="mt-4" Typo="Typo.h5">Running Eligibility Test... Please wait.</MudText>
+</MudOverlay>
+<MudGrid Class="mb-3" AlignItems="Align.Center" Justify="Justify.SpaceBetween">
+    <MudItem xs="12" md="6">
+        <MudText Typo="Typo.h2" Class="font-weight-bold">@HeaderText</MudText>
+    </MudItem>
+    <MudItem xs="12" md="6" Class="d-flex justify-start justify-sm-end">
+        <MudBreadcrumbs Items="_breadcrumbItems" Class="custom-breadcrumb" />
+    </MudItem>
+</MudGrid>
+<MudPaper Class="pa-4 pa-md-6" Elevation="3">
+    <MudForm Model="@Model" @ref="form" ValidationDelay="0">
+        <MudCard Elevation="0" Outlined="true">
+            <MudCardContent>
+                <MudGrid Spacing="3">
+                    <MudItem xs="12" sm="6">
+                        <ProgramsAutoComplete Label="Programme" For="@(() => Model.ProgrammeId)" @bind-Value="Model.ProgrammeId" Variant="Variant.Outlined" Required="true" />
+                    </MudItem>
+                    <MudItem xs="12" sm="6">
+                        <MudNumericField @bind-Value="Model.Quota" For="@(() => Model.Quota)" Label="Programme Quota" Variant="Variant.Outlined" Required="true" Min="1" />
+                    </MudItem>
+                    <MudItem xs="12">
+                        <MudText Typo="Typo.subtitle1" Class="mt-4 mb-2"><b>Select Districts</b></MudText>
+                        <MudValidation For="@(() => Model.SelectedDistrictIds)">
+                            <MudPaper Outlined="true" Class="pa-2" Style="max-height: 200px; overflow-y: auto;">
+                                <MudGrid Spacing="1">
+                                    @foreach (var district in _districtSelections)
+                                    {
+                                        <MudItem xs="12" sm="6" md="4" lg="3">
+                                            <MudCheckBox T="bool" @bind-Value="@district.IsSelected" Label="@district.Name" Dense="true" OnClick="OnDistrictSelectionChanged" />
+                                        </MudItem>
+                                    }
+                                </MudGrid>
+                            </MudPaper>
+                        </MudValidation>
+                    </MudItem>
+                    <MudItem xs="12" sm="6" Style="display:none">
+                        <CommunityCouncilAutocomplete Variant="Variant.Outlined" Label="Community Council" DistrictId="@_singleSelectedDistrictId" For="@(() => Model.CommunityCouncilId)" @bind-Value="Model.CommunityCouncilId" Disabled="@_isSubDistrictFilterDisabled" />
+                    </MudItem>
+                    <MudItem xs="12" sm="6" Style="display:none">
+                        <VillageAutocomplete Label="Village" DistrictId="@_singleSelectedDistrictId" CommunityCouncilId="@Model.CommunityCouncilId" For="@(() => Model.VillageId)" @bind-Value="Model.VillageId" Variant="Variant.Outlined" Disabled="@_isSubDistrictFilterDisabled" />
+                    </MudItem>
+                    <MudItem xs="12">
+                        <MudTextField @bind-Value="Model.Description" Label="Description / Notes (Optional)" Variant="Variant.Outlined" Lines="3" />
+                    </MudItem>
+                </MudGrid>
+            </MudCardContent>
+            <MudCardActions Class="px-4 pb-4">
+                <MudButton Variant="Variant.Filled" Color="Color.Secondary" OnClick="Cancel" Class="me-auto">Back</MudButton>
+                @if (isEditMode && _resultSummary is not null)
+                {
+                    <MudButton OnClick="ConfirmAndRunEligibilityAsync" Variant="Variant.Filled" Color="Color.Error" StartIcon="@Icons.Material.Filled.Replay">Re-run & Overwrite Results</MudButton>
+                }
+                else
+                {
+                    <MudButton OnClick="ConfirmAndRunEligibilityAsync" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.PlayArrow">Run Eligibility Test</MudButton>
+                }
+            </MudCardActions>
+        </MudCard>
+    </MudForm>
+@if (_resultSummary is not null)
+{
+    <MudDivider Class="my-6" />
+
+    <div class="d-flex align-center">
+        <MudText Typo="Typo.h5" Class="font-weight-bold">Eligibility Test Summary</MudText>
+    </div>
+
+    <MudGrid Spacing="3" Class="mt-4">
+     <MudItem xs="12" sm="6" md="4" lg="2">
+            <MudCard Elevation="2" Class="pa-0">
+                <MudToolBar Class="mud-theme-info" Dense="true">
+                    <MudText Typo="Typo.h6">Processed</MudText>
+                </MudToolBar>
+                <MudCardContent Class="d-flex align-center justify-center pa-4">
+                    <MudText Typo="Typo.h3">@_resultSummary.TotalProcessed</MudText>
+                </MudCardContent>            
+                <MudCardActions>
+                     <MudButton  Variant="Variant.Text" Color="Color.Primary" Class="ml-auto" @onclick='() => OpenStatusListDialogAsync("Processed")'>View</MudButton>
+                </MudCardActions>
+            </MudCard>
+        </MudItem>
+
+  
+        <MudItem xs="12" sm="6" md="4" lg="2">
+            <MudCard Elevation="2" Class="pa-0">
+                <MudToolBar Class="mud-theme-primary" Dense="true">
+                    <MudText Typo="Typo.h6">Eligible</MudText>
+                </MudToolBar>
+                <MudCardContent Class="d-flex align-center justify-center pa-4">
+                    <MudText Typo="Typo.h3">@_resultSummary.TotalEligible</MudText>
+                </MudCardContent>
+                <MudCardActions>
+                    <MudButton Variant="Variant.Text" Color="Color.Primary" Class="ml-auto" @onclick='() => OpenStatusListDialogAsync("Eligible")'>View</MudButton>
+                </MudCardActions>
+            </MudCard>
+        </MudItem>
+
+        <MudItem xs="12" sm="6" md="4" lg="2">
+            <MudCard Elevation="2" Class="pa-0">
+                <MudToolBar Class="mud-theme-success" Dense="true">
+                    <MudText Typo="Typo.h6">Selected</MudText>
+                </MudToolBar>
+                <MudCardContent Class="d-flex align-center justify-center pa-4">
+                    <MudText Typo="Typo.h3">@_resultSummary.TotalSelected</MudText>
+                </MudCardContent>
+                <MudCardActions>
+                    <MudButton Variant="Variant.Text" Color="Color.Success" Class="ml-auto" @onclick='() => OpenStatusListDialogAsync("Selected")'>View</MudButton>
+                </MudCardActions>
+            </MudCard>
+        </MudItem>
+
+        <MudItem xs="12" sm="6" md="4" lg="2">
+            <MudCard Elevation="2" Class="pa-0">
+                <MudToolBar Class="mud-theme-warning" Dense="true">
+                    <MudText Typo="Typo.h6">Waiting List</MudText>
+                </MudToolBar>
+                <MudCardContent Class="d-flex align-center justify-center pa-4">
+                    <MudText Typo="Typo.h3">@_resultSummary.TotalWaitlisted</MudText>
+                </MudCardContent>
+                <MudCardActions>
+                    <MudButton Variant="Variant.Text" Color="Color.Warning" Class="ml-auto" @onclick='() => OpenStatusListDialogAsync("WaitListed")'>View</MudButton>
+                </MudCardActions>
+            </MudCard>
+        </MudItem>
+
+        <MudItem xs="12" sm="6" md="4" lg="2">
+            <MudCard Elevation="2" Class="pa-0">
+                <MudToolBar Class="mud-theme-error" Dense="true">
+                    <MudText Typo="Typo.h6">Not Eligible</MudText>
+                </MudToolBar>
+                <MudCardContent Class="d-flex align-center justify-center pa-4">
+                    <MudText Typo="Typo.h3">@_resultSummary.TotalNotEligible</MudText>
+                </MudCardContent>
+                <MudCardActions>
+                    <MudButton Variant="Variant.Text" Color="Color.Error" Class="ml-auto" @onclick='() => OpenStatusListDialogAsync("Not Eligible")'>View</MudButton>
+                </MudCardActions>
+            </MudCard>
+        </MudItem>
+    </MudGrid>
+}
+</MudPaper>
+@code {
+    [Parameter]
+    public int Id { get; set; }
+
+    private MudForm form = default!;
+    private bool isEditMode => Id > 0;
+    private bool _isProcessingOverlayVisible = false;
+
+    private EligibilityTestViewModel Model = new();
+    private List<DistrictSelectionViewModel> _districtSelections = new();
+    private bool _isSubDistrictFilterDisabled = true;
+    private int? _singleSelectedDistrictId;
+    private EligibilityResultSummary? _resultSummary;
+    private string HeaderText = "Eligibility Testing & Selection";
+    private List<BreadcrumbItem> _breadcrumbItems = new();  
+    private Dictionary<string, int> _povertyStatusNameToIdMap = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+    private const string PovertyStatusSystemCodeType = "PovertyStatusPMT";
+
+    private int _statusEligibleId, _statusNotEligibleId, _statusSelectedId, _statusWaitlistedId;
+
+    public class DistrictSelectionViewModel
+    {
+        public int Id { get; set; }
+        public string Name { get; set; }
+        public bool IsSelected { get; set; }
+    }
+
+    public class EligibilityDetailViewModel
+    {
+        public int HouseholdId { get; set; }
+        public string HeadOfHouseholdName { get; set; }
+        public string VillageName { get; set; }
+        public string CommunityCouncilName { get; set; }
+        public string DistrictName { get; set; }
+        public string Status { get; set; }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        var allDbDistricts = await _context.Districts.AsNoTracking().OrderBy(d => d.Name).ToListAsync();
+        var savedDistrictIds = new HashSet<int>();
+
+        if (isEditMode)
+        {
+            var testEntity = await _context.EligibilityTests
+                .Include(t => t.EligibilityTestDistricts)
+                .AsNoTracking()
+                .FirstOrDefaultAsync(t => t.Id == Id);
+
+            if (testEntity == null)
+            {
+                Snackbar.Add("Error: Eligibility test not found.", Severity.Error);
+                Navigation.NavigateTo("/eligibility/eligibilitytesting");
+                return;
+            }
+
+            Model = _mapper.Map<EligibilityTestViewModel>(testEntity);
+            savedDistrictIds = testEntity.EligibilityTestDistricts.Select(etd => etd.DistrictId).ToHashSet();
+
+            var details = await _context.EligibilityTestsView.AsNoTracking().FirstOrDefaultAsync(m => m.Id == Model.Id);
+            if (details is not null)
+            {
+                _resultSummary = new EligibilityResultSummary
+                {
+                    TotalProcessed = details.TotalProcessed,
+                    TotalEligible = details.TotalEligiblePreQuota,
+                    TotalSelected = details.TotalSelected,
+                    TotalWaitlisted = details.TotalWaitlisted,
+                    TotalNotEligible = details.TotalNotEligible
+                };
+            }
+        }
+        else
+        {
+            Model = new EligibilityTestViewModel();
+        }
+
+        _districtSelections = allDbDistricts.Select(d => new DistrictSelectionViewModel
+        {
+            Id = d.Id,
+            Name = d.Name,
+            IsSelected = savedDistrictIds.Contains(d.Id)
+        }).ToList();
+
+        OnDistrictSelectionChanged();
+        BuildBreadcrumbs();
+        await LoadStatusIdsAsync();
+        await LoadPovertyStatusMappingsAsync();
+    }
+
+    private async Task ConfirmAndRunEligibilityAsync()
+    {
+        Model.SelectedDistrictIds = _districtSelections
+            .Where(d => d.IsSelected)
+            .Select(d => d.Id)
+            .ToList();
+
+        if (Model.SelectedDistrictIds.Count > 1)
+        {
+            Model.CommunityCouncilId = null;
+            Model.VillageId = null;
+        }
+
+        await form.Validate();
+        if (!form.IsValid || !Model.SelectedDistrictIds.Any())
+        {
+            Snackbar.Add("Please correct the validation errors. At least one district must be selected.", Severity.Error);
+            return;
+        }
+
+        bool runConfirmed = true;
+        if (isEditMode)
+        {
+            var parameters = new DialogParameters { ["ContentText"] = "This will overwrite the previous eligibility testing results. Are you sure you want to proceed?" };
+            var dialog = DialogService.Show<ConfirmDialog>("Confirm Re-run Eligibility Testing & Selection", parameters);
+            var result = await dialog.Result;
+            runConfirmed = !result.Canceled;
+        }
+
+        if (runConfirmed)
+        {
+            await RunEligibilityProcessInternalAsync();
+        }
+    }
+
+    private void OnDistrictSelectionChanged()
+    {
+        var selectedDistricts = _districtSelections.Where(d => d.IsSelected).ToList();
+        Model.SelectedDistrictIds = selectedDistricts.Select(d => d.Id).ToList();
+
+        if (selectedDistricts.Count == 1)
+        {
+            _isSubDistrictFilterDisabled = false;
+            _singleSelectedDistrictId = selectedDistricts.First().Id;
+        }
+        else
+        {
+            _isSubDistrictFilterDisabled = true;
+            _singleSelectedDistrictId = null;
+            Model.CommunityCouncilId = null;
+            Model.VillageId = null;
+        }
+    }
+
+    private async Task RunEligibilityProcessInternalAsync()
+    {
+        _isProcessingOverlayVisible = true;
+        StateHasChanged();
+
+        try
+        {
+            var programme = await _context.Programmes.AsNoTracking().FirstOrDefaultAsync(p => p.Id == Model.ProgrammeId);
+            if (programme == null)
+            {
+                Snackbar.Add("Error: Selected programme not found.", Severity.Error);
+                return;
+            }
+
+            var criteria = await _context.EligibilityCriterias
+                .Include(c => c.AssistanceUnit)            
+                .Include(c => c.CommunityValidationStatus)
+                .Include(c => c.EligibilityCriteriaLocations)
+                .Include(c => c.EnrolledInOtherProgrammes) 
+                .Include(c => c.EligibilityCriteriaVulnerabilityTypes) 
+                .Include(c => c.EligibilityCriteriaCBCs) 
+                .Include(c => c.EligibilityCriteriaPovertyStatuses) 
+                  .ThenInclude(ecps => ecps.PovertyStatus)
+                .AsNoTracking()
+                .FirstOrDefaultAsync(c => c.ProgrammeId == programme.Id && c.IsActive);
+
+            if (criteria == null)
+            {
+                Snackbar.Add($"Error: No active eligibility criteria found for programme '{programme.Name}'.", Severity.Error);
+                return;
+            }
+
+            EligibilityTests testEntity;
+            var selectedDistrictIds = Model.SelectedDistrictIds;
+
+            if (isEditMode)
+            {
+                testEntity = await _context.EligibilityTests.Include(t => t.EligibilityTestDistricts).SingleAsync(t => t.Id == Id);
+                _mapper.Map(Model, testEntity);
+                testEntity.EligibilityTestDistricts.Clear();
+                foreach (var districtId in selectedDistrictIds) { testEntity.EligibilityTestDistricts.Add(new EligibilityTestDistrict { DistrictId = districtId }); }
+                var existingDetails = _context.EligibilityTestDetails.Where(d => d.EligibilityTestId == testEntity.Id);
+                _context.EligibilityTestDetails.RemoveRange(existingDetails);
+            }
+            else
+            {
+                testEntity = _mapper.Map<EligibilityTests>(Model);
+                foreach (var districtId in selectedDistrictIds) { testEntity.EligibilityTestDistricts.Add(new EligibilityTestDistrict { DistrictId = districtId }); }
+                _context.EligibilityTests.Add(testEntity);
+            }
+            await _context.SaveChangesAsync();
+            Model.Id = testEntity.Id;
+
+            IQueryable<Household> query = _context.Households
+                .Include(h => h.HouseholdMembers)
+                    .ThenInclude(hm => hm.SocialProgramme)
+                .Include(h => h.HouseholdMembers)
+                    .ThenInclude(hm => hm.Disabilities)                 
+                .Include(h => h.HouseholdMembers)
+                    .ThenInclude(hm => hm.IsAttendingSchool)
+                .Include(h => h.HouseholdMembers)
+                    .ThenInclude(hm => hm.SchoolLevel)
+                .Include(h => h.Village.CommunityCouncil.District)
+                 .Include(h => h.CommunityValidationStatus)
+                .AsNoTracking();
+
+            query = query.Where(h => h.Village.CommunityCouncil.DistrictId.HasValue &&
+                                     selectedDistrictIds.Contains(h.Village.CommunityCouncil.DistrictId.Value));
+
+            if (Model.CommunityCouncilId.HasValue) { query = query.Where(h => h.Village.CommunityCouncilId == Model.CommunityCouncilId.Value); }
+            if (Model.VillageId.HasValue) { query = query.Where(h => h.VillageId == Model.VillageId.Value); }
+
+            var householdsToTest = await query.ToListAsync();
+            var eligibilityDetailsEntities = new List<EligibilityTestDetail>();
+
+            foreach (var household in householdsToTest)
+            {
+                (bool isEligible, string reason) = CheckHouseholdEligibility(household, criteria);
+
+                eligibilityDetailsEntities.Add(new EligibilityTestDetail
+                {
+                    EligibilityTestId = Model.Id,
+                    HouseholdId = household.Id,
+                    EligibilityStatusId = isEligible ? _statusEligibleId : _statusNotEligibleId
+
+                });
+            }
+
+            var eligibleHouseholds = eligibilityDetailsEntities.Where(d => d.EligibilityStatusId == _statusEligibleId).ToList();
+            var selectedHouseholds = eligibleHouseholds.Take(Model.Quota).ToList();
+            var waitlistedHouseholds = eligibleHouseholds.Skip(Model.Quota).ToList();
+
+            selectedHouseholds.ForEach(d => d.EligibilityStatusId = _statusSelectedId);
+            waitlistedHouseholds.ForEach(d => d.EligibilityStatusId = _statusWaitlistedId);
+
+            await _context.EligibilityTestDetails.AddRangeAsync(eligibilityDetailsEntities);
+            await _context.SaveChangesAsync();
+
+            _resultSummary = new EligibilityResultSummary
+            {
+                TotalProcessed = householdsToTest.Count,
+                TotalEligible = eligibleHouseholds.Count,
+                TotalSelected = selectedHouseholds.Count,
+                TotalWaitlisted = waitlistedHouseholds.Count,
+                TotalNotEligible = eligibilityDetailsEntities.Count(d => d.EligibilityStatusId == _statusNotEligibleId)
+            };
+
+            Snackbar.Add("Eligibility test completed successfully.", Severity.Success);
+            if (!isEditMode) { Navigation.NavigateTo($"/eligibility/edit/{Model.Id}", forceLoad: true); }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"An error occurred: {ex.Message}", Severity.Error, config => config.VisibleStateDuration = 10000);
+            Console.WriteLine(ex.ToString());
+        }
+        finally
+        {
+            _isProcessingOverlayVisible = false;
+            StateHasChanged();
+        }
+    }
+
+    private (bool isEligible, string reason) CheckHouseholdEligibility(Household household, EligibilityCriteria criteria)
+    {
+        var requiredLocations = criteria.EligibilityCriteriaLocations.Select(l => l.DistrictId).ToList();
+        if (requiredLocations.Any() && !requiredLocations.Contains(household.Village.CommunityCouncil.DistrictId ?? 0))
+        {
+            return (false, "Household is not within the required geographic area.");
+        }
+
+
+        var householdPovertyStatusRaw = household.PovertyStatus;     
+        var householdPovertyStatusId = GetCanonicalPovertyStatusId(householdPovertyStatusRaw);
+
+        if (criteria.EligibilityCriteriaPovertyStatuses != null &&
+            criteria.EligibilityCriteriaPovertyStatuses.Any())
+        {
+
+            var allowedStatusesNames = criteria.EligibilityCriteriaPovertyStatuses
+                .Where(p => p?.PovertyStatus?.Name != null)
+                .Select(p => p.PovertyStatus.Name.Trim())
+                .ToList(); 
+            var requiredPovertyStatusIds = criteria.EligibilityCriteriaPovertyStatuses
+                .Where(p => p?.PovertyStatus?.Id != null) 
+                .Select(p => p.PovertyStatus.Id)
+                .ToHashSet();
+
+            if (!householdPovertyStatusId.HasValue ||
+                !requiredPovertyStatusIds.Contains(householdPovertyStatusId.Value))
+            {
+                var allowedStatusesString = string.Join(", ", allowedStatusesNames);
+
+                return (
+                    false,
+                    $"Household poverty status ('{householdPovertyStatusRaw}') does not match any of the required statuses ({allowedStatusesString})."
+                );
+            }
+        }
+
+
+        if (criteria.CommunityValidationStatus != null)
+        {
+            if (criteria.CommunityValidationStatus.Code?.ToUpper() == "YES")
+            {
+               
+                if (household.CommunityValidationStatus?.Code != "Validated")
+                {
+                    return (false, "Household has not been successfully community validated.");
+                }
+            }
+        }
+
+        if (criteria.AssistanceUnit?.Code?.ToUpper() == "INDIVIDUAL")
+        {
+            foreach (var member in household.HouseholdMembers)
+            {
+                var (memberIsEligible, reason) = CheckIndividualMemberEligibility(member, criteria);
+                if (memberIsEligible)
+                {
+                    return (true, $"Household is eligible because member {member.Id} qualifies: {reason}");
+                }
+            }
+            return (false, "No household member meets all individual eligibility criteria.");
+        }
+        else
+        {
+            return (true, "Household meets all eligibility criteria.");
+        }
+    }
+
+
+
+    private (bool isEligible, string reason) CheckIndividualMemberEligibility(HouseholdMember member, EligibilityCriteria criteria)
+    {
+        var age = CalculateAge(member.DOB);
+
+        if (criteria.StartAge.HasValue && age < criteria.StartAge.Value) return (false, "Member is younger than the minimum age.");
+        if (criteria.EndAge.HasValue && age > criteria.EndAge.Value) return (false, "Member is older than the maximum age.");
+
+        if (criteria.HasDisabilityRegistryRegistration == true && !member.Disabilities.Any())
+            return (false, "Member is not registered in the Disability Registry.");
+        
+        if (criteria.HasMoDClearance == true && !member.HasClearanceFromMinistryOfDefence)
+            return (false, "Member does not have clearance from the Ministry of Defence.");
+            
+        if (criteria.HasSchoolEnrolment == true)
+        {
+            if (member.IsAttendingSchool?.Code == null || !string.Equals(member.IsAttendingSchool.Code, "YES", StringComparison.OrdinalIgnoreCase))
+            {
+                return (false, "Member is required to be attending school, but is not marked as 'YES'.");
+            }
+
+            if (member.SchoolLevel == null || string.IsNullOrWhiteSpace(member.SchoolLevel.Code))
+            {
+                return (false, "Member's school level information is missing or incomplete.");
+            }
+
+            var requiredSchoolLevels = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+    {
+        "PrePrimary",
+        "Primary",
+        "Secondary"
+    };
+
+            if (!requiredSchoolLevels.Contains(member.SchoolLevel.Code.Trim()))
+            {
+                return (false, $"Member is attending school but not in a required level. Current: '{member.SchoolLevel.Name ?? member.SchoolLevel.Code}'. Required: {string.Join(", ", requiredSchoolLevels)}.");
+            }
+        }
+
+        return (true, "Member meets all criteria.");
+
+        
+        if (member.SocialProgrammeId.HasValue)
+        {
+            var exclusionProgrammeIds = criteria.EnrolledInOtherProgrammes
+                .Select(p => p.ProgrammeId)
+                .ToHashSet();
+
+            if (exclusionProgrammeIds.Contains(member.SocialProgrammeId.Value))
+            {
+                return (false, $"Member is enrolled in an excluded programme.");
+            }
+        }
+        
+        return (true, "Member meets all criteria.");
+    }
+
+    private int CalculateAge(DateTime dob)
+    {
+        var today = DateTime.Today;
+        var age = today.Year - dob.Year;
+        if (dob.Date > today.AddYears(-age)) age--;
+        return age;
+    }
+
+    private async Task LoadStatusIdsAsync()
+    {
+        const string eligibilityStatusType = "EligibilityStatus";
+        _statusEligibleId = await GetSystemCodeDetailId(eligibilityStatusType, "Eligible");
+        _statusNotEligibleId = await GetSystemCodeDetailId(eligibilityStatusType, "Not Eligible");
+        _statusSelectedId = await GetSystemCodeDetailId(eligibilityStatusType, "Selected");
+        _statusWaitlistedId = await GetSystemCodeDetailId(eligibilityStatusType, "WaitListed");
+        if (new[] { _statusEligibleId, _statusNotEligibleId, _statusSelectedId, _statusWaitlistedId }.Contains(0))
+        {
+            Snackbar.Add("Critical error: Could not load one or more eligibility status IDs.", Severity.Error, config => config.VisibleStateDuration = 10000);
+        }
+    }
+
+    private async Task<int> GetSystemCodeDetailId(string systemCodeType, string valueName)
+    {
+        var systemCode = await _context.SystemCodes.AsNoTracking().FirstOrDefaultAsync(sc => sc.Code == systemCodeType);
+        if (systemCode == null) return 0;
+        var systemCodeDetail = await _context.SystemCodeDetails.AsNoTracking().FirstOrDefaultAsync(scd => scd.SystemCodeId == systemCode.Id && scd.Code == valueName);
+        return systemCodeDetail?.Id ?? 0;
+    }
+    private async Task OpenDetailsDialogAsync()
+    {
+        // Removed `allDetails` query and parameter. The dialog fetches its own data.
+        var parameters = new DialogParameters
+        {
+            ["DialogTitle"] = "All Test Results",
+            ["EligibilityTestId"] = Model.Id
+        };
+        var options = new DialogOptions() { MaxWidth = MaxWidth.ExtraLarge, FullWidth = true };
+        DialogService.Show<EligibilityDetailsDialog>("Eligibility Test Results", parameters, options);
+    }
+
+    private async Task OpenStatusListDialogAsync(string? status)
+    {
+        if (Model.Id == 0) return;
+
+        // Removed `allDetails` query and parameter. The dialog fetches its own data.
+        var dialogTitle = status switch
+        {
+            "Processed" => "Processed Households",
+            "Eligible" => "Eligible Households",
+            "Selected" => "Selected Households",
+            "WaitListed" => "Waitlisted Households",
+            "Not Eligible" => "Not Eligible Households",
+            _ => "All Test Results"
+        };
+
+        var parameters = new DialogParameters
+        {
+            ["DialogTitle"] = dialogTitle,
+            ["EligibilityTestId"] = Model.Id,
+            ["InitialStatusFilter"] = status
+        };
+
+        var options = new DialogOptions() { MaxWidth = MaxWidth.ExtraLarge, FullWidth = true, CloseOnEscapeKey = true };
+        DialogService.Show<EligibilityDetailsDialog>(dialogTitle, parameters, options);
+    }
+
+    private async Task LoadPovertyStatusMappingsAsync()
+    {
+        _povertyStatusNameToIdMap.Clear();
+
+        var systemCode = await _context.SystemCodes.AsNoTracking()
+                                       .FirstOrDefaultAsync(sc => sc.Code == PovertyStatusSystemCodeType);
+
+        if (systemCode != null)
+        {
+            var canonicalDetails = await _context.SystemCodeDetails.AsNoTracking()
+                                             .Where(scd => scd.SystemCodeId == systemCode.Id)
+                                             .ToListAsync();
+
+            var filteredCanonicalDetails = canonicalDetails.Where(scd => scd.Name != null).ToList();
+
+            foreach (var detail in filteredCanonicalDetails)
+            {
+                _povertyStatusNameToIdMap[detail.Name.Trim()] = detail.Id;
+            }
+
+            // var poorId = canonicalDetails.FirstOrDefault(d => string.Equals(d.Name, "Poor", StringComparison.OrdinalIgnoreCase))?.Id;
+            // if (poorId.HasValue)
+            // {
+            //     _povertyStatusNameToIdMap["The poor"] = poorId.Value;
+            // }
+        }
+        else
+        {
+            Console.WriteLine($"Warning: System Code '{PovertyStatusSystemCodeType}' not found in database.");
+        }
+    }
+
+
+    private int? GetCanonicalPovertyStatusId(string householdPovertyStatusRaw)
+    {
+        if (string.IsNullOrWhiteSpace(householdPovertyStatusRaw))
+        {
+            return null;
+        }
+       
+        if (_povertyStatusNameToIdMap.TryGetValue(householdPovertyStatusRaw.Trim(), out var canonicalId))
+        {
+            return canonicalId;
+        }
+        return null;
+    }
+
+    private void BuildBreadcrumbs()
+    {
+        var pageTitle = isEditMode ? "Edit Eligibility Testing & Selection" : "Create Eligibility Testing & Selection";
+        _breadcrumbItems = new List<BreadcrumbItem>
+        {
+            new("Home", href: "/", icon: Icons.Material.Filled.Home),
+            new("Eligibility Testing & Selection", href: "/eligibility/eligibilitytesting", icon: Icons.Material.Filled.FactCheck),
+            new(pageTitle, href: null, disabled: true)
+        };
+    }
+    
+    private void Cancel() => Navigation.NavigateTo("/eligibility/eligibilitytesting");
+}

@@ -1,0 +1,1251 @@
+﻿@page "/programmes/add"
+@page "/programmes/edit/{Id:int}"
+
+@using System.ComponentModel.DataAnnotations
+@using System.Globalization
+@using AutoMapper
+@using Microsoft.EntityFrameworkCore
+@using MoGYSD.Business.Models.Missa.ProgrammeConfiguration
+@using MoGYSD.Business.Models.Nissa.Admin
+@using MoGYSD.Business.Persistence
+@using MoGYSD.Business.Views.Missa.Programmes
+@using MoGYSD.Services
+@using MoGYSD.ViewModels.Missa.Programmes
+@using MudBlazor
+@using MudBlazor.Utilities
+@using MoGYSD.Business.ViewModels.Missa.Programmes
+@using MoGYSD.Business.Models.Missa.Setups
+
+<PageTitle>@(Id.HasValue ? "Edit Programme" : "Create Programme")</PageTitle>
+<MudGrid Class="mb-3" AlignItems="Center" Justify="Justify.SpaceBetween">
+    <MudItem xs="12" md="6">
+        <MudText Typo="Typo.h2" Class="font-weight-bold"><b>@HeaderText</b></MudText>
+    </MudItem>
+    <MudItem xs="12" md="6" Class="d-flex justify-end">
+        <MudBreadcrumbs Items="_breadcrumbItems" Class="custom-breadcrumb" />
+    </MudItem>
+</MudGrid>
+<MudPaper Elevation="3">
+    <MudTabs @bind-ActivePanelIndex="ActiveTab" KeepPanelsAlive="true" Outlined="true" Rounded="true" PanelClass="pa-4" ApplyEffectsToContainer="true">
+        <MudTabPanel Text="Programme Details">
+            <MudForm @ref="programmeForm" Model="@Model" ValidationDelay="0">
+                <MudGrid Spacing="3">
+                    <MudItem xs="12" sm="6" md="3">
+                        <MudTextField Variant="Variant.Outlined" Label="Programme Code" @bind-Value="Model.Code" For="@(() => Model.Code)" Required="true" />
+                    </MudItem>
+                    <MudItem xs="12" sm="6" md="3">
+                        <MudTextField Variant="Variant.Outlined" Label="Programme Name" @bind-Value="Model.Name" For="@(() => Model.Name)" Required="true" />
+                    </MudItem>
+
+                    <MudItem xs="12" sm="6" md="3">
+                        <SystemCodeAutocomplete Variant="Variant.Outlined" Label="Assistance Unit"
+                                                For="@(() => Model.AssistanceUnitId)"
+                                                @bind-Value="Model.AssistanceUnitId"
+                                                ParentCode="AssistanceUnit">
+                        </SystemCodeAutocomplete>
+                    </MudItem>
+                    <MudItem xs="12" sm="6" md="3">
+                        <SystemCodeAutocomplete Variant="Variant.Outlined" Label="Benefit Type"
+                                                For="@(() => Model.ProgramTypeId)"
+                                                @bind-Value="Model.ProgramTypeId"
+                                                ParentCode="ProgramType">
+                        </SystemCodeAutocomplete>
+                    </MudItem>
+
+                    <MudItem xs="12" sm="6" md="3">
+                        <SystemMultiSelectAutoComplete  Variant="Variant.Outlined" SelectedValues="Model.PaymentModesAllowedIds"
+                                                       SelectedValuesChanged="@OnPaymentModesChanged"
+                                                       Label="Payment Modes Allowed"
+                                                       ParentCode="PaymentMode" />
+                    </MudItem>
+
+                    <MudItem xs="12" sm="6" md="3">
+                        <MudTextField Variant="Variant.Outlined" Label="Number Of Proxies Allowed" @bind-Value="Model.ProxiesAllowed" For="@(() => Model.ProxiesAllowed)" Required="true" />
+                    </MudItem>
+
+                    <MudItem xs="12" sm="6" md="3">
+                        <LookupAutocomplete Label="Delivery Frequency"
+                                            For="@(() => Model.PaymentFrequencyId)"
+                                            @bind-Value="Model.PaymentFrequencyId"
+                                            Items="PaymentFrequencyOptions" />
+                    </MudItem>
+
+                    @if (Model.Code?.Trim().ToUpper() != "CGP" && Model.Code?.Trim().ToUpper() != "OVC-B")
+                    {
+                        <MudItem xs="12" sm="6" md="3">
+                            <MudTextField Variant="Variant.Outlined" Label="Payment Amount (Loti)" @bind-Value="Model.Amount" For="@(() => Model.Amount)" Required="true" Adornment="Adornment.End" AdornmentText="LSL" Format="N2" InputClass="text-start" InputType="InputType.Number" />
+                        </MudItem>
+                    }
+
+                    <MudItem xs="12" sm="6" md="4">
+                        <MudColorPicker Label="Programme Color Scheme"
+                                        @bind-Value="_color"
+                                        DisableAlpha="true"
+                                        ShowTextField="true"
+                                        Required="true" />
+                        <MudValidationMessage For="@(() => Model.ColourScheme)" />
+                    </MudItem>
+                    <MudItem xs="12" sm="6" md="3" Style="display:none">
+                        <MudSwitch T="bool" @bind-Checked="Model.IsActive" Color="Color.Primary" Label="Is Active" Disabled="true" />
+                    </MudItem>
+
+                    <MudItem xs="12" sm="6" md="4">
+                        <SystemCodeAutocomplete Variant="Variant.Outlined" Label="Proof Of Lifespan Type"
+                                                For="@(() => Model.ProofOfLifeSpanId)"
+                                                Value="Model.ProofOfLifeSpanId"
+                                                ValueChanged="OnProofOfLifeTypeChanged"
+                                                ParentCode="ProofOfLifeSpan">
+                        </SystemCodeAutocomplete>
+                    </MudItem>
+                    <MudItem xs="12" sm="6" md="4">
+                        <MudTextField Variant="Variant.Outlined" Label="Proof Of Life Duration" @bind-Value="Model.ProofOfLifeSpan" For="@(() => Model.ProofOfLifeSpan)" Required="true" InputType="InputType.Number" />
+                    </MudItem>
+
+                    <MudItem xs="12" Class="d-flex justify-space-between mt-4">
+                        <MudButton Variant="Variant.Filled" Color="Color.Secondary" OnClick="BackToList" Class="me-2">Back</MudButton>
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveProgrammeDetailsAndProceed" StartIcon="@Icons.Material.Filled.Save">
+                            @(Model.Id > 0 ? "Update & Next" : "Save & Next")
+                        </MudButton>
+                    </MudItem>
+                </MudGrid>
+            </MudForm>
+        </MudTabPanel>
+
+        <MudTabPanel Text="Programme TopUp" Disabled="@(Model.Id == 0)">
+            <MudText Typo="Typo.h6" GutterBottom="true" Class="mb-3" Style="background-color: var(--mud-palette-grey-lighten-4); padding: 8px 16px; border-radius: 4px;">
+                Programme Topup Amount Details
+            </MudText>
+
+            @if (Model.TopUps != null)
+            {
+                @foreach (var topUp in Model.TopUps)
+                {
+                    var currentTopUp = topUp;
+                    <MudPaper Outlined="true" Class="pa-4 mb-4" Elevation="0">
+                        <MudGrid Spacing="2">
+                            <MudItem xs="12" sm="3">
+                                <MudTextField Variant="Variant.Outlined" Label="Programme Topup Name" @bind-Value="currentTopUp.Name" For="@(() => currentTopUp.Name)" Required="true" />
+                            </MudItem>
+                            <MudItem xs="12" sm="3">
+                                <MudTextField Variant="Variant.Outlined" Label="Topup Amount(Loti)" @bind-Value="currentTopUp.Amount" For="@(() => currentTopUp.Amount)" Required="true" Adornment="Adornment.End" AdornmentText="LSL" Format="N2" InputType="InputType.Number" />
+                            </MudItem>
+                            <MudItem xs="12" sm="3">
+                                <MudText>Status</MudText>
+                                @if (currentTopUp.IsActive)
+                                {
+                                    <MudChip T="string" Icon="@Icons.Material.Filled.CheckCircle" Color="Color.Success" Variant="Variant.Text">Active</MudChip>
+                                }
+                                else
+                                {
+                                    <MudChip T="string" Icon="@Icons.Material.Filled.Cancel" Color="Color.Error" Variant="Variant.Text">Inactive</MudChip>
+                                }
+                            </MudItem>
+                            <MudItem xs="12" sm="3" Class="d-flex justify-end">                              
+                                <MudMenu Icon="@Icons.Material.Filled.MoreVert" AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.TopRight">
+                                    @if (currentTopUp.Id != 0)
+                                    {
+                                        @if (currentTopUp.IsActive)
+                                        {
+                                            <MudMenuItem OnClick="async () => await ToggleTopUpActivationInDbAsync(currentTopUp, false)">
+                                                <MudIcon Icon="@Icons.Material.Filled.ToggleOff" Color="Color.Error" Class="me-2" /> Deactivate
+                                            </MudMenuItem>
+                                        }
+                                        else
+                                        {
+
+                                            <MudMenuItem OnClick="async () => await ToggleTopUpActivationInDbAsync(currentTopUp, true)">
+                                                <MudIcon Icon="@Icons.Material.Filled.ToggleOff" Color="Color.Success" Class="me-2" /> Activate
+                                            </MudMenuItem>
+                                        }
+                                    }
+
+                                    <MudMenuItem OnClick="@(() => RemoveTopUp(currentTopUp))">
+                                        <MudIcon Icon="@Icons.Material.Filled.DeleteOutline" Color="Color.Error" Class="me-2" /> Delete
+                                    </MudMenuItem>
+
+                                </MudMenu>
+                            </MudItem>
+                        </MudGrid>
+                    </MudPaper>
+                }
+            }
+
+            <div class="d-flex justify-end">
+                <MudButton Variant="Variant.Filled" Color="Color.Secondary" OnClick="AddTopUp" StartIcon="@Icons.Material.Filled.Add" Class="mt-0 mb-4 rounded-pill">
+                    Add TopUp
+                </MudButton>
+            </div>
+
+            <MudItem xs="12" Class="d-flex justify-space-between mt-4">
+                <MudButton Variant="Variant.Filled" Color="Color.Secondary" OnClick="@(() => ActiveTab = 0)" Class="me-2">Back to Details</MudButton>
+                <MudButton Variant="Variant.Filled" Color="Color.Success" OnClick="SaveTopUpsAndProceed" StartIcon="@Icons.Material.Filled.DoneAll">
+                    @(Id.HasValue ? "Update Programme  Topups" : "Create Programme Topups")
+                </MudButton>
+            </MudItem>
+        </MudTabPanel>
+
+        <MudTabPanel Text="OVC-B Configurations" Disabled="@(Model.Id == 0 || Model.Code?.Trim().ToUpper() != "OVC-B")">
+            <MudText Typo="Typo.h6" GutterBottom="true" Class="mb-3" Style="background-color: var(--mud-palette-grey-lighten-4); padding: 8px 16px; border-radius: 4px;">
+                Define OVC-B Programme Fees
+            </MudText>
+
+            @if (Model.OVCBConfigurations != null)
+            {
+                @foreach (var ovcbConfig in Model.OVCBConfigurations)
+                {
+                    var currentOVCBConfig = ovcbConfig;
+                    <MudPaper Outlined="true" Class="pa-4 mb-4" Elevation="0">
+                        <MudGrid Spacing="2" AlignItems="Align.Center">
+                            <MudItem xs="12" sm="2">
+                                <FacilityTypeAutocomplete Variant="Variant.Outlined" Label="Facility Type"
+                                                        For="@(() => currentOVCBConfig.FacilityTypeId)"
+                                                        @bind-Value="currentOVCBConfig.FacilityTypeId"
+                                                        Required="true" /> 
+                            </MudItem>
+                            <MudItem xs="12" sm="2">
+                                <GradeAutoComplete Variant="Variant.Outlined" Label="Grade"
+                                                        For="@(() => currentOVCBConfig.GradeId)"
+                                                        @bind-Value="currentOVCBConfig.GradeId"
+                                                        Required="true" />
+                            </MudItem>
+                            <MudItem xs="12" sm="2">
+                                <SystemCodeAutocomplete Variant="Variant.Outlined" Label="Fee Type"
+                                                        For="@(() => currentOVCBConfig.FeeTypeId)"
+                                                        @bind-Value="currentOVCBConfig.FeeTypeId"
+                                                        ParentCode="FeeType" Required="true" />
+                            </MudItem>
+                            <MudItem xs="12" sm="2">
+                                <MudTextField Variant="Variant.Outlined" Label="Fee Amount (Loti)" @bind-Value="currentOVCBConfig.FeeAmount" For="@(() => currentOVCBConfig.FeeAmount)" Required="true" Adornment="Adornment.End" AdornmentText="LSL" InputType="InputType.Number" Format="N2" />
+                            </MudItem>
+                            <MudItem xs="12" sm="2">
+                                <FinancialYearAutoComplete Variant="Variant.Outlined" Label="Financial Year"
+                                                   For="@(() => currentOVCBConfig.FinYearId)"
+                                                   @bind-Value="currentOVCBConfig.FinYearId"
+                                                   Required="true" />
+                            </MudItem>
+
+                            <MudItem xs="12" sm="1">
+                                <MudText>Status:</MudText>
+                                @if (currentOVCBConfig.Status)
+                                {
+                                    <MudChip T="string" Icon="@Icons.Material.Filled.CheckCircle" Color="Color.Success" Variant="Variant.Text">Active</MudChip>
+                                }
+                                else
+                                {
+                                    <MudChip T="string" Icon="@Icons.Material.Filled.Cancel" Color="Color.Error" Variant="Variant.Text">Inactive</MudChip>
+                                }
+
+                            </MudItem>
+                            <MudItem xs="12" sm="1" Class="d-flex justify-end">
+                                <MudMenu Icon="@Icons.Material.Filled.MoreVert" AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.TopRight">
+                                    @if (currentOVCBConfig.Id != 0)
+                                    {
+                                        @if (currentOVCBConfig.Status)
+                                        {
+                                            <MudMenuItem OnClick="async () => await ToggleOVCBsync(currentOVCBConfig, false)">
+                                                <MudIcon Icon="@Icons.Material.Filled.ToggleOff" Color="Color.Error" Class="me-2" /> Deactivate
+                                            </MudMenuItem>
+                                        }
+                                        else
+                                        {
+
+                                            <MudMenuItem OnClick="async () => await ToggleOVCBsync(currentOVCBConfig, true)">
+                                                <MudIcon Icon="@Icons.Material.Filled.ToggleOn" Color="Color.Success" Class="me-2" /> Activate
+                                            </MudMenuItem>
+                                        }
+                                    }
+
+                                    <MudMenuItem OnClick="@(() => RemoveOVCBConfiguration(currentOVCBConfig))">
+                                        <MudIcon Icon="@Icons.Material.Filled.DeleteOutline" Color="Color.Error" Class="me-2" /> Delete
+                                    </MudMenuItem>
+                                </MudMenu>
+                            </MudItem>
+                            
+                        </MudGrid>
+                    </MudPaper>
+                }
+            }
+
+            <div class="d-flex justify-end">
+                <MudButton Variant="Variant.Filled" Color="Color.Secondary" OnClick="AddOVCBConfiguration" StartIcon="@Icons.Material.Filled.Add" Class="mt-0 mb-4 rounded-pill">
+                    Add OVC-B Configuration
+                </MudButton>
+            </div>
+
+            <MudItem xs="12" Class="d-flex justify-space-between mt-4">
+                <MudButton Variant="Variant.Filled" Color="Color.Secondary" OnClick="@(() => ActiveTab = 1)" Class="me-2">Back to TopUps</MudButton>
+                <MudButton Variant="Variant.Filled" Color="Color.Success" OnClick="SaveOVCBConfigurationsAndProceed" StartIcon="@Icons.Material.Filled.DoneAll">
+                    @(Id.HasValue ? "Update OVC-B Configurations" : "Create OVC-B Configurations")
+                </MudButton>
+            </MudItem>
+        </MudTabPanel>
+
+        <MudTabPanel Text="Programme Benefit Rules" Disabled="@(Model.Id == 0)">
+            <MudText Typo="Typo.h6" GutterBottom="true" Class="mb-3"
+                     Style="background-color: var(--mud-palette-grey-lighten-4); padding: 8px 16px; border-radius: 4px;">
+                Define Programme Benefit Rules
+            </MudText>
+
+           @if (Model.BenefitRule != null)
+{
+    @foreach (var rule in Model.BenefitRule)
+    {
+        var currentRule = rule;
+        <MudPaper Outlined="true" Class="pa-4 mb-4" Elevation="0">         
+            <MudGrid Spacing="2" AlignItems="Align.Center">             
+                <MudItem xs="12" sm="2">
+                    <MudTextField Label="Minimum HH Members"
+                                  @bind-Value="currentRule.MinHHMembers"
+                                  For="@(() => currentRule.MinHHMembers)"
+                                  Required="true"
+                                  Variant="Variant.Outlined"
+                                  Margin="Margin.Dense"
+                                  InputType="InputType.Number" />
+                    <MudValidationMessage For="@(() => currentRule.MinHHMembers)" />
+                </MudItem>
+
+              <MudItem xs="12" sm="2">                       
+                        <MudTextField Label="Maximum HH Members"
+                                      @bind-Value="currentRule.MaxHHMembers"
+                                      For="@(() => currentRule.MaxHHMembers)"
+                                      Required="true"
+                                      Variant="Variant.Outlined"
+                                      Margin="Margin.Dense"
+                                      InputType="InputType.Number"
+                                      Validation="@(ValidateMaxHHMembers)" />
+                        <MudValidationMessage For="@(() => currentRule.MaxHHMembers)" />
+                    </MudItem>
+
+                <MudItem xs="12" sm="3">
+                    <MudTextField  Label="Benefit Amount (Loti)"
+                                  @bind-Value="currentRule.Amount"
+                                  For="@(() => currentRule.Amount)"
+                                  Required="true"
+                                  Adornment="Adornment.End"
+                                  AdornmentText="LSL"
+                                  Format="N2"
+                                  Variant="Variant.Outlined"
+                                  Margin="Margin.Dense" InputType="InputType.Number" />
+                </MudItem>
+
+               
+                <MudItem xs="12" sm="3">                   
+                        <MudText>Status:</MudText>
+                        @if (currentRule.IsActive)
+                        {
+                            <MudChip T="string" Icon="@Icons.Material.Filled.CheckCircle" Color="Color.Success" Variant="Variant.Text">Active</MudChip>
+                        }
+                        else
+                        {
+                            <MudChip T="string" Icon="@Icons.Material.Filled.Cancel" Color="Color.Error" Variant="Variant.Text">Inactive</MudChip>
+                        }
+                  
+                </MudItem>
+
+             
+                <MudItem xs="12" sm="2" Class="d-flex justify-end">
+                    <MudMenu Icon="@Icons.Material.Filled.MoreVert" AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.TopRight">
+                        @if (currentRule.Id != 0)
+                        {
+                            @if (currentRule.IsActive)
+                            {
+                                <MudMenuItem OnClick="async () => await ToggleBenefitAsync(currentRule, false)">
+                                    <MudIcon Icon="@Icons.Material.Filled.ToggleOff" Color="Color.Error" Class="me-2" /> Deactivate
+                                </MudMenuItem>
+                            }
+                            else
+                            {
+                               
+                                <MudMenuItem OnClick="async () => await ToggleBenefitAsync(currentRule, true)">
+                                    <MudIcon Icon="@Icons.Material.Filled.ToggleOn" Color="Color.Success" Class="me-2" /> Activate
+                                </MudMenuItem>
+                            }
+                        }
+
+                        <MudMenuItem OnClick="@(() => RemoveBenefitRule(currentRule))">
+                            <MudIcon Icon="@Icons.Material.Filled.DeleteOutline" Color="Color.Error" Class="me-2" /> Delete
+                        </MudMenuItem>
+                    </MudMenu>
+                </MudItem>
+                
+            </MudGrid>
+        </MudPaper>
+    }
+}
+
+            <div class="d-flex justify-end">
+                <MudButton Variant="Variant.Filled"
+                           Color="Color.Secondary"
+                           OnClick="AddBenefitRule"
+                           StartIcon="@Icons.Material.Filled.Add"
+                           Class="mt-0 mb-4 rounded-pill">
+                    Add Benefit Rule
+                </MudButton>
+            </div>
+
+            <MudItem xs="12" Class="d-flex justify-space-between mt-4">
+                <MudButton Variant="Variant.Filled"
+                           Color="Color.Secondary"
+                           OnClick="@(() => ActiveTab = (Model.Code?.Trim().ToUpper() == "OVC-B" ? 2 : 1))"
+                           Class="me-2">
+                    Back to @(Model.Code?.Trim().ToUpper() == "OVC-B" ? "OVC-B Configurations" : "TopUps")
+                </MudButton>
+                <MudButton Variant="Variant.Filled"
+                           Color="Color.Success"
+                           OnClick="SaveBenefitRulesAndFinish"
+                           StartIcon="@Icons.Material.Filled.DoneAll">
+                    @(Id.HasValue ? "Update Programme Rules" : "Create Programme Rules")
+                </MudButton>
+            </MudItem>
+        </MudTabPanel>
+
+    </MudTabs>
+</MudPaper>
+
+@code {
+    [Parameter] public int? Id { get; set; }
+
+    private ProgrammeViewModel Model { get; set; } = new();
+    private MudForm programmeForm;
+    private int _activeTab = 0;
+    private List<LookupItemViewModel> PaymentFrequencyOptions = new();
+    private List<LookupItemViewModel> FinancialYearOptions = new();
+    private string HeaderText = "Programme Configuration";
+    private List<BreadcrumbItem> _breadcrumbItems;
+
+    private int? _annualProofOfLifeId;
+    private int? _fourYearRecertProofOfLifeId;
+    private MudBlazor.Utilities.MudColor _color
+    {
+        get
+        {
+            if (!string.IsNullOrEmpty(Model.ColourScheme) &&
+                MudBlazor.Utilities.MudColor.TryParse(Model.ColourScheme, out var parsedColor))
+            {
+                return parsedColor;
+            }
+            return new MudBlazor.Utilities.MudColor("#2196F3");
+        }
+        set
+        {
+            if (value != null)
+            {
+                Model.ColourScheme = value.ToString(MudBlazor.Utilities.MudColorOutputFormats.Hex);
+            }
+        }
+    }
+
+    private Task OnPaymentModesChanged(IEnumerable<int?> values)
+    {
+        Model.PaymentModesAllowedIds = values.ToList();
+        return Task.CompletedTask;
+    }
+
+
+    protected override async Task OnInitializedAsync()
+    {
+        PaymentFrequencyOptions = await FetchPaymentFrequenciesLookupValuesAsync();
+
+        if (Model.Id != 0)
+        {
+            var entity = await _context.Programmes
+                .Include(p => p.PaymentModesAllowed)
+                .FirstOrDefaultAsync(p => p.Id == Model.Id);
+
+            if (entity is not null)
+            {
+                Model.PaymentModesAllowedIds = entity.PaymentModesAllowed
+                    .Select(x => (int?)x.Id)
+                    .ToList();
+            }
+
+        }
+    }
+
+
+    private async Task<List<LookupItemViewModel>> FetchPaymentFrequenciesLookupValuesAsync()
+    {
+        LoadingService.Show();
+        try
+        {
+            return await _context.Set<PaymentFrequencyView>()
+                .Where(pf => pf.IsActive)
+                .OrderBy(pf => pf.Id)
+                .Select(pf => new LookupItemViewModel
+                {
+                    Id = pf.Id,
+                    Name = pf.Name
+                })
+                .ToListAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error fetching lookups for payment frequencies: {ex.Message}", Severity.Warning);
+            return new List<LookupItemViewModel>();
+        }
+        finally
+        {
+            LoadingService.Hide();
+        }
+    }
+
+
+
+
+    protected override async Task OnParametersSetAsync()
+    {
+        await base.OnInitializedAsync();
+
+        LoadingService.Show();
+        _annualProofOfLifeId = await GetSystemCodeDetailId("ProofOfLifeSpan", "Annual");
+        _fourYearRecertProofOfLifeId = await GetSystemCodeDetailId("ProofOfLifeSpan", "4 Years Recertification");
+        if (Id.HasValue && Id.Value > 0)
+        {
+            var programmeEntity = await _context.Set<Programmes>()
+                                        .Include(p => p.EligibilityCriteria)
+                                        .Include(p => p.TopUps)
+                                        .Include(p => p.BenefitRule)
+                                        .Include(p => p.PaymentModesAllowed)
+                                        .Include(p => p.OVCBConfigurations)
+                                        .AsNoTracking()
+                                        .FirstOrDefaultAsync(p => p.Id == Id.Value);
+            if (programmeEntity != null)
+            {
+                Model = _mapper.Map<ProgrammeViewModel>(programmeEntity);        
+
+                Model.OVCBConfigurations = new List<OVCBConfigurationFormViewModel>(); 
+                if (programmeEntity.OVCBConfigurations != null && programmeEntity.OVCBConfigurations.Any())
+                {
+                    foreach (var entityConfig in programmeEntity.OVCBConfigurations)
+                    {                       
+                        var vmConfig = new OVCBConfigurationFormViewModel
+                        {
+                            Id = entityConfig.Id,
+                            ProgrammeId = entityConfig.ProgrammeId,
+                            FacilityTypeId = entityConfig.FacilityTypeId, 
+                            GradeId = entityConfig.GradeId,           
+                            FeeTypeId = entityConfig.FeeTypeId,         
+                            FeeAmount = entityConfig.FeeAmount,
+                            FinYearId = entityConfig.FinYearId,        
+                            Status = entityConfig.Status
+                        };
+                        Model.OVCBConfigurations.Add(vmConfig);
+                    }
+                }
+                if (programmeEntity.PaymentModesAllowed != null && programmeEntity.PaymentModesAllowed.Any())
+                {
+                    Model.PaymentModesAllowedIds = programmeEntity.PaymentModesAllowed
+                                                               .Select(pm => (int?)pm.Id)
+                                                               .ToList();
+                }
+                else
+                {
+                    Model.PaymentModesAllowedIds = new List<int?>();
+                }
+                Model.EligibilityCriteria ??= new List<EligibilityCriteriaViewModel>();
+                Model.TopUps ??= new List<TopUpViewModel>();
+                Model.BenefitRule ??= new List<BenefitRuleViewModel>();
+                Model.OVCBConfigurations ??= new List<OVCBConfigurationFormViewModel>();
+            }
+            else
+            {
+                Snackbar.Add("Programme not found.", Severity.Error);
+                Navigation.NavigateTo("/programmes");
+            }
+        }
+        else
+        {
+            Model = new ProgrammeViewModel();
+            Model.IsActive = true;
+            Model.OVCBConfigurations = new List<OVCBConfigurationFormViewModel>();
+        }
+        BuildBreadcrumbs();
+        LoadingService.Hide();
+    }
+
+    private void AddCriterion()
+    {
+        Model.EligibilityCriteria.Add(new EligibilityCriteriaViewModel());
+        StateHasChanged();
+    }
+
+    private void RemoveCriterion(EligibilityCriteriaViewModel criterion)
+    {
+        Model.EligibilityCriteria.Remove(criterion);
+        StateHasChanged();
+    }
+
+    private void AddTopUp()
+    {
+        Model.TopUps.Add(new TopUpViewModel { IsActive = true });
+        StateHasChanged();
+    }
+
+    private void RemoveTopUp(TopUpViewModel topup)
+    {
+        Model.TopUps.Remove(topup);
+        StateHasChanged();
+    }
+    private void AddBenefitRule()
+    {
+        Model.BenefitRule.Add(new BenefitRuleViewModel { IsActive = true });
+        StateHasChanged();
+    }
+
+    private void RemoveBenefitRule(BenefitRuleViewModel Benefit)
+    {
+        Model.BenefitRule.Remove(Benefit);
+        StateHasChanged();
+    }
+    private void AddOVCBConfiguration()
+    {
+        Model.OVCBConfigurations.Add(new OVCBConfigurationFormViewModel { Status = true, ProgrammeId = Model.Id });
+        StateHasChanged();
+    }
+
+    private void RemoveOVCBConfiguration(OVCBConfigurationFormViewModel ovcbConfig)
+    {
+        Model.OVCBConfigurations.Remove(ovcbConfig);
+        StateHasChanged();
+    }
+
+    private async Task SaveProgrammeDetailsAndProceed()
+    {
+        await programmeForm.Validate();
+        if (!programmeForm.IsValid)
+        {
+            Snackbar.Add("Please correct validation errors in Programme Details.", Severity.Error);
+            _activeTab = 0;
+            return;
+        }
+
+        LoadingService.Show();
+        try
+        {
+            bool codeExists = await _context.Set<Programmes>()
+                .AnyAsync(p => p.Code == Model.Code && p.Id != Model.Id);
+
+            if (codeExists)
+            {
+                Snackbar.Add($"A program with the code '{Model.Code}' already exists.", Severity.Warning);
+                return;
+            }
+
+            if (Model.ProofOfLifeSpanId.HasValue)
+            {
+                if (!Model.ProofOfLifeSpan.HasValue || Model.ProofOfLifeSpan.Value <= 0)
+                {
+                    Snackbar.Add("Please provide a valid duration for the selected Proof of Life.", Severity.Error);
+                    return;
+                }
+                if (Model.ProofOfLifeSpanId == _annualProofOfLifeId && Model.ProofOfLifeSpan.Value != 1)
+                {
+                    Snackbar.Add("For 'Annual' proof of life, the duration must be 1.", Severity.Error);
+                    return;
+                }
+                if (Model.ProofOfLifeSpanId == _fourYearRecertProofOfLifeId && Model.ProofOfLifeSpan.Value != 4)
+                {
+                    Snackbar.Add("For '4 years recertification', the duration must be 4.", Severity.Error);
+                    return;
+                }
+            }
+
+            Programmes programmeEntity;
+            bool isNew = Model.Id == 0; 
+
+            if (isNew)
+            {
+                programmeEntity = _mapper.Map<Programmes>(Model);
+                programmeEntity.CreatedOn = DateTime.UtcNow;
+                programmeEntity.CreatedById = Model.CreatedById;
+                programmeEntity.ModifiedOn = DateTime.UtcNow;
+                programmeEntity.ModifiedById = Model.ModifiedById; 
+                await _context.Set<Programmes>().AddAsync(programmeEntity);
+            }
+            else
+            {
+                programmeEntity = await _context.Set<Programmes>()
+                    .Include(p => p.PaymentModesAllowed)
+                    .FirstOrDefaultAsync(p => p.Id == Model.Id);
+
+                if (programmeEntity == null)
+                {
+                    Snackbar.Add("Programme not found for update.", Severity.Error);
+                    return;
+                }
+
+                _mapper.Map(Model, programmeEntity);
+            }
+
+            if (!string.IsNullOrWhiteSpace(programmeEntity.Code))
+            {
+                programmeEntity.Code = programmeEntity.Code.ToUpper();
+            }
+            if (!string.IsNullOrWhiteSpace(programmeEntity.Name))
+            {
+                TextInfo textInfo = CultureInfo.CurrentCulture.TextInfo;
+                programmeEntity.Name = textInfo.ToTitleCase(programmeEntity.Name.ToLower());
+            }
+
+            programmeEntity.ModifiedOn = DateTime.UtcNow;
+            programmeEntity.ModifiedById = Model.ModifiedById;
+
+            // Handle PaymentModesAllowed (this logic is correct)
+            if (!isNew)
+            {
+                programmeEntity.PaymentModesAllowed.Clear();
+            }
+
+            if (Model.PaymentModesAllowedIds?.Any() == true)
+            {
+                var selectedPaymentModes = await _context.Set<SystemCodeDetail>()
+                    .Where(x => Model.PaymentModesAllowedIds.Contains(x.Id))
+                    .ToListAsync();
+                programmeEntity.PaymentModesAllowed = selectedPaymentModes;
+            }
+
+            await _context.SaveChangesAsync();
+
+           
+            if (isNew)
+            {
+                Id = programmeEntity.Id; 
+            }
+            Model.Id = programmeEntity.Id; 
+            Model.Code = programmeEntity.Code; 
+
+            Snackbar.Add("Programme details saved. Proceed to next step.", Severity.Success);
+           
+            ActiveTab = string.Equals(Model.Code?.Trim(), "OVC-B", StringComparison.OrdinalIgnoreCase) ? 2 : 1;
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error saving program details: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            LoadingService.Hide();
+        }
+    }
+
+    private async Task SaveTopUpsAndProceed()
+    {
+        if (Model.Id == 0) return;
+        LoadingService.Show();
+        try
+        {
+
+            if (Model.TopUps.Any())
+            {
+                foreach (var topUp in Model.TopUps)
+                {
+                    var context = new ValidationContext(topUp);
+                    var results = new List<ValidationResult>();
+                    if (!Validator.TryValidateObject(topUp, context, results, true))
+                    {
+                        foreach (var error in results) Snackbar.Add($"Top-Up Error for '{topUp.Name}': {error.ErrorMessage}", Severity.Warning);
+                        return;
+                    }
+                }
+            }
+
+
+            var programmeEntity = await _context.Set<Programmes>()
+                .Include(p => p.TopUps)
+                .FirstOrDefaultAsync(p => p.Id == Model.Id);
+
+            if (programmeEntity == null)
+            {
+                Snackbar.Add("Programme not found.", Severity.Error);
+                return;
+            }
+            var vmTopUpIds = Model.TopUps.Where(x => x.Id != 0).Select(x => x.Id).ToHashSet();
+            var toRemoveTopUp = programmeEntity.TopUps.Where(db => db.Id != 0 && !vmTopUpIds.Contains(db.Id)).ToList();
+            if (toRemoveTopUp.Any()) _context.Set<TopUps>().RemoveRange(toRemoveTopUp);
+
+            foreach (var topUpVm in Model.TopUps)
+            {
+                TopUps dbTopUp = (topUpVm.Id != 0)
+                    ? programmeEntity.TopUps.FirstOrDefault(t => t.Id == topUpVm.Id)
+                    : null;
+
+                if (dbTopUp != null)
+                {
+                    _mapper.Map(topUpVm, dbTopUp);
+                    dbTopUp.ModifiedOn = DateTime.UtcNow;
+                    dbTopUp.ModifiedById = Model.ModifiedById;
+                }
+                else
+                {
+                    dbTopUp = _mapper.Map<TopUps>(topUpVm);
+                    dbTopUp.ProgrammeId = programmeEntity.Id;
+                    dbTopUp.CreatedOn = DateTime.UtcNow;
+                    dbTopUp.CreatedById = Model.CreatedById;
+                    dbTopUp.ModifiedOn = DateTime.UtcNow;
+                    dbTopUp.ModifiedById = Model.ModifiedById;
+                    programmeEntity.TopUps.Add(dbTopUp);
+                }
+            }
+
+            await _context.SaveChangesAsync();
+
+
+            Snackbar.Add("Programme topup saved successfully.", Severity.Success);
+            if (Model.Code?.Trim().ToUpper() == "OVC-B")
+            {
+                ActiveTab = 2;
+            }
+            else
+            {
+                ActiveTab = 2;
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error saving topup: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            LoadingService.Hide();
+        }
+    }
+    private async Task ToggleOVCBsync(OVCBConfigurationFormViewModel ovcbToggle, bool newStatus)
+    {
+
+        if (ovcbToggle.Id == 0)
+        {
+            Snackbar.Add("Please save the new benefit rule first before changing its status.", Severity.Info);
+            return;
+        }
+
+        string actionText = newStatus ? "activate" : "deactivate";
+        var result = await DialogService.ShowMessageBox(
+            title: $"Confirm {actionText}",
+            markupMessage: new MarkupString($"Are you sure you want to <b>{actionText}</b> this Ovc-B configuration?"),
+            yesText: $"Yes, {actionText}",
+            cancelText: "Cancel"
+        );
+
+        if (result != true)
+        {
+            return;
+        }
+
+        LoadingService.Show();
+        try
+        {
+            var dbBenefit = await _context.Set<OVCBConfiguration>().FindAsync(ovcbToggle.Id);
+
+            if (dbBenefit == null)
+            {
+                Snackbar.Add("Could not find the OVC_B configuration record to update.", Severity.Error);
+                return;
+            }
+
+            dbBenefit.Status = newStatus;
+            dbBenefit.ModifiedOn = DateTime.UtcNow;
+            dbBenefit.ModifiedById = Model.ModifiedById;
+            await _context.SaveChangesAsync();
+
+            ovcbToggle.Status = newStatus;
+
+            var snackbarAction = newStatus ? "activated" : "deactivated";
+            Snackbar.Add($"Benefit rule has been {snackbarAction}.", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error updating status: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            LoadingService.Hide();
+            StateHasChanged();
+        }
+    }
+    private async Task SaveOVCBConfigurationsAndProceed()
+    {
+        if (Model.Id == 0 || Model.Code?.Trim().ToUpper() != "OVC-B")
+        {
+            return;
+        }
+
+        LoadingService.Show();
+        try
+        {
+            foreach (var ovcbConfig in Model.OVCBConfigurations)
+            {
+                ovcbConfig.ProgrammeId = Model.Id;
+
+                // Using ValidationContext to validate an object against its Data Annotations
+                var context = new System.ComponentModel.DataAnnotations.ValidationContext(ovcbConfig);
+                var results = new List<System.ComponentModel.DataAnnotations.ValidationResult>();
+
+                if (!System.ComponentModel.DataAnnotations.Validator.TryValidateObject(ovcbConfig, context, results, true))
+                {
+                    foreach (var error in results)
+                    {
+                        Snackbar.Add($"OVC-B Configuration Error: {error.ErrorMessage}", Severity.Warning);
+                    }
+                    return;
+                }
+            }
+
+            var programmeEntity = await _context.Set<Programmes>()
+                .Include(p => p.OVCBConfigurations)
+                .FirstOrDefaultAsync(p => p.Id == Model.Id);
+
+            if (programmeEntity == null)
+            {
+                Snackbar.Add("Programme not found.", Severity.Error);
+                return;
+            }
+
+            // Identify configurations to remove (those in DB but not in ViewModel)
+            var vmConfigIds = Model.OVCBConfigurations.Where(x => x.Id != 0).Select(x => x.Id).ToHashSet();
+            var toRemoveConfigs = programmeEntity.OVCBConfigurations
+                                    .Where(db => db.Id != 0 && !vmConfigIds.Contains(db.Id))
+                                    .ToList();
+
+            if (toRemoveConfigs.Any())
+            {
+                _context.Set<OVCBConfiguration>().RemoveRange(toRemoveConfigs);
+            }
+
+            // Update existing or add new configurations
+            foreach (var ovcbConfigVm in Model.OVCBConfigurations)
+            {
+                OVCBConfiguration dbConfig;
+
+                if (ovcbConfigVm.Id != 0)
+                {
+                    dbConfig = programmeEntity.OVCBConfigurations.FirstOrDefault(c => c.Id == ovcbConfigVm.Id);
+                }
+                else
+                {
+                    dbConfig = null; // Mark as new if ID is 0
+                }
+
+                if (dbConfig != null)
+                {
+                    // Update existing
+                    _mapper.Map(ovcbConfigVm, dbConfig);
+                    dbConfig.ModifiedOn = DateTime.UtcNow;
+                    dbConfig.ModifiedById = Model.ModifiedById;
+                }
+                else
+                {
+                    // Add new
+                    dbConfig = _mapper.Map<OVCBConfiguration>(ovcbConfigVm);
+                    dbConfig.ProgrammeId = programmeEntity.Id;                  
+                    dbConfig.CreatedOn = DateTime.UtcNow;
+                    dbConfig.CreatedById = Model.CreatedById;
+                    dbConfig.ModifiedOn = DateTime.UtcNow;
+                    dbConfig.ModifiedById = Model.ModifiedById;
+                    programmeEntity.OVCBConfigurations.Add(dbConfig); 
+                }
+            }
+
+            await _context.SaveChangesAsync();
+
+            Snackbar.Add("OVC-B configurations saved successfully. Proceed to define benefit rules.", Severity.Success);
+            ActiveTab = 3; // Assuming ActiveTab is a property controlling the UI tab
+        }
+        catch (Exception ex)
+        {
+            // Log the exception for debugging purposes
+            Console.WriteLine($"Error saving OVC-B configurations: {ex.Message}");
+            Snackbar.Add($"Error saving OVC-B configurations: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            LoadingService.Hide();
+        }
+    }
+    private async Task ToggleTopUpActivationInDbAsync(TopUpViewModel topUpToToggle, bool newStatus)
+    {
+
+        if (topUpToToggle.Id == 0)
+        {
+            Snackbar.Add("Please save the new Top-Up first before changing its status.", Severity.Info);
+            return;
+        }
+
+        string actionText = newStatus ? "activate" : "deactivate";
+        var result = await DialogService.ShowMessageBox(
+            title: $"Confirm {actionText}",
+            markupMessage: new MarkupString($"Are you sure you want to <b>{actionText}</b> the Topup '<b>{topUpToToggle.Name}</b>'?"),
+            yesText: $"Yes, {actionText}",
+            cancelText: "Cancel"
+        );
+
+
+        if (result != true)
+        {
+            return;
+        }
+
+        LoadingService.Show();
+        try
+        {
+            var dbTopUp = await _context.Set<TopUps>().FindAsync(topUpToToggle.Id);
+
+            if (dbTopUp == null)
+            {
+                Snackbar.Add("Could not find the Topup record to update.", Severity.Error);
+                return;
+            }
+
+            dbTopUp.IsActive = newStatus;
+            dbTopUp.ModifiedOn = DateTime.UtcNow;
+            dbTopUp.ModifiedById = Model.ModifiedById;
+            await _context.SaveChangesAsync();
+
+            topUpToToggle.IsActive = newStatus;
+
+            var snackbarAction = newStatus ? "activated" : "deactivated";
+            Snackbar.Add($"Topup '{topUpToToggle.Name}' has been {snackbarAction}.", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error updating status: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            LoadingService.Hide();
+            StateHasChanged();
+        }
+    }
+    private async Task ToggleBenefitAsync(BenefitRuleViewModel benefitToggle, bool newStatus)
+    {
+
+        if (benefitToggle.Id == 0)
+        {
+            Snackbar.Add("Please save the new benefit rule first before changing its status.", Severity.Info);
+            return;
+        }
+
+        string actionText = newStatus ? "activate" : "deactivate";
+        var result = await DialogService.ShowMessageBox(
+            title: $"Confirm {actionText}",
+            markupMessage: new MarkupString($"Are you sure you want to <b>{actionText}</b> this Benefit Rule?"),
+            yesText: $"Yes, {actionText}",
+            cancelText: "Cancel"
+        );
+
+        if (result != true)
+        {
+            return;
+        }
+
+        LoadingService.Show();
+        try
+        {
+            var dbBenefit = await _context.Set<BenefitRule>().FindAsync(benefitToggle.Id);
+
+            if (dbBenefit == null)
+            {
+                Snackbar.Add("Could not find the benefit rule record to update.", Severity.Error);
+                return;
+            }
+
+            dbBenefit.IsActive = newStatus;
+            dbBenefit.ModifiedOn = DateTime.UtcNow;
+            dbBenefit.ModifiedById = Model.ModifiedById;
+            await _context.SaveChangesAsync();
+
+            benefitToggle.IsActive = newStatus;
+
+            var snackbarAction = newStatus ? "activated" : "deactivated";
+            Snackbar.Add($"Benefit rule has been {snackbarAction}.", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error updating status: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            LoadingService.Hide();
+            StateHasChanged();
+        }
+    }
+    private async Task SaveBenefitRulesAndFinish()
+    {
+        if (Model.Id == 0) return;
+        LoadingService.Show();
+        try
+        {
+
+            if (Model.BenefitRule.Any())
+            {
+                foreach (var rule in Model.BenefitRule)
+                {
+                    var context = new ValidationContext(rule);
+                    var results = new List<ValidationResult>();
+                    if (!Validator.TryValidateObject(rule, context, results, true))
+                    {
+                        foreach (var error in results) Snackbar.Add($"Benefit Rule Error (MinHH: {rule.MinHHMembers}): {error.ErrorMessage}", Severity.Warning);
+                        return;
+                    }
+                }
+            }
+
+
+            var programmeEntity = await _context.Set<Programmes>()
+                .Include(p => p.BenefitRule)
+                .FirstOrDefaultAsync(p => p.Id == Model.Id);
+
+            if (programmeEntity == null)
+            {
+                Snackbar.Add("Programme not found.", Severity.Error);
+                return;
+            }
+
+
+            var vmBenefitRuleIds = Model.BenefitRule.Where(x => x.Id != 0).Select(x => x.Id).ToHashSet();
+            var toRemoveBenefitRule = programmeEntity.BenefitRule.Where(db => db.Id != 0 && !vmBenefitRuleIds.Contains(db.Id)).ToList();
+            if (toRemoveBenefitRule.Any()) _context.Set<BenefitRule>().RemoveRange(toRemoveBenefitRule);
+
+            foreach (var benefitRuleVm in Model.BenefitRule)
+            {
+                BenefitRule dbBenefitRule = (benefitRuleVm.Id != 0)
+                    ? programmeEntity.BenefitRule.FirstOrDefault(b => b.Id == benefitRuleVm.Id)
+                    : null;
+
+                if (dbBenefitRule != null)
+                {
+                    _mapper.Map(benefitRuleVm, dbBenefitRule);
+                    dbBenefitRule.ModifiedOn = DateTime.UtcNow;
+                    dbBenefitRule.ModifiedById = Model.ModifiedById;
+                }
+                else
+                {
+                    dbBenefitRule = _mapper.Map<BenefitRule>(benefitRuleVm);
+                    dbBenefitRule.ProgrammeId = programmeEntity.Id;
+                    dbBenefitRule.CreatedOn = DateTime.UtcNow;
+                    dbBenefitRule.CreatedById = Model.CreatedById;
+                    dbBenefitRule.ModifiedOn = DateTime.UtcNow;
+                    dbBenefitRule.ModifiedById = Model.ModifiedById;
+                    programmeEntity.BenefitRule.Add(dbBenefitRule);
+                }
+            }
+
+            await _context.SaveChangesAsync();
+
+
+            Snackbar.Add("Programme benefit rules saved successfully! The programme is now fully configured.", Severity.Success);
+            Navigation.NavigateTo("/programmes");
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error saving benefit rules: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            LoadingService.Hide();
+        }
+    }
+
+    private void BackToList()
+    {
+        Navigation.NavigateTo("/programmes");
+    }
+    private int ActiveTab
+    {
+        get => _activeTab;
+        set
+        {
+            if (_activeTab != value)
+            {
+                _activeTab = value;
+                BuildBreadcrumbs();
+            }
+        }
+    }
+    private async Task<int> GetSystemCodeDetailId(string systemCodeType, string valueName)
+    {
+        var systemCode = await _context.SystemCodes.AsNoTracking().FirstOrDefaultAsync(sc => sc.Code == systemCodeType);
+        if (systemCode == null) return 0;
+        var systemCodeDetail = await _context.SystemCodeDetails.AsNoTracking().FirstOrDefaultAsync(scd => scd.SystemCodeId == systemCode.Id && scd.Code == valueName);
+        return systemCodeDetail?.Id ?? 0;
+    }
+    private Func<int?, string> ValidateProofOfLifeDuration => (duration) =>
+   {      
+       if (!Model.ProofOfLifeSpanId.HasValue || !duration.HasValue)
+       {
+           return null;
+       }
+
+       if (Model.ProofOfLifeSpanId == _annualProofOfLifeId && duration.Value != 1)
+       {
+           return "For 'Annual' proof of life, the duration must be 1.";
+       }
+
+       if (Model.ProofOfLifeSpanId == _fourYearRecertProofOfLifeId && duration.Value != 4)
+       {
+           return "For '4 years recertification', the duration must be 4.";
+       }
+       return null;
+   };
+    private async Task OnProofOfLifeTypeChanged(int? newId)
+    {      
+        Model.ProofOfLifeSpanId = newId;
+    
+        await programmeForm.Validate();
+    }
+    private string ValidateMaxHHMembers(int maxHH)
+    {
+        if (maxHH > 30)
+            return "Maximum HH members cannot exceed 30.";       
+
+        return null;
+    }
+
+    private void BuildBreadcrumbs()
+    {
+        var isOVCB = Model.Code?.Trim().ToUpper() == "OVC-B";
+
+        var pageTitle = Id.HasValue ? "Edit Programme Details" : "Create Programme Details";
+        var topupTitle = Id.HasValue ? "Edit Programme Topup" : "Create Programme Topup";
+        var ovcbConfigTitle = Id.HasValue ? "Edit OVC-B Configurations" : "Create OVC-B Configurations";
+        var benefitTitle = Id.HasValue ? "Edit Programme Benefit Rules" : "Create Programme Benefit Rules";
+
+        _breadcrumbItems = new List<BreadcrumbItem>
+        {
+            new BreadcrumbItem("Home", href: "/", icon: Icons.Material.Filled.Home),
+            new("Settings", href: "/", icon: Icons.Material.Filled.Settings),
+            new BreadcrumbItem("Programme Configuration", href: "/programmes", icon: Icons.Material.Filled.LibraryBooks)
+        };
+
+        switch (ActiveTab)
+        {
+            case 0:
+                _breadcrumbItems.Add(new BreadcrumbItem(pageTitle, href: null, disabled: true));
+                break;
+            case 1:
+                _breadcrumbItems.Add(new BreadcrumbItem(pageTitle, href: $"/programmes/edit/{Id.Value}", disabled: Id == null));
+                _breadcrumbItems.Add(new BreadcrumbItem(topupTitle, href: null, disabled: true));
+                break;
+            case 2:
+                _breadcrumbItems.Add(new BreadcrumbItem(pageTitle, href: $"/programmes/edit/{Id.Value}", disabled: Id == null));
+                _breadcrumbItems.Add(new BreadcrumbItem(topupTitle, href: $"/programmes/edit/{Id.Value}", disabled: Id == null));
+                if (isOVCB)
+                {
+                    _breadcrumbItems.Add(new BreadcrumbItem(ovcbConfigTitle, href: null, disabled: true));
+                }
+                else
+                {
+                    _breadcrumbItems.Add(new BreadcrumbItem(benefitTitle, href: null, disabled: true));
+                }
+                break;
+            case 3:
+                _breadcrumbItems.Add(new BreadcrumbItem(pageTitle, href: $"/programmes/edit/{Id.Value}", disabled: Id == null));
+                _breadcrumbItems.Add(new BreadcrumbItem(topupTitle, href: $"/programmes/edit/{Id.Value}", disabled: Id == null));
+                if (isOVCB)
+                {
+                    _breadcrumbItems.Add(new BreadcrumbItem(ovcbConfigTitle, href: $"/programmes/edit/{Id.Value}", disabled: Id == null));
+                }
+                _breadcrumbItems.Add(new BreadcrumbItem(benefitTitle, href: null, disabled: true));
+                break;
+        }
+    }
+}

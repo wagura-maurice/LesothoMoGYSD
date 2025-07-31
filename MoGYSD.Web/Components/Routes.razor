@@ -1,0 +1,35 @@
+﻿@using MoGYSD.Business.Persistence
+@using MoGYSD.Web.Components.Account.Shared
+@using MoGYSD.Web.Components.Layout
+@* <Router AppAssembly="typeof(Program).Assembly">
+    <Found Context="routeData">
+        <AuthorizeRouteView RouteData="routeData" DefaultLayout="typeof(Layout.MainLayout)">
+            <NotAuthorized>
+                <RedirectToLogin />
+            </NotAuthorized>
+        </AuthorizeRouteView>
+        <FocusOnNavigate RouteData="routeData" Selector="h1" />
+    </Found>
+</Router> *@
+<CascadingAuthenticationState>
+    <Router AppAssembly="@typeof(App).Assembly">
+        <Found Context="routeData">
+            <AuthorizeRouteView RouteData="@routeData" DefaultLayout="@typeof(MainLayout)">
+                <NotAuthorized>
+                    <RedirectToLogin />
+
+                </NotAuthorized>
+                <Authorizing>
+                    <div class="d-flex justify-content-center mt-5">
+                        <MudProgressCircular Indeterminate="true" Color="Color.Primary" Size="Size.Large" />
+                    </div>
+                </Authorizing>
+            </AuthorizeRouteView>
+        </Found>
+        <NotFound>
+            <LayoutView Layout="@typeof(MainLayout)">
+                <h3>Sorry, there's nothing at this address.</h3>
+            </LayoutView>
+        </NotFound>
+    </Router>
+</CascadingAuthenticationState>

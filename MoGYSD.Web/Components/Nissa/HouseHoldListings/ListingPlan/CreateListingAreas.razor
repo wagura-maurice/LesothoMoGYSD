@@ -1,0 +1,232 @@
+﻿
+@using MoGYSD.Business.Models.Nissa.HouseHoldListings
+@using MoGYSD.ViewModels.Nissa.HouseHoldListings
+
+<MudDialog Class="blur dialog-background" TitleClass="blur dialog-background-title" ContentClass="dialog-background-surface py-10" ActionsClass="dialog-background-surface">
+    <DialogContent>
+        <MudForm @ref="form">
+            <MudPaper Elevation="4" Class="p-4">
+                <MudGrid Spacing="3">
+                    <!-- Info / Warning Messages -->
+                    <MudItem xs="12">
+                        @if (Council == null || !Council.Any())
+                        {
+                            <MudText Typo="Typo.subtitle2" Color="Color.Warning" Class="mt-2">
+                                No  Community Council was found.
+                            </MudText>
+                        }
+                    </MudItem>
+
+                    <!-- Checkbox Activity List -->
+                    @if (Council?.Any() == true)
+                    {
+                        <MudItem xs="12">
+                            <MudText Typo="Typo.h4" Class="mt-4 mb-2"><b>Community Councils</b></MudText>
+                            <MudGrid Spacing="2">
+                                @foreach (var activity in Council)
+                                {
+                                    <MudItem xs="12" sm="6" md="4" lg="3">
+                                        <MudCheckBox
+                                                     @bind-Value="@activity.IsSelected"
+                                                     Label="@activity.Name" />
+                                    </MudItem>
+                                }
+                            </MudGrid>
+                        </MudItem>
+                    }
+
+                </MudGrid>
+            </MudPaper>
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        @if (isBusy == false)
+        {
+            <MudButton OnClick="Cancel"
+                       Variant="Variant.Text"
+                       Size="Size.Small">Cancel</MudButton>
+
+            <MudButton OnClick="SubmitForm"
+                       Color="Color.Primary"
+                       Variant="Variant.Filled"
+                       Size="Size.Small">Submit</MudButton>            
+        }
+        else
+        {
+            <div class="w-100 d-flex justify-content-center align-items-center" style="min-height: 40px;">
+                <MudProgressCircular Color="Color.Primary" Size="Size.Small" Indeterminate="true" />
+            </div>
+        }
+    </DialogActions>
+</MudDialog>
+
+
+@code {
+    [CascadingParameter] private IMudDialogInstance Dialog { get; set; }
+
+    [Parameter] public CCHouseHoldListingAreaViewModel Model { get; set; } = new();
+
+    [Parameter] public int HHListingPlanId { get; set; }
+    [Parameter] public int DistrictId { get; set; }
+    [Parameter] public int DistrictRegistrationPlanId { get; set; }
+
+    private MudForm form;
+    private List<CommunityCouncilSelect> Council = new();
+    private bool isBusy;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            if(Model.Id > 0)
+            {
+                // Get selected Council IDs already registered for this HHListingPlan and CC
+                var selectedCouncilIds = await _context.CCHouseHoldListingAreas
+                    .Where(c => c.HHListingPlanId == Model.HHListingPlanId)
+                    .Select(s => s.CCId)
+                    .ToListAsync();
+
+                var selectedIdSet = new HashSet<int>(selectedCouncilIds);
+
+                // Fetch all Community Councils
+                Council = await _context.CommunityCouncils
+                    .Where(d => d.DistrictId == DistrictId)
+                    .Select(a => new CommunityCouncilSelect
+                    {
+                        Id = a.Id,
+                        Name = a.CommunityCouncilName,
+                        // Set IsSelected directly using the HashSet
+                        IsSelected = selectedIdSet.Contains(a.Id)
+                    })
+                    .ToListAsync();
+            }
+            else
+            {
+                // Step 1: Get already selected council IDs for the given plan
+                var selectedCouncilIds = await _context.CCHouseHoldListingAreas
+                    .Where(c => c.HHListingPlanId == HHListingPlanId)
+                    .Select(s => s.CCId)
+                    .ToListAsync();
+
+                // Step 2: Get councils in the district that are NOT in the selectedCouncilIds list
+                Council = await _context.CommunityCouncils
+                    .Where(d => d.DistrictId == DistrictId && !selectedCouncilIds.Contains(d.Id))
+                    .Select(a => new CommunityCouncilSelect
+                    {
+                        Id = a.Id,
+                        Name = a.CommunityCouncilName,
+                        IsSelected = false,
+                    })
+                    .ToListAsync();
+            }
+
+        }
+        catch (Exception ex)
+        {
+            LoadingService.Hide();
+            Snackbar.Add(
+                $"An error occurred: {(ex.InnerException?.Message ?? ex.Message)}",
+                Severity.Error,
+                config => config.RequireInteraction = true);
+            return;
+        }
+
+    }
+
+    private void Cancel() => Dialog.Cancel();
+
+    private async Task SubmitForm()
+    {
+        await form.Validate();
+
+        if (!Council.Any(a => a.IsSelected))
+        {
+            Snackbar.Add("Please select at least one Community Council.", Severity.Warning);
+            return;
+        }
+
+        try
+        {
+            isBusy = true;
+
+            // // Only process selected activities
+            // var selectedActivities = Council.Where(a => a.IsSelected).ToList();
+
+            // if(Model.Id > 0)
+            // {
+            //     using var context = _dbContextFactory.CreateDbContext();
+
+            //     var data = await context.CCHouseHoldListingAreas.AsNoTracking() .Where(a => a.HHListingPlanId == HHListingPlanId).ToListAsync();
+
+            //     // context.CCHouseHoldListingAreas.RemoveRange(data);
+            //     // await context.SaveChangesAsync();
+            // }
+
+            // foreach (var activity in selectedActivities)
+            // {
+            //     var entity = _mapper.Map<CCHouseHoldListingArea>(Model);
+            //     entity.CCId = activity.Id;
+            //     entity.HHListingPlanId = HHListingPlanId;
+
+            //     // if (Model.Id > 0)
+            //     //     await _genericService.Update(entity);
+            //     // else
+            //     await _genericService.Add(entity);
+            // }
+
+            // Only process selected activities
+            var selectedActivities = Council.Where(a => a.IsSelected).ToList();
+
+            if (Model.Id > 0)
+            {
+                using var context = _dbContextFactory.CreateDbContext();
+
+                // Delete all existing entries related to this plan (if needed)
+                var existing = await context.CCHouseHoldListingAreas
+                    .Where(a => a.HHListingPlanId == HHListingPlanId)
+                    .ToListAsync();
+
+                // Detach and remove
+                foreach (var entry in existing)
+                {
+                    context.Entry(entry).State = EntityState.Deleted;
+                }
+
+                await context.SaveChangesAsync();
+            }
+
+            // Insert new records for each selected activity
+            foreach (var activity in selectedActivities)
+            {
+                var entity = _mapper.Map<CCHouseHoldListingArea>(Model);
+
+                entity.Id = 0; // Reset the ID so EF knows it's a new insert
+                entity.CCId = activity.Id;
+                entity.HHListingPlanId = HHListingPlanId;
+
+                await _genericService.Add(entity);
+            }
+
+            isBusy = false;
+            Dialog.Close(DialogResult.Ok(true));
+
+            Snackbar.Add($"Household listing area {(Model.Id > 0 ? "updated" : "saved")} successfully", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            isBusy = false;
+            Snackbar.Add(
+                $"An error occurred: {(ex.InnerException?.Message ?? ex.Message)}",
+                Severity.Error,
+                config => config.RequireInteraction = true);
+                return;
+        }
+    }
+
+    private class CommunityCouncilSelect
+    {
+        public int Id { get; set; }
+        public string Name { get; set; }
+        public bool IsSelected { get; set; }
+    }
+}

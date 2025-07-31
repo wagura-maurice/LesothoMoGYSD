@@ -1,0 +1,115 @@
+﻿@using Microsoft.AspNetCore.Components
+@using MoGYSD.Business.Models.Nissa.UserManagement
+@using MoGYSD.Business.Persistence
+@using MoGYSD.Web.Components.Autocompletes
+@using MoGYSD.Web.Components.Security.Users
+@using MudBlazor
+
+<MudExpansionPanel Text="Expand to apply search filter">
+    <MudGrid>
+        <MudItem xs="12" sm="6" md="3">
+            <MudTextField Variant="Variant.Outlined" @bind-Value="Filter.Name" Label="Search by Name" />
+        </MudItem>
+
+        <MudItem xs="12" sm="6" md="3">
+            <DistrictAutocomplete Variant="Variant.Outlined" Label="Search by District Name"
+            For="@(() => Filter.District)"
+            @bind-Value="Filter.District">
+            </DistrictAutocomplete>
+        </MudItem>
+
+        <MudItem xs="12" sm="6" md="3">
+            <CommunityCouncilAutocomplete Variant="Variant.Outlined" Label="Search by Community Council Name" DistrictId=" Filter.District"
+            For="@(() => Filter.CommunityCouncil)"
+            @bind-Value="Filter.CommunityCouncil">
+            </CommunityCouncilAutocomplete>
+        </MudItem>
+
+        <MudItem xs="12" sm="6" md="3">
+            <VillageAutocomplete Label="Search by Village Name" CommunityCouncilId="Filter.CommunityCouncil" Variant="Variant.Outlined"
+            For="@(() => Filter.Village)"
+            @bind-Value="Filter.Village">
+            </VillageAutocomplete>
+        </MudItem>
+
+        <MudItem xs="12" sm="6" md="3">
+            <MudSelect Variant="Variant.Outlined" T="string" @bind-Value="Filter.Role" Label="Search by Role" Dense="true">
+                @foreach (var role in Roles)
+                {
+                   <MudSelectItem Value="@role.Id">@role.Name</MudSelectItem>
+                }
+            </MudSelect>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="3">
+            <SystemCodeAutocomplete Variant="Variant.Outlined" Label="Search by Account Status"
+            For="@(() => Filter.Status)"
+            @bind-Value="Filter.Status"
+            ParentCode="Status">
+            </SystemCodeAutocomplete>
+        </MudItem>
+
+        <MudItem xs="12" sm="6" md="3">
+           <MudSelect  Variant="Variant.Outlined" T="bool?" @bind-Value="Filter.IsActive" Label="Search by User Status" Dense="true">
+               <MudSelectItem T="bool?" Value="@(true)">Active</MudSelectItem>
+               <MudSelectItem T="bool?" Value="@(false)">Inactive</MudSelectItem>
+               <MudSelectItem T="bool?" Value="@(null)">All</MudSelectItem>
+            </MudSelect>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="3">
+            <MudSelect Variant="Variant.Outlined" T="string" @bind-Value="Filter.SourceOfRegistration" Label="Search by Source of Registration" Dense="true">
+               <MudSelectItem T="string" Value="@(string.Empty)">All</MudSelectItem>
+               <MudSelectItem T="string" Value="@("Self-Registration")">Self-Registration</MudSelectItem>
+               <MudSelectItem T="string" Value="@("Internal Registration")">Internal Registration</MudSelectItem>
+                @*<MudSelectItem T="string" Value="@("Template")">Template</MudSelectItem> *@
+            </MudSelect>
+        </MudItem>
+        <MudItem xs="12">
+            <div class="d-flex justify-content-between mt-2">
+            <MudButton Variant="Variant.Filled"
+                       Color="Color.Secondary"
+                       StartIcon="@Icons.Material.Filled.Clear"
+                       OnClick="OnClearClicked"
+                       Class="ml-2">
+                Clear
+            </MudButton>
+            <MudButton Variant="Variant.Filled"
+                       Color="Color.Primary"
+                       StartIcon="@Icons.Material.Filled.Search"
+                       OnClick="OnSearchClicked">
+                Search
+            </MudButton>
+        </div>
+        </MudItem>
+    </MudGrid>
+</MudExpansionPanel>
+
+@code {
+    [Parameter] public SearchFilter Filter { get; set; } = new();
+    [Parameter] public EventCallback OnFilterApplied { get; set; }
+
+    private List<ApplicationRole> Roles { get; set; } = new();
+
+    private async Task OnSearchClicked()
+    {
+        await OnFilterApplied.InvokeAsync();
+    }
+
+    private async Task OnClearClicked()
+    {
+        Filter.CommunityCouncil = null;
+        Filter.Status = null;
+        Filter.Village = null;
+        Filter.District = null;
+        Filter.Role = null;
+        Filter.SourceOfRegistration = null;
+        Filter.IsActive = null;
+        Filter.Name = null;
+        await OnFilterApplied.InvokeAsync();
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        Roles = await _context.Roles.Where(p => !p.Name.Contains("System")).OrderBy(r => r.Name).ToListAsync();
+    }
+}
+

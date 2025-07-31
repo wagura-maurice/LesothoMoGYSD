@@ -1,0 +1,108 @@
+﻿@using Microsoft.AspNetCore.Identity
+@using MoGYSD.Business.Models.Nissa.UserManagement
+@using MoGYSD.Business.Persistence
+
+@inject RoleManager<ApplicationRole> RoleManager
+
+
+<PageTitle>Create User Role</PageTitle>
+
+<MudDialog Class="blur dialog-background" TitleClass="blur dialog-background-title" ContentClass="dialog-background-surface py-10" ActionsClass="dialog-background-surface">
+    <DialogContent>
+        <MudForm @ref="form" Class="d-flex flex-column gap-2">
+            <MudTextField Variant="Variant.Outlined" @bind-Value="Model.Name" Label="Role Name" Required="true" />
+            <SystemCodeAutocomplete Variant="Variant.Outlined"  Label="Access Level"
+                                    For="@(() => Model.SystemCodeDetailId)"
+                                    @bind-Value="Model.SystemCodeDetailId"
+                                    ParentCode="AccessLevel" Required="true">
+            </SystemCodeAutocomplete>
+            <MudTextField Variant="Variant.Outlined" @bind-Value="Model.Description" Label="Description" Required="true" />
+            <MudSwitch @bind-Value="Model.IsSelfRegister"
+                       Style="@(Model.IsSelfRegister ? "color:green" : "color:red")"
+                       ThumbIcon="@(Model.IsSelfRegister? Icons.Material.Filled.Done : Icons.Material.Filled.Close)"
+                       ThumbIconColor="@(Model.IsSelfRegister? Color.Success: Color.Error)"
+                       Label="@(Model.IsSelfRegister ? "Self Registration" : "No Self Registration")"
+                       Class="mb-3" />
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel"
+                   Variant="Variant.Text"
+                   Size="Size.Small"
+                   Class="ml-0">Cancel</MudButton>
+        <MudButton OnClick="SubmitForm" Color="Color.Primary" Variant="Variant.Filled"
+                   Size="Size.Small">Submit</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter]
+    private IMudDialogInstance Dialog { get; set; }
+    [Parameter] public ApplicationRole Model { get; set; }
+
+    private MudForm form;
+    private string errorMessage = "";
+    bool isValid;
+
+    private async Task SubmitForm()
+    {
+        await form.Validate();
+        isValid = form.IsValid;
+        if (isValid)
+        {
+            try
+            {
+                if (Dialog.Title.Contains("Create"))
+                {
+                    LoadingService.Show();
+                    // Use RoleManager to create the role
+                    Model.IsActive = true;
+                    var result = await RoleManager.CreateAsync(Model);
+                    if (result.Succeeded)
+                    {
+                        Dialog.Close(DialogResult.Ok(true));
+                        Snackbar.Add("Role saved successfully", Severity.Success);
+                        LoadingService.Hide();
+
+                    }
+                    else
+                    {
+                        LoadingService.Hide();
+                        // Handle errors
+                        errorMessage = string.Join(",", result.Errors.Select(e => e.Description));
+                        Snackbar.Add($"{errorMessage}", Severity.Error);
+                    }
+                }
+                else
+                {
+                    LoadingService.Show();
+                    // Use RoleManager to create the role
+                    var result = await RoleManager.UpdateAsync(Model);
+                    if (result.Succeeded)
+                    {
+                        Dialog.Close(DialogResult.Ok(true));
+                        Snackbar.Add("Role updated successfully", Severity.Success);
+                        LoadingService.Hide();
+
+                    }
+                    else
+                    {
+                        LoadingService.Hide();
+                        // Handle errors
+                        errorMessage = string.Join(",", result.Errors.Select(e => e.Description));
+                        Snackbar.Add($"{errorMessage}", Severity.Error);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                LoadingService.Hide();
+                errorMessage = $"An error occurred: {ex.Message}";
+                Snackbar.Add($"{errorMessage}", Severity.Error);
+                return;
+            }
+        }
+    }
+
+    void Cancel() => Dialog.Cancel();
+}

@@ -1,0 +1,341 @@
+﻿@page "/security/profiles"
+@page "/security/profiles/{RoleId}"
+@using MoGYSD.Business.Models.Nissa.Admin
+@using MoGYSD.Business.Models.Nissa.UserManagement
+@using MoGYSD.Business.Persistence
+@using MoGYSD.ViewModels.Nissa.Security.UserViewModels
+
+<PageTitle>Roles Profiles</PageTitle>
+<MudGrid Class="mb-3" AlignItems="Center" Justify="Justify.SpaceBetween">
+    <MudItem xs="12" md="6">
+        <MudText Typo="Typo.h2" Class="font-weight-bold"><b>Permissions</b></MudText>
+        <MudText>
+            Enables the management of who can do what within NISSA & MISSA it allows assignment of specific permissions (e.g., view, modify, actions, approve) to each roles. Users are then linked to roles, inheriting the permissions assigned to those roles.
+        </MudText>
+    </MudItem>
+    <MudItem xs="12" md="6" Class="d-flex justify-end">
+        <MudBreadcrumbs Items="_breadcrumbItems" Class="custom-breadcrumb" />
+    </MudItem>
+</MudGrid>
+<div class="display: flex; justify-content: center; align-items: center; min-height: 100vh;">
+    <MudForm @ref="form" Model="model">
+    <MudGrid>
+        <MudItem xs="12" md="8">
+            <MudPaper Elevation="10" Class="pa-4">
+
+                <!-- Role Selection -->
+                <MudGrid>
+                    <MudItem xs="12">
+                        <MudAutocomplete  Variant="Variant.Outlined" T="ApplicationRole"
+                                         Label="Select role"
+                                         ToStringFunc="r => r?.Name"
+                                         CoerceText="true"
+                                         ResetValueOnEmptyText="true"
+                                         Clearable="true"
+                                         SearchFunc="@SearchRoles"
+                                         Value="@selectedRole"
+                                         ValueChanged="OnRoleChanged"
+                                         Dense="true"
+                                         MinCharacters="0" />
+                    </MudItem>
+                    <MudItem xs="12">
+                        <MudPaper Class="pa-4">
+                            <MudText Typo="Typo.h6" Class="mb-4"><b>Permission Descriptions</b></MudText>
+
+                            <MudGrid GutterSize="3">
+                                <MudItem xs="12" sm="6">
+                                    <MudText Color="Color.Primary"><b>Action</b></MudText>
+                                    <MudText>A general-purpose permission to trigger a workflow or a specific action within a review.</MudText>
+                                </MudItem>
+                                <MudItem xs="12" sm="6">
+                                    <MudText Color="Color.Primary"><b>Modify</b></MudText>
+                                    <MudText>Grants the ability to edit and update existing information.</MudText>
+                                </MudItem>
+                                <MudItem xs="12" sm="6">
+                                    <MudText Color="Color.Primary"><b>Create</b></MudText>
+                                    <MudText>Allows the user to create new data records.</MudText>
+                                </MudItem>
+                                <MudItem xs="12" sm="6">
+                                    <MudText Color="Color.Primary"><b>View</b></MudText>
+                                    <MudText>Provides read-only access to view data.</MudText>
+                                </MudItem>
+                                <MudItem xs="12" sm="6">
+                                    <MudText Color="Color.Primary"><b>Approve</b></MudText>
+                                    <MudText>Authorizes a user to approve new or modified data.</MudText>
+                                </MudItem>
+                                <MudItem xs="12" sm="6">
+                                    <MudText Color="Color.Primary"><b>Assign</b></MudText>
+                                    <MudText>Authorizes a user to assign a task to other users.</MudText>
+                                </MudItem>
+                            </MudGrid>
+                        </MudPaper>
+                    </MudItem>
+                    <!-- Task Tree View -->
+                    <MudItem xs="12">
+                        <MudTreeView @ref="_treeView"
+                                     T="SystemTask"
+                                     Hover
+                                     AutoExpand="true"
+                                     TriState="false"
+                                     AutoSelectParent="true"
+                                     SelectedValues="SelectedValues"
+                                    SelectedValuesChanged="OnSelectionChangedWrapper"
+                                     SelectionMode="SelectionMode.MultiSelection"
+                                     CheckBoxColor="Color.Info">
+                            @if (items != null)
+                            {
+                                @foreach (var item in items)
+                                {
+                                    @TreeViewItemRecursive(item)
+                                }
+                            }
+                        </MudTreeView>
+                    </MudItem>
+
+                    <!-- Submit Button -->
+                    @if (UserProfileService.UserProfile.Contains("PERMISSIONS:CREATE"))
+                    {
+                        <MudItem xs="12" Class="d-flex justify-end mt-4">
+                            <MudButton EndIcon="@Icons.Material.Filled.Send"
+                                       Variant="Variant.Filled"
+                                       OnClick="SubmitForm"
+                                       DropShadow="true"
+                                       Color="Color.Primary"
+                                    Disabled="@isSelected">
+                                Submit
+                            </MudButton>
+                        </MudItem>
+                            
+                    }
+                </MudGrid>
+
+            </MudPaper>
+        </MudItem>
+    </MudGrid>
+</MudForm>
+</div>
+
+
+@code {
+    [Parameter]
+    public string RoleId { get; set; }
+    private IEnumerable<SystemTask> items = new List<SystemTask>();
+    public MudTreeView<SystemTask> _treeView;
+    private bool isSelected = true;
+    private IReadOnlyCollection<SystemTask> SelectedValues { get; set; } = new List<SystemTask>();
+    // private List<SystemTask> SelectedValues { get; set; } = new List<SystemTask>();
+
+    public List<ApplicationRole> roles { get; set; } = new();
+    private ProfilesViewModel model = new ProfilesViewModel();
+    private ApplicationRole selectedRole = new ApplicationRole();
+    private bool _shouldApplySelection;
+    private MudForm form;
+    private bool isValid;
+
+    private List<BreadcrumbItem> _breadcrumbItems =
+    [
+        new("Home", href: "/", icon: Icons.Material.Filled.Home),
+        new("Security", href: null, icon: Icons.Material.Filled.Security),
+        new("Permissions", href: null, disabled: true, icon: Icons.Material.Filled.Badge)
+    ];
+
+    protected override async Task OnInitializedAsync()
+    {
+
+        items = await _context.SystemTasks
+            .OrderBy(i => i.OrderNo)
+            .Include(i => i.Parent)
+            .Include("Children.Children.Children.Children")
+            .Where(i => i.ParentId == null)
+            .ToListAsync();
+
+        roles =await _context.Roles.ToListAsync();
+        // If RoleId is passed in the route, fetch the role and apply selection
+        await _treeView.ExpandAllAsync();
+
+        if (!string.IsNullOrEmpty(RoleId))
+        {
+            var role = await _context.Roles.FindAsync(RoleId);
+
+            if (role != null)
+            {
+                await OnRoleChanged(role);
+                _shouldApplySelection = true;
+            }
+        }
+
+    }
+
+    private async Task OnRoleChanged(ApplicationRole role)
+    {
+        if (role == null)
+        {
+            selectedRole = null;
+            SelectedValues = new List<SystemTask>();
+            isSelected = true;
+            await _treeView.CollapseAllAsync();
+            StateHasChanged();
+            return;
+        }
+
+        selectedRole = role;
+
+        var roleProfileIds = await _context.RoleProfiles
+            .Where(r => r.RoleId == role.Id)
+            .Select(r => r.TaskId)
+            .ToListAsync();
+
+        var allTasks = FlattenTasks(items);
+
+        SelectedValues = allTasks
+            .Where(t => t.Id.HasValue && roleProfileIds.Contains(t.Id.Value))
+            .ToList();
+
+        // await _treeView.SetSelectedValuesAsync(SelectedValues);
+        await _treeView.ExpandAllAsync();
+        isSelected = false;
+        StateHasChanged();
+
+    }
+
+    private Task<IEnumerable<ApplicationRole>> SearchRoles(string value, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return Task.FromResult(roles.AsEnumerable());
+
+        return Task.FromResult(
+            roles.Where(x => x.Name.Contains(value, StringComparison.OrdinalIgnoreCase))
+        );
+    }
+
+    private List<SystemTask> FlattenTasks(IEnumerable<SystemTask> tasks)
+    {
+        var result = new List<SystemTask>();
+        foreach (var task in tasks)
+        {
+            result.Add(task);
+            if (task.Children != null && task.Children.Any())
+                result.AddRange(FlattenTasks(task.Children));
+        }
+        return result;
+    }
+
+    private async Task SubmitForm()
+    {
+        await form.Validate();
+        isValid = form.IsValid;
+        if (isValid)
+        {
+            try
+            {
+                LoadingService.Show();
+                await _treeView.CollapseAllAsync();
+                var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+
+                model.RoleId = selectedRole.Id;
+                _context.RoleProfiles.RemoveRange(
+                    _context.RoleProfiles.Where(d => d.RoleId == model.RoleId));
+                await _context.SaveChangesAsync();
+                var profiles = SelectedValues.Select(
+                    task => new RoleProfile
+                    {
+                        TaskId = task.Id, RoleId = model.RoleId
+                    }).ToList();
+                   
+                _genericService.AddRange(profiles);
+                await _treeView.ExpandAllAsync();
+                Snackbar.Add("Profile updated saved successful!", Severity.Success);
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add($"An unexpected error occurred: {ex.Message}", Severity.Error, config => { config.RequireInteraction = true; });
+            }
+
+            LoadingService.Hide();
+        }
+    }
+
+    RenderFragment TreeViewItemRecursive(SystemTask item) => __builder =>
+    {
+
+        __builder.OpenComponent<MudTreeViewItem<SystemTask>>(0);
+        __builder.AddAttribute(1, "Value", item);
+        __builder.AddAttribute(2, "Text", item.Name);
+        __builder.AddAttribute(3, "Icon", Icons.Material.Filled.Folder);
+        if (item.Children != null && item.Children.Any())
+        {
+            __builder.AddAttribute(4, "ChildContent", (RenderFragment)(childBuilder =>
+            {
+                foreach (var child in item.Children.OrderBy(c => c.OrderNo))
+                {
+                    TreeViewItemRecursive(child)(childBuilder);
+                }
+            }));
+        }
+
+        __builder.CloseComponent();
+    };
+
+    private string _searchPhrase;
+
+    private async void OnTextChanged(string searchPhrase)
+    {
+        _searchPhrase = searchPhrase;
+        await _treeView.FilterAsync();
+    }
+
+    private Task<bool> MatchesName(TreeItemData<string> item)
+    {
+        if (string.IsNullOrEmpty(item.Text))
+        {
+            return Task.FromResult(false);
+        }
+
+        return Task.FromResult(item.Text.Contains(_searchPhrase, StringComparison.OrdinalIgnoreCase));
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_shouldApplySelection)
+        {
+            _shouldApplySelection = false;
+
+            // Trigger TreeView update
+            // StateHasChanged();
+
+            // Expand after visual tree has updated
+            // await _treeView.ExpandAllAsync();
+        }
+    }
+
+    private void OnSelectionChangedWrapper(IReadOnlyCollection<SystemTask> newSelection)
+    {
+        // Convert IReadOnlyCollection to HashSet
+        var hashSetSelection = new HashSet<SystemTask>(newSelection);
+        OnSelectedValuesChanged(hashSetSelection);
+    }
+
+    private void OnSelectedValuesChanged(HashSet<SystemTask> newSelection)
+    {
+        var updatedSelection = new HashSet<SystemTask>(newSelection);
+
+        foreach (var selectedItem in newSelection)
+        {
+            AddParentChain(selectedItem, updatedSelection);
+        }
+
+        SelectedValues = updatedSelection;
+    }
+    private void AddParentChain(SystemTask item, HashSet<SystemTask> selectionSet)
+    {
+        var parent = item.Parent;
+        while (parent != null)
+        {
+            if (!selectionSet.Contains(parent))
+                selectionSet.Add(parent);
+
+            parent = parent.Parent;
+        }
+    }
+}
+

@@ -1,0 +1,41 @@
+﻿@using MoGYSD.Business.Persistence
+@using MoGYSD.Web.Components.Account.Shared
+@using MudBlazor
+
+@inject IUserService UserService
+
+<AuthorizeView>
+    <NotAuthorized>
+        <RedirectToLogin />
+    </NotAuthorized>
+    <Authorized>    
+
+        @if (SystemName == "MISSA")
+        {
+            <MissaSideBar />
+        }
+        else if (SystemName == "NISSA")
+        {
+            <SideBar />
+        }
+    </Authorized>
+</AuthorizeView>
+
+@code {
+    private string SystemName => UserService.SystemBeingUsed;
+    private string OtherSystemName => SystemName == "MISSA" ? "NISSA" : "MISSA";
+
+    protected override void OnInitialized()
+    {
+        UserService.OnSystemChanged += OnSystemChanged;
+    }
+    private void OnSystemChanged()
+    {
+        InvokeAsync(StateHasChanged);
+    }
+    public void Dispose()
+    {
+        UserService.OnSystemChanged -= OnSystemChanged;
+    }
+   
+}

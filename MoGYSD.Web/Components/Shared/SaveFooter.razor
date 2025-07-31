@@ -1,0 +1,16 @@
+﻿@using MoGYSD.Business.Persistence
+<div class="mt-5">
+
+    <a href="@Page" class="mud-button-root mud-button mud-button-filled mud-button-filled-default mud-button-filled-size-medium mud-ripple pull-left">
+        <i class="fa fa-step-backward"></i> <span class="mud-button-label"></span> Back
+    </a>
+    <MudButton Variant="Variant.Filled" OnClick="@(()=>Form.Validate())" class="pull-right" Color="Color.Primary">
+        <i class="fa fa-paper-plane"></i>Save
+    </MudButton>
+</div>
+@code {
+    [Parameter]
+    public string Page { get; set; } = "";
+    [Parameter]
+    public MudForm Form { get; set; }
+}

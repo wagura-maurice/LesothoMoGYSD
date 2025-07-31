@@ -1,0 +1,142 @@
+﻿@page "/admin/country"
+@using System.Linq.Expressions
+@using MoGYSD.Business.Models.Nissa.Admin
+@using MoGYSD.Business.Persistence
+@using MoGYSD.ViewModels.Nissa.Administration
+@using MoGYSD.Web.Components.Autocompletes
+
+
+<PageTitle>Country</PageTitle>
+<MudGrid Class="mb-3" Justify="Justify.SpaceBetween">
+    <MudItem xs="12" md="6">
+        <MudText Typo="Typo.h2" Class="font-weight-bold"><b>Country</b></MudText>
+    </MudItem>
+    <MudItem xs="12" md="6" Class="d-flex justify-end">
+        <MudBreadcrumbs Items="_breadcrumbItems" Class="custom-breadcrumb" />
+    </MudItem>
+</MudGrid>
+<MudPaper Class="pa-4">
+    <MudButton EndIcon="@Icons.Material.Filled.Add" Class="pull-right top-add-button mb-2 mt-2" Variant="Variant.Filled"
+               OnClick="AddNew" DropShadow="true" Color="Color.Primary">Add New</MudButton>
+
+    <MudDataGrid T="Country" Items="data" Bordered="true" Dense="true">
+        <Columns>
+            <PropertyColumn Property="x => x.Code" Title="Country Code" />
+            <PropertyColumn Property="x => x.Name" Title="Country Name" />
+            <PropertyColumn Property="x => x.Population" Title="Population" />
+            <TemplateColumn Title="Active" HeaderClass="fit">
+                <CellTemplate>
+                    <MudText Style="@($"{GetStatusStyle(context.Item.Status)} display:block; padding:4px; border-radius:6px; width:100%; text-align: center;")">
+                        @(context.Item.Status ? "Yes" : "No")
+                    </MudText>
+                </CellTemplate>
+            </TemplateColumn>
+            <TemplateColumn Title="Edit">
+                <CellTemplate>
+                    <MudStack Row="true" Spacing="1" AlignItems="AlignItems.Center">
+                        <MudIconButton Class="table-action-item" Icon="@Icons.Material.Filled.Edit" Color="Color.Secondary" OnClick="@(() => Edit(context.Item))" />
+
+                        @* <MudIconButton Class="table-action-item" Icon="@Icons.Material.Filled.Delete" Color="Color.Error" OnClick="@(() => Delete(context.Item.Id))" /> *@
+                    </MudStack>
+                </CellTemplate>
+            </TemplateColumn>
+        </Columns>
+
+        <PagerContent>
+            <MudDataGridPager T="Country" />
+        </PagerContent>
+    </MudDataGrid>
+</MudPaper>
+
+
+@code {
+    private IEnumerable<Country> data = new List<Country>();
+    private Country _Countries;
+    private bool _isLoading = false;
+
+    private List<BreadcrumbItem> _breadcrumbItems =
+    [
+        new("Home", href: "/", icon: Icons.Material.Filled.Home),
+        new("Settings", href: null, icon: Icons.Material.Filled.Settings),
+        new("Geographical Settings", href: null, icon: Icons.Material.Filled.AdminPanelSettings),
+        new("Country", href: null, disabled: true, icon: Icons.Material.Filled.Public)
+    ];
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Init();
+    }
+
+    private async Task Init(int? id = null)
+    {
+        try
+        {
+            var query = _context.Countries.AsNoTracking();
+
+            if (id != null)
+            {
+                query = query.Where(d => d.Id == id);
+            }
+
+            data = await query.ToListAsync();
+
+        }
+        catch (Exception ex)
+        {
+            LoadingService.Hide();
+            Snackbar.Add($"An unexpected error occurred: {(ex.InnerException is null ? ex.Message : ex.InnerException.Message)}", Severity.Error, config => { config.RequireInteraction = true; });
+            return;
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+        // StateHasChanged();
+    }
+
+    private async Task AddNew()
+    {
+        var countryExists = await _context.Countries.AnyAsync();
+        if(countryExists)
+        {
+            Snackbar.Add("You can only add one country.", Severity.Warning);
+            return;
+        }
+        var model = new CountryViewModel();
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Small, FullWidth = true };
+        var parameters = new DialogParameters
+        {
+            { "Model", model }
+        };
+        var dialogRef = await DialogService.ShowAsync<CreateEdit>("Add Country", parameters, options);
+        var state = await dialogRef.Result;
+        if (state is not null && !state.Canceled)
+        {
+            await Init();
+        }
+
+    }
+
+    private async Task Edit(Country country)
+    {
+        var model = _mapper.Map<CountryViewModel>(country);
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.ExtraSmall, FullWidth = true };
+        var parameters = new DialogParameters
+        {
+            { "Model", model }
+        };
+        var dialogRef = await DialogService.ShowAsync<CreateEdit>("Edit Country", parameters, options);
+        var state = await dialogRef.Result;
+        if (state is not null && !state.Canceled)
+        {
+            await Init();
+        }
+    }
+
+    private string GetStatusStyle(bool isActive)
+    {
+        return isActive
+            ? "background-color:#e6f4ea; color:#2e7d32; border: 1px solid #c8e6c9;"
+            : "background-color:#fcebea; color:#c62828; border: 1px solid #f5c6cb;";
+    }
+}

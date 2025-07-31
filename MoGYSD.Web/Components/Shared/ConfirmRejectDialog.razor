@@ -1,0 +1,29 @@
+﻿@using MoGYSD.Business.Persistence
+<MudDialog>
+    <DialogContent>
+        <MudText Typo="Typo.h6">@ContentText</MudText>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Confirm" Color="Color.Success">Confirm</MudButton>
+        <MudButton OnClick="Reject" Color="Color.Error">Reject</MudButton>
+        @if (ShowSendBack)
+        {
+            <MudButton OnClick="SendBack" Color="Color.Warning">Return to Previous Stage</MudButton>
+        }
+        <MudButton OnClick="Cancel" Color="Color.Default">Cancel</MudButton>
+    </DialogActions>
+</MudDialog>
+
+
+@code {
+    [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = default!;
+
+    [Parameter] public string ContentText { get; set; } = "Are you sure you want to proceed?";
+    [Parameter] public bool ShowSendBack { get; set; } = false;
+
+    private void Confirm() => MudDialog.Close(DialogResult.Ok("Confirmed"));
+    private void Reject() => MudDialog.Close(DialogResult.Ok("Rejected"));
+    private void SendBack() => MudDialog.Close(DialogResult.Ok("SendBack"));
+    private void Cancel() => MudDialog.Cancel();
+}
+

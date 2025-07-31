@@ -1,0 +1,127 @@
+﻿@using MoGYSD.Business.Models.Nissa.Admin
+@using MoGYSD.Business.Persistence
+@using MoGYSD.ViewModels.Nissa.Administration
+
+<MudDialog Class="blur dialog-background" TitleClass="blur dialog-background-title" ContentClass="dialog-background-surface py-10" ActionsClass="dialog-background-surface">
+    <DialogContent>
+        <MudForm @ref="form" Class="d-flex flex-column gap-2">
+            <MudTextField Variant="Variant.Outlined"  @bind-Value="Model.Name" For="@(() => Model.Name)" Label="District Name" Class="mb-2" />
+            <MudTextField Variant="Variant.Outlined" @bind-Value="Model.Code" For="@(() => Model.Code)" Label="District Code" Class="mb-2" ReadOnly="_hasChildren" />
+            @if(Model.Id > 0)
+            {
+                <MudSwitch 
+                    @bind-Value="Model.IsActive"
+                    Style="@(Model.IsActive ? "color:green" : "color:red")"
+                    ThumbIcon="@(Model.IsActive ? Icons.Material.Filled.Done : Icons.Material.Filled.Close)"
+                    ThumbIconColor="@(Model.IsActive ? Color.Success : Color.Error)"
+                    Label="@(Model.IsActive ? "Active" : "Not Active")"
+                    Class="mb-3" />
+            }
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel" 
+                    Variant="Variant.Filled"                    
+                   Size="Size.Small"
+                   Class="ml-0">Cancel</MudButton>
+        <MudButton OnClick="SubmitForm" Color="Color.Primary" Variant="Variant.Filled" 
+                   Size="Size.Small">Submit</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter]
+    private IMudDialogInstance Dialog { get; set; }
+    [Parameter] public DistrictViewModel Model { get; set; }
+
+    private MudForm form;
+    private void Cancel() => Dialog.Cancel();
+    private bool _hasChildren = false;
+
+
+    private async Task SubmitForm()
+    {
+        await form.Validate();
+
+        if (form.IsValid)
+        {
+            if (Model.Id > 0)
+            {
+                try
+                {
+                    LoadingService.Show();
+                    var countryId = _context.Countries.FirstOrDefault()?.Id ?? 0;
+                    var code = await _context.Districts.AsNoTracking().Where(a => (a.Code == Model.Code || a.Name.ToLower() == Model.Name.ToLower()) && a.Id != Model.Id).Select(a => a.Name).FirstOrDefaultAsync();
+                    if(code != null)
+                    {
+                        Snackbar.Add("District code already exist!!", Severity.Error);
+                        LoadingService.Hide();
+                    }
+                    else
+                    {
+                        var dataToUpdate = _mapper.Map<District>(Model);
+                        dataToUpdate.CountryId = countryId;
+                        await _genericService.Update(dataToUpdate, false);
+
+                        LoadingService.Hide();
+                        Dialog.Close(DialogResult.Ok(true));
+                        Snackbar.Add("District updated successfully", Severity.Success);
+
+                    }
+                }
+                catch (Exception ex)
+                {
+                    LoadingService.Hide();
+                    Snackbar.Add($"An unexpected error occurred: {(ex.InnerException is null ? ex.Message : ex.InnerException.Message)}", Severity.Error, config => { config.RequireInteraction = true; });
+                    return;
+                }
+            }
+            else
+            {
+                try
+                {
+                    LoadingService.Show();
+                    var countryId = _context.Countries.FirstOrDefault()?.Id ?? 0;
+                    var code = await _context.Districts.AsNoTracking().Where(a => a.Code == Model.Code || a.Name.ToLower() == Model.Name.ToLower()).Select(a => a.Name).FirstOrDefaultAsync();
+                    if (code != null)
+                    {
+                        LoadingService.Hide();
+                        Snackbar.Add("District code or name already exist!!", Severity.Error);
+                        return;
+                    }
+                    Model.IsActive = true; // Ensure the new district is active by default
+                    var addData = _mapper.Map<District>(Model);
+                    addData.CountryId = countryId;
+                    await _genericService.Add(addData, false);
+
+                    LoadingService.Hide();
+                    Dialog.Close(DialogResult.Ok(true));
+                    Snackbar.Add("District saved successfully", Severity.Success);
+                }
+                catch (Exception ex)
+                {
+                    LoadingService.Hide();
+                    Snackbar.Add(
+                        $"An unexpected error occurred: {(ex.InnerException is null ? ex.Message : ex.InnerException.Message)}",
+                        Severity.Error,
+                        config => { config.RequireInteraction = true; }
+                    );
+                    return;
+                }
+
+            }
+        }
+        else
+        {
+            Snackbar.Add("Please fill in all required fields.", Severity.Error);
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (Model.Id > 0)
+        {
+            _hasChildren = await _context.CommunityCouncilView.AnyAsync(c => c.DistrictId == Model.Id);
+        }
+    }
+}

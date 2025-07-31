@@ -1,0 +1,212 @@
+﻿@page "/grade"
+
+@using MoGYSD.Business.Views.Missa.Setups
+@using MoGYSD.ViewModels.Missa.Setups
+@using MoGYSD.Business.Models.Missa.Setups 
+<MudGrid Class="mb-3" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween">
+    <MudItem xs="12" md="8">
+        <MudText Typo="Typo.h4" Class="font-weight-bold">Grades</MudText>
+        <MudText Color="Color.Inherit" Class="mud-text-secondary">
+            Used to create grade levels.
+        </MudText>
+    </MudItem>
+    <MudItem xs="12" md="4" Class="d-flex justify-start justify-md-end">
+        <MudBreadcrumbs Items="_breadcrumbItems" Class="custom-breadcrumb" />
+    </MudItem>
+</MudGrid>
+
+<MudPaper Class="pa-4" Elevation="2">
+
+   <SearchPanel Filter="@filterModel" OnFilterApplied="@ReloadTable" />
+
+    <MudDataGrid @ref="dataGrid" T="GradeView"
+                 ServerData="@(new Func<GridState<GradeView>, Task<GridData<GradeView>>>(LoadGradeData))"
+               Bordered="true" Striped="true" Hover="true" Dense="true"
+                 RowsPerPage="20">
+        <ToolBarContent>
+            <MudText Typo="Typo.h6">Grades (@totalItems)</MudText>
+            <MudSpacer />
+            @if (UserProfileService.UserProfile.Contains("GRADES:CREATE"))
+            {
+                <MudButton Variant="Variant.Filled"
+                           Color="Color.Primary"
+                           StartIcon="@Icons.Material.Filled.Add"
+                           OnClick="AddNewGrade">
+                    Add New Grade
+                </MudButton>
+            }
+        </ToolBarContent>
+        <Columns>
+            <PropertyColumn Property="x => x.Code" Title="Class/ Grade" />           
+            <TemplateColumn Title="Active" HeaderClass="fit">
+                <CellTemplate>
+                    <MudText Style="@($"{GetStatusStyle(context.Item.IsActive)} display:block; padding:4px; border-radius:6px; width:100%; text-align: center;")">
+                        @(context.Item.IsActive ? "Yes" : "No")
+                    </MudText>
+                </CellTemplate>
+            </TemplateColumn>
+            <TemplateColumn Title="Actions" Sortable="false" CellClass="text-right">
+                <CellTemplate>
+                    <MudMenu Icon="@Icons.Material.Filled.MoreVert" Color="Color.Primary" Dense="true" AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.TopRight">
+                        @if (UserProfileService.UserProfile.Contains("GRADES:VIEW"))
+                        {
+                            <MudMenuItem OnClick="@(() => ViewGradeDetails(context.Item.Id))">
+                                <MudIcon Icon="@Icons.Material.Filled.Info" Class="me-2 text-primary" /> Details
+                            </MudMenuItem>
+                           
+                        }
+                        @if (UserProfileService.UserProfile.Contains("GRADES:MODIFY"))
+                        {
+                            <MudMenuItem OnClick="@(() => EditGrade(context.Item.Id))">
+                                <MudIcon Icon="@Icons.Material.Filled.Edit" Class="me-2" /> Edit
+                            </MudMenuItem>
+
+                            @if (context.Item.IsActive)
+                            {
+                                <MudMenuItem OnClick="@(() => ToggleActivation(context.Item.Id, context.Item.Code, false))">
+                                    <MudIcon Icon="@Icons.Material.Filled.ToggleOff" Color="Color.Error" Class="me-2" /> Deactivate
+                                </MudMenuItem>
+                            }
+                            else
+                            {
+                                <MudMenuItem OnClick="@(() => ToggleActivation(context.Item.Id, context.Item.Code, true))">
+                                    <MudIcon Icon="@Icons.Material.Filled.ToggleOn" Color="Color.Success" Class="me-2" /> Activate
+                                </MudMenuItem>
+                            }
+                        }
+                    </MudMenu>
+                </CellTemplate>
+            </TemplateColumn>
+        </Columns>
+        <PagerContent>
+            <MudDataGridPager T="GradeView" />
+        </PagerContent>
+        <NoRecordsContent>
+            <MudText Typo="Typo.subtitle1" Class="my-4 text-muted text-center">
+                No grades found. Try adjusting your filters or add a new grade.
+            </MudText>
+        </NoRecordsContent>
+    </MudDataGrid>
+</MudPaper>
+
+@code {
+    private MudDataGrid<GradeView> dataGrid = default!;    
+    private GradesSearchFilter filterModel = new();
+    private int totalItems;
+
+    private List<BreadcrumbItem> _breadcrumbItems =
+    [
+        new("Home", href: "/", icon: Icons.Material.Filled.Home),
+        new("Settings", href: "/settings", icon: Icons.Material.Filled.Settings), // Assuming a settings page exists
+        new("Grades", href: null, disabled: true)
+    ];
+
+    private async Task<GridData<GradeView>> LoadGradeData(GridState<GradeView> state)
+    {
+        try
+        {
+            IQueryable<GradeView> query = _context.GradeView.AsNoTracking();          
+           
+
+            if (!string.IsNullOrWhiteSpace(filterModel.Code))
+            {
+                query = query.Where(x => x.Code != null && x.Code.Contains(filterModel.Code));
+            }
+          
+            if (filterModel.IsActive.HasValue)
+            {
+                query = query.Where(x => x.IsActive == filterModel.IsActive.Value);
+            }
+
+
+         
+            totalItems = await query.CountAsync();
+
+            var items = await query
+                .Skip(state.Page * state.PageSize)
+                .Take(state.PageSize)
+                .ToListAsync();
+
+            return new GridData<GradeView> { Items = items, TotalItems = totalItems };
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine(ex.ToString());
+            Snackbar.Add("Error loading grades.", Severity.Error);
+            return new GridData<GradeView> { Items = Enumerable.Empty<GradeView>(), TotalItems = 0 };
+        }
+    }
+
+    private async Task ReloadTable()
+    {
+        await dataGrid.ReloadServerData();
+    }
+
+    private void ViewGradeDetails(int id)
+    {
+        Navigation.NavigateTo($"/grade/view/{id}");
+    }
+
+    private void EditGrade(int id)
+    {
+        Navigation.NavigateTo($"/grade/edit/{id}");
+    }
+
+    private void AddNewGrade()
+    {
+        Navigation.NavigateTo("/grade/add");
+    }
+
+    private async Task ToggleActivation(int id, string name, bool activate)
+    {
+        string action = activate ? "Activate" : "Deactivate";
+        var parameters = new DialogParameters
+        {
+            { "ContentText", $"Are you sure you want to {action.ToLower()} grade '{name}'?" }
+        };
+
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.ExtraSmall };
+        var dialog = DialogService.Show<ConfirmDialog>($"{action} Grade", parameters, options);
+
+        var result = await dialog.Result;
+        if (!result.Canceled)
+        {
+            await PerformToggleAsync(id, action);
+        }
+    }
+
+    private async Task PerformToggleAsync(int id, string action)
+    {
+
+        var Grade = await _context.Set<Grade>()
+                                          .FirstOrDefaultAsync(p => p.Id == id);
+
+        if (Grade == null)
+        {
+            Snackbar.Add("Grade not found.", Severity.Error);
+            return;
+        }
+
+        try
+        {
+            Grade.IsActive = !Grade.IsActive;
+            Grade.ModifiedOn = DateTime.UtcNow;
+
+            _genericService.Update(Grade);
+            await _context.SaveChangesAsync();
+            Snackbar.Add($"Grade '{Grade.Code}' has been {action.ToLower()}d.", Severity.Success);
+
+            await dataGrid.ReloadServerData();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error updating grade: {ex.Message}", Severity.Error);
+        }
+    }
+    private string GetStatusStyle(bool isActive)
+    {
+        return isActive
+            ? "background-color:#e6f4ea; color:#2e7d32; border: 1px solid #c8e6c9;"
+            : "background-color:#fcebea; color:#c62828; border: 1px solid #f5c6cb;";
+    }
+}

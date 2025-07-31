@@ -1,0 +1,197 @@
+﻿@page "/admin/systemtasks"
+@using MoGYSD.Business.Models.Nissa.Admin
+@using MoGYSD.Business.Persistence
+
+<PageTitle>System Tasks</PageTitle>
+
+<MudGrid Class="mb-3" AlignItems="Center" Justify="Justify.SpaceBetween">
+    <MudItem xs="12" md="6">
+        <MudText Typo="Typo.h2" Class="font-weight-bold"><b>System Tasks</b></MudText>
+    </MudItem>
+    <MudItem xs="12" md="6" Class="d-flex justify-end">
+        <MudBreadcrumbs Items="_breadcrumbItems" Class="custom-breadcrumb" />
+    </MudItem>
+</MudGrid>
+
+<MudPaper Class="pa-4">
+    <MudButton EndIcon="@Icons.Material.Filled.Add" Class="pull-right top-add-button mt-2 mb-2" Variant="Variant.Filled"
+               OnClick="AddNew" DropShadow="true" Color="Color.Primary">Add New</MudButton>
+    <table id="table-filter" class="data-table-card-table table table-bordered mt-n5">
+        <thead class="table-light fs-7 lh-18 border-gray-300">
+            <tr>
+                <th>Parent</th>
+                <th>Name</th>
+                <th>Order</th>
+                <th class="fit">Edit</th>
+            </tr>
+        </thead>
+        @if (items != null)
+        {
+            <tbody class="fs-7 lh-20">
+                @foreach (var item in items.OrderBy(i => i.OrderNo))
+                {
+                    <tr>
+                        <td><strong>Root</strong></td>
+                        <td>@item.Name</td>
+                        <td>@item.OrderNo</td>
+                        <td>
+                            <MudIconButton Class="table-action-item"
+                                           Icon="@Icons.Material.Filled.Edit"
+                                           Color="Color.Error"
+                                           OnClick="@(() => Edit(item))" />
+                        </td>
+                    </tr>
+
+                    @foreach (var child in item.Children.OrderBy(c => c.OrderNo))
+                    {
+                        <tr>
+                            <td class="ps-4">@item.Name</td>
+                            <td>@child.Name</td>
+                            <td>@child.OrderNo</td>
+                            <td>
+                                <MudIconButton Class="table-action-item"
+                                               Icon="@Icons.Material.Filled.Edit"
+                                               Color="Color.Error"
+                                               OnClick="@(() => Edit(child))" />
+                            </td>
+                        </tr>
+
+                        @foreach (var grandChild in child.Children.OrderBy(gc => gc.OrderNo))
+                        {
+                            <tr>
+                                <td class="ps-5">@child.Name</td>
+                                <td>@grandChild.Name</td>
+                                <td>@grandChild.OrderNo</td>
+                                <td>
+                                    <MudIconButton Class="table-action-item"
+                                                   Icon="@Icons.Material.Filled.Edit"
+                                                   Color="Color.Error"
+                                                   OnClick="@(() => Edit(grandChild))" />
+                                </td>
+                            </tr>
+                        }
+                    }
+                }
+            </tbody>
+        }
+    </table>
+
+
+</MudPaper>
+
+@code {
+    private IEnumerable<SystemTask> items = new List<SystemTask>();
+
+    private string _quickFilter;
+    static int orderNo = 0;
+    static int? parentId;
+
+    private List<BreadcrumbItem> _breadcrumbItems =
+    [
+        new("Home", href: "/", icon: Icons.Material.Filled.Home),
+        new("Settings", href: null, icon: Icons.Material.Filled.Settings),
+        new("System Tasks", href: null, disabled: true, icon: Icons.Material.Filled.Task)
+    ];
+
+    protected override async Task OnInitializedAsync()
+    {
+
+        await Init();
+    }
+
+    private async Task Init()
+    {
+        items = await _context.SystemTasks
+            .OrderBy(i => i.OrderNo)
+            .Include(i => i.Parent)
+            .Include("Children.Children.Children.Children")
+            .Where(i => i.ParentId == null)
+            .ToListAsync();
+    }
+
+    private async Task AddNew()
+    {
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Small, FullWidth = true };
+        var model = new SystemTask
+        {
+            OrderNo = orderNo,
+            ParentId = parentId
+        };
+        var parameters = new DialogParameters
+        {
+            { "Model", model }
+        };
+
+        var dialogRef = await DialogService.ShowAsync<AddEditDialog>("Add Task", parameters, options);
+        var result = await dialogRef.Result;
+
+        if (result is not null && result.Canceled != true)
+        {
+            try
+            {
+                LoadingService.Show();
+                model = (SystemTask)result.Data;
+                SentenceCaseService.ProcessEntityStrings(model);
+                await _genericService.Add(model);
+
+                orderNo = model.OrderNo + 1;
+                parentId = model.ParentId;
+                await Init();
+                LoadingService.Hide();
+                Snackbar.Add("System Task saved successfully", Severity.Success);
+                StateHasChanged();
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add($"An unexpected error occurred: {ex.Message}", Severity.Error, config => { config.RequireInteraction = true; });
+                return;
+            }
+
+        }
+    }
+    private async Task Edit(SystemTask model)
+    {
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Small, FullWidth = true };
+
+        var parameters = new DialogParameters
+        {
+                { "Model", model }
+        };
+
+        var dialogRef = await DialogService.ShowAsync<AddEditDialog>("Edit Task", parameters, options);
+        var result = await dialogRef.Result;
+
+        if (result is not null && result.Canceled != true)
+        {
+            try
+            {
+                LoadingService.Show();
+                model = (SystemTask)result.Data;
+                SentenceCaseService.ProcessEntityStrings(model);
+                await _genericService.Update(model);
+                _context.SystemTasks.Update(model);
+                await _context.SaveChangesAsync();
+                await Init();
+                LoadingService.Hide();
+                Snackbar.Add("System Task updated successfully", Severity.Success);
+                StateHasChanged();
+            }
+
+            catch (Exception ex)
+            {
+                Snackbar.Add($"An unexpected error occurred: {ex.Message}", Severity.Error, config => { config.RequireInteraction = true; });
+                return;
+            }
+
+        }
+    }
+
+    private Func<SystemTask, bool> _quickFilterFunc => x =>
+    {
+        if (string.IsNullOrWhiteSpace(_quickFilter))
+            return true;
+
+        return x.Name?.Contains(_quickFilter, StringComparison.OrdinalIgnoreCase) == true ||
+               x.Name?.Contains(_quickFilter, StringComparison.OrdinalIgnoreCase) == true;
+    };
+}

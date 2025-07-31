@@ -1,0 +1,12 @@
+﻿@using MoGYSD.Business.Persistence
+<NavLink href="@Page" class="top-add-button pull-right mud-button-root mud-button mud-button-filled mud-button-filled-primary mud-button-filled-size-medium mud-ripple">
+    <span class="fa fa-plus" aria-hidden="true"></span> @Title
+</NavLink>
+@code {
+    [Parameter]
+    public string Page { get; set; } = "";
+
+    [Parameter]
+    public string Title { get; set; } = "Add New";
+
+}

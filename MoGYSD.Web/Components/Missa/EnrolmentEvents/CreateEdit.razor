@@ -1,0 +1,230 @@
+﻿@page "/enrolment/events/add"
+@page "/enrolment/events/edit/{Id:int}"
+
+@using MoGYSD.Business.Models.Missa.Enrolments
+@using MoGYSD.Business.ViewModels.Missa.Enrolments
+@using MoGYSD.Web.Components.Autocompletes
+
+
+<PageTitle>@(Id.HasValue ? "Edit Enrolment Event" : "Create Enrolment Event")</PageTitle>
+
+<MudGrid Class="mb-4" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween">
+    <MudItem xs="12" md="6">
+        <MudText Typo="Typo.h4" GutterBottom="false">@HeaderText</MudText>
+    </MudItem>
+    <MudItem xs="12" md="6" Class="d-flex justify-end">
+        <MudBreadcrumbs Items="_breadcrumbItems" Class="custom-breadcrumb" />
+    </MudItem>
+</MudGrid>
+
+<MudPaper Elevation="2" Class="pa-4">
+    <MudForm @ref="enrolmentEventForm" Model="@Model" IsValid="@_isFormValid">
+        <MudGrid Spacing="3">
+            <MudItem xs="12" sm="6" md="3">
+                <MudTextField Variant="Variant.Outlined"
+                              @bind-Value="Model.EnrolmentEventName"
+                              Label="Enrolment Event Name"
+                              For="@(() => Model.EnrolmentEventName)"
+                              Required="true"
+                              RequiredError="Enrolment Event Name is required." />
+            </MudItem>
+
+            <MudItem xs="12" sm="6" md="3">
+                <ProgramsAutoComplete Variant="Variant.Outlined" Label="Programme"
+                                      For="@(() => Model.ProgrammeId)"
+                                      @bind-Value="Model.ProgrammeId"
+                                      Required="true" />
+            </MudItem>
+
+            <MudItem xs="12" sm="6" md="3">
+                <DistrictAutocomplete Variant="Variant.Outlined" Label="District"
+                                      For="@(() => Model.DistrictId)"
+                                      @bind-Value="Model.DistrictId"
+                                      Required="true" />
+            </MudItem>
+
+            <MudItem xs="12" sm="6" md="3">
+                <CommunityCouncilAutocomplete Variant="Variant.Outlined" Label="Community Council"
+                                              DistrictId="@Model.DistrictId"
+                                              For="@(() => Model.CommunityCouncilId)"
+                                              @bind-Value="Model.CommunityCouncilId"
+                                              Required="true" />
+            </MudItem>
+
+            <MudItem xs="12" sm="6" md="3">
+                <VillageAutocomplete Variant="Variant.Outlined" Label="Village"
+                                     CommunityCouncilId="@Model.CommunityCouncilId"
+                                     For="@(() => Model.VillageId)"
+                                     @bind-Value="Model.VillageId"
+                                     Required="true" />
+            </MudItem>
+            <MudItem xs="12" sm="6" md="3">
+                <MudTextField Variant="Variant.Outlined" Label="Quota" @bind-Value="Model.Quota" For="@(() => Model.Quota)" Required="true" />
+            </MudItem>
+
+
+            <MudItem xs="12" sm="6" md="3">
+                <MudDatePicker Variant="Variant.Outlined" Label="Start Date"
+                               Date="Model.StartDate"
+                               DateChanged="(newDate) => OnStartDateChanged(newDate)"
+                               For="@(() => Model.StartDate)"
+                               Required="true" />
+            </MudItem>
+
+            <MudItem xs="12" sm="6" md="3">
+                <MudDatePicker Variant="Variant.Outlined" Label="End Date"
+                               Date="Model.EndDate"
+                               DateChanged="(newDate) => OnEndDateChanged(newDate)"
+                               For="@(() => Model.EndDate)"
+                               Required="true" />
+            </MudItem>
+
+            <MudItem xs="12" Class="d-flex justify-space-between mt-4">
+                <MudButton Variant="Variant.Filled"
+                           Color="Color.Secondary"
+                           OnClick="BackToList"
+                           Class="me-2">
+                    Back
+                </MudButton>
+
+                <MudButton Variant="Variant.Filled"
+                           Color="Color.Primary"
+                           OnClick="SaveEnrolmentEvent"
+                           Class="me-2">
+                    @if (_isWorking)
+                    {
+                        <MudProgressCircular Class="ms-n1" Size="Size.Small" Indeterminate="true" />
+                        <MudText Class="ms-2">Processing...</MudText>
+                    }
+                    else
+                    {
+                        <span>@(Model.EnrolmentEventId > 0 ? "Update" : "Save")</span>
+                    }
+                </MudButton>
+            </MudItem>
+        </MudGrid>
+    </MudForm>
+</MudPaper>
+
+@code {
+    [Parameter]
+    public int? Id { get; set; }
+
+    private MudForm enrolmentEventForm;
+    private EnrolmentEventViewModel Model { get; set; } = new();
+
+    private bool _isWorking = false;
+    private bool _isFormValid;
+    private string HeaderText = "Create Enrolment Event";
+    private List<BreadcrumbItem> _breadcrumbItems;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (Id.HasValue && Id.Value > 0)
+        {
+            HeaderText = "Edit Enrolment Event";
+            var enrolmentEvent = await _context.EnrolmentEvents.AsNoTracking().FirstOrDefaultAsync(x => x.Id == Id);
+
+            if (enrolmentEvent != null)
+            {
+                Model = _mapper.Map<EnrolmentEventViewModel>(enrolmentEvent);
+            }
+            else
+            {
+                Snackbar.Add("Enrolment Event not found.", Severity.Error);
+                Navigation.NavigateTo("/enrolment/events");
+                return;
+            }
+        }
+
+        var pageTitle = Id.HasValue ? "Edit Enrolment Event" : "Create Enrolment Event";
+
+        _breadcrumbItems = new List<BreadcrumbItem>
+        {
+            new BreadcrumbItem("Home", href: "/", icon: Icons.Material.Filled.Home),
+            new BreadcrumbItem("Enrolment Event", href: "/enrolment/events", icon: Icons.Material.Filled.Event),
+            new BreadcrumbItem(pageTitle, href: null, disabled: true)
+        };
+    }
+
+    private async Task SaveEnrolmentEvent()
+    {
+        await enrolmentEventForm.Validate();
+        if (!enrolmentEventForm.IsValid)
+        {
+            Snackbar.Add("Please fix errors before proceeding.", Severity.Error);
+            return;
+        }
+
+        _isWorking = true;
+        StateHasChanged();
+
+        try
+        {
+            if (Model.EnrolmentEventId > 0)
+            {
+                var entity = await _context.EnrolmentEvents.FindAsync(Model.EnrolmentEventId);
+                if (entity != null)
+                {
+                    _mapper.Map(Model, entity);
+                    entity.ModifiedOn = DateTime.UtcNow;
+                    _context.EnrolmentEvents.Update(entity);
+                    await _context.SaveChangesAsync();
+
+                    Snackbar.Add("Enrolment Event updated successfully.", Severity.Success);
+                    Navigation.NavigateTo($"/enrolment/events/view/{entity.Id}");
+                }
+            }
+            else
+            {
+                var duplicateQuery = _context.EnrolmentEvents
+                    .Where(e =>
+                        e.Name == Model.EnrolmentEventName &&
+                        e.ProgrammeId == Model.ProgrammeId &&
+                        e.DistrictId == Model.DistrictId &&
+                        e.CommunityCouncilId == Model.CommunityCouncilId &&
+                        e.VillageId == Model.VillageId &&
+                        e.StartDate == Model.StartDate &&
+                        e.EndDate == Model.EndDate
+                    );
+
+                if (await duplicateQuery.AnyAsync())
+                {
+                    Snackbar.Add("An Enrolment Event with the same Name, Programme, Location, and Dates already exists.", Severity.Error);
+                    _isWorking = false;
+                    return;
+                }
+
+                var entity = _mapper.Map<EnrolmentEvent>(Model);
+                entity.CreatedOn = DateTime.UtcNow;
+                _context.EnrolmentEvents.Add(entity);
+                await _context.SaveChangesAsync();
+
+                Snackbar.Add("Enrolment Event created successfully.", Severity.Success);
+                Navigation.NavigateTo($"/enrolment/events/view/{entity.Id}");
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine(ex.ToString());
+            Snackbar.Add($"An error occurred while saving: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isWorking = false;
+            StateHasChanged();
+        }
+    }
+
+    private void OnStartDateChanged(DateTime? newDate)
+    {
+        Model.StartDate = newDate;
+    }
+
+    private void OnEndDateChanged(DateTime? newDate)
+    {
+        Model.EndDate = newDate;
+    }
+
+    private void BackToList() => Navigation.NavigateTo("/enrolment/events");
+}

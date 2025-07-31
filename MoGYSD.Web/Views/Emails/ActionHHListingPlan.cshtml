@@ -1,0 +1,26 @@
+﻿@model MoGYSD.ViewModels.Email.ActionHHListingPlanEmail
+
+@{
+    Layout = "_Layout";
+}
+
+<p>Dear User,</p>
+
+@if (Model.Action.Equals("Approved", StringComparison.OrdinalIgnoreCase))
+{
+    <p>
+        Your <strong>Household Listing Plan</strong> has been <strong>approved</strong>. You can now proceed with the implementation steps on the NISSA MIS platform.
+    </p>
+}
+else if (Model.Action.Equals("Closed", StringComparison.OrdinalIgnoreCase))
+{
+    <p>
+        Your <strong>Household Listing Plan</strong> has been <strong>closed</strong>. No further actions are required unless otherwise notified.
+    </p>
+}
+else if (Model.Action.Equals("SendBack", StringComparison.OrdinalIgnoreCase))
+{
+    <p>
+        Your <strong>Household Listing Plan</strong> has been <strong>sent back</strong> for revisions by your supervisor. Please review the feedback and make the necessary changes in NISSA MIS.
+    </p>
+}

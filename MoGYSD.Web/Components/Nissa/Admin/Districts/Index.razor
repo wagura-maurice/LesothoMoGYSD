@@ -1,0 +1,191 @@
+﻿@page "/admin/districts"
+@using System.Linq.Expressions
+@using Microsoft.AspNetCore.Authorization
+@using MoGYSD.Business.Models.Nissa.Admin
+@using MoGYSD.Business.Persistence
+@using MoGYSD.ViewModels.Nissa.Administration
+@using MoGYSD.Web.Components.Autocompletes
+
+
+<PageTitle>Districts</PageTitle>
+
+<MudGrid Class="mb-3" AlignItems="Center" Justify="Justify.SpaceBetween">
+    <MudItem xs="12" md="6">
+        <MudText Typo="Typo.h2" Class="font-weight-bold"><b>Districts</b></MudText>
+        <MudText>
+            Enables the creation, updating, and referencing of districts.
+        </MudText>
+    </MudItem>
+    <MudItem xs="12" md="6" Class="d-flex justify-end">
+        <MudBreadcrumbs Items="_breadcrumbItems" Class="custom-breadcrumb" />
+    </MudItem>
+</MudGrid>
+
+<MudExpansionPanels Elevation="1" Class="mt-2 mb-2">
+    <MudExpansionPanel Text="Expand to apply search filter">
+        <DistrictAutocomplete Variant="Variant.Outlined" Label="Search by District Name" ResetValueOnEmptyText="true"
+                                @bind-Value="_selectedDistrict"
+                                Class="mb-3" />
+
+        <div class="d-flex justify-content-between">
+            <MudButton Variant="Variant.Filled" Color="Color.Secondary" OnClick="OnClearClicked" Size="Size.Small">
+                Clear
+            </MudButton>
+
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="OnSearchClicked" Size="Size.Small">
+                Search
+            </MudButton>
+        </div>
+    </MudExpansionPanel>
+</MudExpansionPanels>
+
+
+<MudPaper Class="pa-4">
+    @if (UserProfileService.UserProfile.Contains("DISTRICT:CREATE"))
+    {
+        <MudButton EndIcon="@Icons.Material.Filled.Add" Class="pull-right top-add-button mb-2 mt-2" Variant="Variant.Filled"
+        OnClick="AddNew" DropShadow="true" Color="Color.Primary">Add New</MudButton>        
+    }
+
+    <MudDataGrid T="District" Items="data" Bordered="true" Dense="true">
+        <NoRecordsContent>
+            <MudText Typo="Typo.subtitle1" Class="my-4 text-muted text-center">
+                No District found. Try adjusting your filters.
+            </MudText>
+        </NoRecordsContent>
+        <ToolBarContent>
+            <MudText><b>Total District(s): @data.Count()</b></MudText>
+        </ToolBarContent>
+        <Columns>
+            <PropertyColumn Property="x => x.Name" Title="District Name" />
+            <PropertyColumn Property="x => x.Code" Title="District Code" />
+            <TemplateColumn Title="Active" HeaderClass="fit">
+                <CellTemplate>
+                    <MudText Style="@($"{GetStatusStyle(context.Item.IsActive)} display:block; padding:4px; border-radius:6px; width:100%; text-align: center;")">
+                        @(context.Item.IsActive ? "Yes" : "No")
+                    </MudText>
+                </CellTemplate>
+            </TemplateColumn>
+            <TemplateColumn Title="Edit">
+                <CellTemplate>
+                    @if (UserProfileService.UserProfile.Contains("DISTRICT:VIEW"))
+                    {
+                        <MudStack Row="true" Spacing="1" AlignItems="AlignItems.Center">
+                            <MudIconButton Class="table-action-item" Icon="@Icons.Material.Filled.Edit" Color="Color.Secondary" OnClick="@(() => Edit(context.Item))" />
+                        
+                            @* <MudIconButton Class="table-action-item" Icon="@Icons.Material.Filled.Delete" Color="Color.Error" OnClick="@(() => Delete(context.Item.Id))" /> *@
+                        </MudStack>                        
+                    }
+                </CellTemplate>
+            </TemplateColumn>
+        </Columns>
+
+        <PagerContent>
+            <MudDataGridPager T="District" />
+        </PagerContent>
+    </MudDataGrid>
+</MudPaper>
+
+
+@code {
+    private IEnumerable<District> data = new List<District>();
+    private List<District> _allDistricts = new();
+    private int? _selectedDistrict;
+    private bool _isLoading = false;
+
+    private List<BreadcrumbItem> _breadcrumbItems =
+    [
+        new("Home", href: "/", icon: Icons.Material.Filled.Home),
+        new("Settings", href: null, icon: Icons.Material.Filled.Settings),
+        new("Geographical Settings", href: null, icon: Icons.Material.Filled.AdminPanelSettings),
+        new("Districts", href: null, disabled: true, icon: Icons.Material.Filled.Flag)
+    ];
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!UserProfileService.UserProfile.Contains("DISTRICT:VIEW"))
+        {
+            Navigation.NavigateTo("/AccessDenied");
+        }
+        await Init();
+    }
+
+    private async Task OnSearchClicked()
+    {
+        await Init(_selectedDistrict);
+    }
+
+    private async Task OnClearClicked()
+    {
+        _selectedDistrict = null;
+        await Init();
+    }
+
+    private async Task Init(int? id = null)
+    {
+        try
+        {
+            LoadingService.Show();
+            var query = _context.Districts.AsNoTracking();
+
+            if (id != null)
+            {
+                query = query.Where(d => d.Id == id);
+            }
+
+            data = await query.OrderBy(d => d.Id).ToListAsync();
+            LoadingService.Hide();
+        }
+        catch (Exception ex)
+        {
+            LoadingService.Hide();
+            Snackbar.Add($"An unexpected error occurred: {(ex.InnerException is null ? ex.Message : ex.InnerException.Message)}", Severity.Error, config => { config.RequireInteraction = true; });
+            return;
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+        // StateHasChanged();
+    }
+
+    private async Task AddNew()
+    {
+        var model = new DistrictViewModel{IsActive = true};
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Small, FullWidth = true };
+        var parameters = new DialogParameters
+        {
+            { "Model", model }
+        };
+        var dialogRef = await DialogService.ShowAsync<CreateEdit>("Add District", parameters, options);
+        var state = await dialogRef.Result;
+        if (state is not null && !state.Canceled)
+        {
+            await Init();
+        }
+        
+    }
+
+    private async Task Edit(District modelDistrict)
+    {
+        var model = _mapper.Map<DistrictViewModel>(modelDistrict);
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Small, FullWidth = true };
+        var parameters = new DialogParameters
+        {
+            { "Model", model }
+        };
+        var dialogRef = await DialogService.ShowAsync<CreateEdit>("Edit District", parameters, options);
+        var state = await dialogRef.Result;
+        if (state is not null && !state.Canceled)
+        {
+            await Init();
+        }
+    }
+
+    private string GetStatusStyle(bool isActive)
+    {
+        return isActive
+            ? "background-color:#e6f4ea; color:#2e7d32; border: 1px solid #c8e6c9;"
+            : "background-color:#fcebea; color:#c62828; border: 1px solid #f5c6cb;";
+    }
+}

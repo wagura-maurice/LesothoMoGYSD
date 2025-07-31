@@ -1,0 +1,47 @@
+﻿@using MoGYSD.Business.Persistence
+@using MoGYSD.ViewModels.Nissa.Administration
+
+<MudDialog Class="blur dialog-background" TitleClass="blur dialog-background-title" ContentClass="dialog-background-surface py-10" ActionsClass="dialog-background-surface">
+    <DialogContent>
+        <MudPaper Class="pa-8 ma-2" Elevation="2">
+            <MudForm @ref="form">
+                <MudGrid>
+                    <MudItem xs="12" sm="6" md="4">
+                        <MudTextField Variant="Variant.Outlined" @bind-Value="Model.FirstName" Label="First Name" Required="true" />
+                    </MudItem>
+                    <MudItem xs="12" sm="6" md="4">
+                        <MudTextField Variant="Variant.Outlined" @bind-Value="Model.Surname" Label="Surname" Required="true" />
+                    </MudItem>
+                    <MudItem xs="12" sm="6" md="4">
+                        <MudTextField Variant="Variant.Outlined" @bind-Value="Model.MobileNumber" Label="Mobile Number" />
+                    </MudItem>
+                    <MudItem xs="12" sm="6" md="4">
+                        <MudTextField Variant="Variant.Outlined" @bind-Value="Model.EmailAddress" Label="Email Address" Required="true" />
+                    </MudItem>
+                    <MudItem xs="12" sm="6" md="4">
+                        <MudTextField Variant="Variant.Outlined" T="int" @bind-Value="Model.ContactTypeId" Label="Contact Type" Required="true" />
+                    </MudItem>
+                </MudGrid>
+            </MudForm>
+        </MudPaper>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton OnClick="SubmitForm" Color="Color.Primary">Submit</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter]
+    private IMudDialogInstance Dialog { get; set; }
+    [Parameter] public ContactPersonViewModel Model { get; set; }
+
+    private MudForm form;
+    private void Cancel() => Dialog.Cancel();
+
+    private async Task SubmitForm()
+    {
+        await form.Validate();
+        Dialog.Close(Model);
+    }
+}

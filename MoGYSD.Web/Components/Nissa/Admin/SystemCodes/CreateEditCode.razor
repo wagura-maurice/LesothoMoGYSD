@@ -1,0 +1,154 @@
+﻿@page "/admin/system-code/{Id:int}"
+@using MoGYSD.Business.Models.Nissa.Admin
+@using MoGYSD.Business.Views.Nissa.Admin
+@using MoGYSD.ViewModels.Nissa.Administration
+
+@inject NavigationManager Navigation
+@inject ISnackbar Snackbar
+
+<PageTitle>System Code Details</PageTitle>
+
+<MudGrid Class="mb-3" AlignItems="Center" Justify="Justify.SpaceBetween">
+    <MudItem xs="12" md="6">
+        <MudText Typo="Typo.h2" Class="font-weight-bold"><b>System Code Details</b></MudText>
+        <MudText>
+            Enables the creation, updating, and referencing of system code details
+        </MudText>
+    </MudItem>
+    <MudItem xs="12" md="6" Class="d-flex justify-end">
+        <MudBreadcrumbs Items="_breadcrumbItems" Class="custom-breadcrumb" />
+    </MudItem>
+</MudGrid>
+
+<MudContainer MaxWidth="MaxWidth.Large" Class="my-4">
+    <!-- Replace DialogContent -->
+    <MudPaper Class="mb-2 pa-4">
+        <MudText Typo="Typo.h4" Class="mb-4"><b>System Code</b></MudText>
+        <MudForm Class="d-flex flex-column gap-2">
+            <MudGrid>
+                <MudItem xs="12" md="6">
+                    <MudText><b>Name : @Model.Description</b></MudText>
+                </MudItem>
+            </MudGrid>
+        </MudForm>
+    </MudPaper>
+
+    <MudPaper Class="mb-2 pa-4">
+        <MudText Typo="Typo.h4" Class="mb-4"><b>System Code Details</b></MudText>
+        @if (UserProfileService.UserProfile.Contains("SYSTEM CODE DETAILS:CREATE"))
+        {
+            <MudButton StartIcon="@Icons.Material.Filled.Add" Class="pull-right top-add-button mb-2 mt-2" Variant="Variant.Filled"
+                       OnClick="AddNew" Color="Color.Primary"> @($"Add {Model.Description}")</MudButton>
+        }
+
+        <MudDataGrid T="SystemCodeDetailsView" Items="Elements" Bordered="true" Dense="true" >
+            <ToolBarContent>
+                <MudText><b>Total System Code Detail(s): @Elements.Count()</b></MudText>
+            </ToolBarContent>
+            <Columns>
+                <PropertyColumn Property="x => x.Code" Title="Name" />
+                <PropertyColumn Property="x => x.OrderNo" Title="Sequence No" />
+                <PropertyColumn Property="x => x.Description" Title="Description" />
+                <TemplateColumn Title="Edit">
+                    <CellTemplate>
+                        @if (UserProfileService.UserProfile.Contains("SYSTEM CODE DETAILS:MODIFY"))
+                        {
+                            <MudMenuItem OnClick="@(() => Edit(context.Item))">
+                                <MudIcon Icon="@Icons.Material.Filled.Edit" />
+                            </MudMenuItem>
+                        }
+                    </CellTemplate>
+                </TemplateColumn>
+            </Columns>
+            <PagerContent>
+                <MudDataGridPager T="SystemCodeDetailsView" />
+            </PagerContent>
+        </MudDataGrid>
+    </MudPaper>
+
+    <!-- Replace DialogActions -->
+    <MudStack Row="true" Justify="Justify.SpaceBetween" Class="mt-4">
+        <MudButton OnClick="@Cancel" Variant="Variant.Filled" Color="Color.Secondary">Back</MudButton>
+    </MudStack>
+</MudContainer>
+
+
+@code {
+    [Parameter]
+    public int Id { get; set; }
+
+    private SystemCode Model { get; set; } = new(); // Will be loaded on init
+    private IEnumerable<SystemCodeDetailsView> Elements = new List<SystemCodeDetailsView>();
+    private MudForm form;
+    private List<BreadcrumbItem> _breadcrumbItems =
+    [
+        new("Home", href: "/", icon: Icons.Material.Filled.Home),
+        new("Settings", href: null, icon: Icons.Material.Filled.Settings),
+        new("System Codes", href: "/admin/systemcodes", icon: Icons.Material.Filled.Memory),
+        new("System Code Details", href: null, disabled: true, icon: Icons.Material.Filled.BusinessCenter)
+    ];
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadModel();
+        await Init(Id);
+    }
+
+    private async Task LoadModel()
+    {
+        Model = _genericService.GetById<SystemCode>(Id); // Assuming your service has this method
+    }
+
+    private void Cancel()
+    {
+        Navigation.NavigateTo("/admin/systemcodes"); // Adjust this as needed
+    }
+
+    private async Task Edit(SystemCodeDetailsView detail)
+    {
+        var model = _mapper.Map<SystemCodeDetailViewModel>(detail);
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Small, FullWidth = true };
+        var parameters = new DialogParameters { { "Model", model }, { "Name", Model.Code } };
+        var dialogRef = await DialogService.ShowAsync<CreateEditDetails>("Edit System Code Details", parameters, options);
+        var state = await dialogRef.Result;
+        if (state is not null && !state.Canceled)
+        {
+            await Init(Id);
+        }
+    }
+
+    private async Task AddNew()
+    {
+        var model = new SystemCodeDetailViewModel { SystemCodeId = Id };
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Small, FullWidth = true };
+        var parameters = new DialogParameters { { "Model", model }, { "Name",Model.Code} };
+        var dialogRef = await DialogService.ShowAsync<CreateEditDetails>("Add System Code Details", parameters, options);
+        var state = await dialogRef.Result;
+        if (state is not null && !state.Canceled)
+        {
+            await Init(Id);
+        }
+    }
+
+    private async Task Init(int? parentId = null, string detailName = null)
+    {
+        try
+        {
+            var query = _context.SystemCodeDetailsView.AsNoTracking();
+
+            if (!string.IsNullOrEmpty(detailName))
+                query = query.Where(d => d.Code.Contains(detailName));
+
+            if (parentId.HasValue)
+                query = query.Where(d => d.SystemCodeId == parentId.Value);
+
+            Elements = await query.ToListAsync();
+        }
+        catch (Exception ex)
+        {
+            LoadingService.Hide();
+            Snackbar.Add($"An unexpected error occurred: {(ex.InnerException?.Message ?? ex.Message)}", Severity.Error);
+            return;
+        }
+    }
+}
+

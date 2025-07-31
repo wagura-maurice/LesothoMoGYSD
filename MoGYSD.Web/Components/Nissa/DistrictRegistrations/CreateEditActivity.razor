@@ -1,0 +1,682 @@
+﻿@using Image = SixLabors.ImageSharp.Image
+@using MoGYSD.Business.Models.Nissa.DistrictRegistrations
+@using MoGYSD.Business.Persistence
+@using MoGYSD.Business.Views.Nissa.Admin
+@using MoGYSD.ViewModels
+@using MoGYSD.ViewModels.Nissa.DistrictRegistrations
+@using MoGYSD.Web.Components.Account.Pages
+@using MoGYSD.Web.Components.Autocompletes
+@using MoGYSD.Web.Components.Shared.JsInterop
+@using Newtonsoft.Json
+@using ResizeMode = SixLabors.ImageSharp.Processing.ResizeMode
+@using SixLabors.ImageSharp
+@using SixLabors.ImageSharp.Formats.Png
+@using SixLabors.ImageSharp.Processing
+@using Size = SixLabors.ImageSharp.Size
+@using static MoGYSD.Web.Components.Account.Pages.Register
+
+@inject IUploadService UploadService
+
+<MudDialog Class="blur dialog-background" TitleClass="blur dialog-background-title" ContentClass="dialog-background-surface py-10" ActionsClass="dialog-background-surface">
+    <DialogContent>
+        <MudForm @ref="form">
+            <!-- Card 1: Community Council Selection -->
+            <MudCard Class="mb-4">
+                <MudCardContent>
+                    <MudText Typo="Typo.h3" Class="mb-2"><b>Community Council</b></MudText>
+                    <MudGrid>
+                        <MudItem xs="12" sm="6">
+                            <CommunityCouncilAutocompleteExclude Variant="Variant.Outlined" Label="Select Community Council"
+                                                                 For="@(() => Model.CommunityCouncilId)"
+                                                                 Value="Model.CommunityCouncilId"
+                                                                 ValueChanged="OnCCChangeValue"
+                                                                 DistrictId="@DistrictId" 
+                                                                 ExcludedCommunityCouncilIds="@ExcludeCCs" ReadOnly="_locCCs"/>
+                        </MudItem>
+                        <MudItem xs="12" sm="6">
+                            <MudTextField Variant="Variant.Outlined" T="int" Label="Number of Households"
+                                          @bind-Value="NumberOfHouseholds"
+                                          Immediate="true"
+                                          ReadOnly="true" />
+                        </MudItem>
+                    </MudGrid>
+                </MudCardContent>
+            </MudCard>
+
+            <!-- Card 2: Activity Entries -->
+            @if (_locCCs)
+            {
+                <MudCard>
+                    <MudCardContent>
+                        <MudText Typo="Typo.h3" Class="mb-2"><b>Activity Details</b></MudText>
+
+                        <MudTabs Outlined="true"
+                                ActivePanelIndex="@ActiveTabIndex"
+                                ActivePanelIndexChanged="OnTabChanged"
+                                 Position="@Position.Left"
+                                 Rounded="true"
+                                 Border="true"
+                                 ApplyEffectsToContainer="true"
+                                 Class="mt-4 slim-tabs"
+                                 PanelClass="pa-6">
+                            @if (Activities?.Any() == true)
+                            {
+                                @for (int i = 0; i < Activities.Count; i++)
+                                {
+                                    var activity = Activities[i];
+                                    <MudTabPanel Text="@activity.Code" Disabled="@(VisitedTabIndexes.Contains(i) == false)" Style="text-align: left !important; justify-content: flex-start !important; font-size: 0.8rem;">
+                                        <MudGrid>
+                                            <MudItem xs="12" sm="6">
+                                                <MudSwitch Value="CurrentEntry.IsRequired"
+                                                           ValueChanged="EventCallback.Factory.Create<bool>(this, OnIsRequiredChanged)"
+                                                           Style="@(CurrentEntry.IsRequired ? "color:green" : "color:red")"
+                                                           ThumbIcon="@(CurrentEntry.IsRequired? Icons.Material.Filled.Done : Icons.Material.Filled.Close)"
+                                                           ThumbIconColor="@(CurrentEntry.IsRequired? MudBlazor.Color.Success:  MudBlazor.Color.Error)"
+                                                           Label="@(CurrentEntry.IsRequired ? "Activity Required" : "Activity Not Required")"
+                                                           Class="mb-3" />
+                                            </MudItem>
+
+                                            <MudItem xs="12" sm="6">
+                                                <PartnersAutocomplete Label="Responsible Organisation" Variant="Variant.Outlined"
+                                                                      For="@(() => CurrentEntry.PartnersId)"
+                                                                      @bind-Value="CurrentEntry.PartnersId"
+                                                                      DistrictId="@DistrictId"
+                                                                      Dense="true"
+                                                                      Disabled="!CurrentEntry.IsRequired"/>
+                                            </MudItem>
+
+                                            <MudItem xs="12" sm="6">
+                                                <ContactPersonsAutocomplete Label="Responsible Person" Variant="Variant.Outlined"
+                                                                            For="@(() => CurrentEntry.ContactPersonId)"
+                                                                            @bind-Value="CurrentEntry.ContactPersonId"
+                                                                            PartnerId="@CurrentEntry.PartnersId"
+                                                                            Disabled="!CurrentEntry.IsRequired"/>
+                                            </MudItem>
+
+                                            <MudItem xs="12" sm="6">
+                                                <MudDatePicker Variant="Variant.Outlined" @bind-Date="CurrentEntry.ProjectedStartDate"
+                                                               Label="Projected Start Date"
+                                                               Disabled="!CurrentEntry.IsRequired"
+                                                               For="@(() => CurrentEntry.ProjectedStartDate)"
+                                                               MinDate="_projectedStartDate ?? DateTime.Today"
+                                                               MaxDate="_projectedEndDate ?? DateTime.Today.AddMonths(2)" />
+                                            </MudItem>
+
+                                            <MudItem xs="12" sm="6">
+                                                <MudDatePicker Variant="Variant.Outlined" @bind-Date="CurrentEntry.ProjectedEndDate"
+                                                               Label="Projected End Date"
+                                                               Disabled="!CurrentEntry.IsRequired"
+                                                               For="@(() => CurrentEntry.ProjectedEndDate)"
+                                                               MinDate="Model.ProjectedStartDate ?? _projectedStartDate"
+                                                               MaxDate="_projectedEndDate ?? DateTime.Today.AddMonths(2)" />
+                                            </MudItem>
+                                            <MudItem xs="12" sm="6">
+                                                <MudTextField Class="mt-2 mb-2"
+                                                              Label="Activity Description"
+                                                              Disabled="!CurrentEntry.IsRequired"
+                                                              @bind-Value="CurrentEntry.ActivityDescription"
+                                                              Immediate="true"
+                                                              Variant="Variant.Outlined"
+                                                              Lines="2" />
+                                            </MudItem>
+
+                                            <MudItem xs="12">
+                                                <MudPaper Class="pa-4">
+                                                    <MudText Typo="Typo.h6">Supporting Documents</MudText>
+                                                    <MudText Typo="Typo.body2" Class="mb-2">
+                                                        Recommended: 640x320 resolution, .pdf or image files.
+                                                    </MudText>
+                                                    <MudFileUpload T="IReadOnlyList<IBrowserFile>"
+                                                                   Disabled="!CurrentEntry.IsRequired"
+                                                                   @bind-Files="CurrentEntry.UploadDocuments"
+                                                                   OnFilesChanged="UploadFiles"
+                                                                   Accept=".pdf,image/*"
+                                                                   AppendMultipleFiles>
+                                                        <ActivatorContent>
+                                                            <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.UploadFile">
+                                                                Upload
+                                                            </MudButton>
+                                                        </ActivatorContent>
+                                                    </MudFileUpload>
+
+                                                    @if (CurrentEntry.Documents.Count > 0)
+                                                    {
+                                                        <MudSimpleTable Dense>
+                                                            <tbody>
+                                                                @foreach (var dto in CurrentEntry.Documents)
+                                                                {
+                                                                    <tr @onclick="() => OnDownloadFile(dto.Url)" style="cursor:pointer">
+                                                                        <td><Thumbnail FileName="@dto.Name" FileUrl="@dto.Url" /></td>
+                                                                        <td><FileSizeFormatter FileSizeInBytes="@dto.Size" /></td>
+                                                                        <td>
+                                                                            <MudIconButton Icon="@Icons.Material.Outlined.Delete"
+                                                                                           Color="MudBlazor.Color.Error"
+                                                                                           OnClick="@(() => DeleteImage(dto))" />
+                                                                        </td>
+                                                                    </tr>
+                                                                }
+                                                            </tbody>
+                                                        </MudSimpleTable>
+                                                    }
+                                                </MudPaper>
+                                            </MudItem>
+                                        </MudGrid>
+                                    </MudTabPanel>
+                                }
+                            }
+                            else
+                            {
+                                <MudTabPanel Text="No Activities">
+                                    <MudText>No activities found for the selected Community Council.</MudText>
+                                </MudTabPanel>
+                            }
+                        </MudTabs>
+
+                        @if (Activities?.Count > 0)
+                        {
+                            <MudPaper Class="pa-4 d-flex justify-space-between mt-4">
+                                <MudButton Variant="Variant.Filled" Color="MudBlazor.Color.Secondary"
+                                           StartIcon="@Icons.Material.Filled.ArrowBack"
+                                           Disabled="@(ActiveTabIndex == 0)"
+                                           OnClick="@GoToPreviousTab">
+                                    Previous
+                                </MudButton>
+
+                                @if (ActiveTabIndex < Activities.Count - 1)
+                                {
+                                    <MudButton Variant="Variant.Filled" Color="MudBlazor.Color.Primary" StartIcon="@Icons.Material.Filled.ArrowForward"
+                                               OnClick="@(() => AddActivityEntry(Activities[ActiveTabIndex].Id))">
+                                        Save and Next
+                                    </MudButton>
+                                }
+                                else
+                                {
+                                    @if(isBusy == false)
+                                    {
+                                        <MudButton Variant="Variant.Filled"
+                                                   StartIcon="@Icons.Material.Filled.ArrowForward"
+                                                   Color="MudBlazor.Color.Primary"
+                                                   OnClick="@(() => AddActivityEntry(Activities[ActiveTabIndex].Id))">
+                                            Save and Submit All
+                                        </MudButton>
+                                    }
+                                    else
+                                    {
+                                        <MudProgressCircular Color="MudBlazor.Color.Primary" Class="pull-right" Indeterminate="true" />
+                                    }
+                                }
+                            </MudPaper>
+                        }
+                    </MudCardContent>
+                </MudCard>
+                
+            }
+
+
+        </MudForm>
+    </DialogContent>
+
+    <DialogActions>
+        <MudGrid>
+            <MudItem xs="12" style="text-align: left;">
+                <MudButton OnClick="Cancel"
+                           Variant="Variant.Filled"
+                           Color="MudBlazor.Color.Error"
+                           StartIcon="@Icons.Material.Filled.Cancel">
+                    Cancel
+                </MudButton>
+            </MudItem>
+        </MudGrid>
+    </DialogActions>
+</MudDialog>
+<style>
+    @@import url("https://cdn.jsdelivr.net/npm/@@fancyapps/ui@@5.0.36/dist/fancybox/fancybox.css");
+
+    .fancybox__container {
+        --fancybox-bg: rgba(24, 24, 27, 0.85);
+        z-index: 9999;
+    }
+</style>
+@code {
+    [CascadingParameter] private IMudDialogInstance Dialog { get; set; }
+    [Parameter] public CCRegistrationActivityViewModel Model { get; set; } = new();
+    [Parameter] public int DistrictId { get; set; }
+    [Parameter] public int DistrictPlanId { get; set; }
+    [Parameter] public int RegistrationDistrictId { get; set; }
+
+    private bool isBusy;
+    private int statusId;
+    private bool _uploading;
+    private List<int> ExcludeCCs = new();
+    private bool _locCCs = false;
+    private DateTime? _projectedStartDate;
+    private DateTime? _projectedEndDate;
+    private int NumberOfHouseholds;
+    private List<SystemCodeDetailsView> Activities = new();
+    private MudForm form;
+    private int ActiveTabIndex = 0;
+    private HashSet<int> VisitedTabIndexes = new() { 0 };
+    private List<CCRegistrationActivityViewModel> ActivityEntries { get; set; } = new();
+    private CCRegistrationActivityViewModel CurrentEntry { get; set; } = new();
+    private bool IsInternalTabChange = false;
+    private bool IsPrevTabChange = false;
+
+    private void Cancel() => Dialog.Cancel();
+
+    private async Task OnTabChanged(int newIndex)
+    {
+        if (IsInternalTabChange)
+        {
+            IsInternalTabChange = false; // Reset flag after processing
+            // Skip processing if tab change was triggered internally (e.g., buttons)
+            return;
+        }
+
+        // Save current tab data before switching
+
+        if (newIndex > ActiveTabIndex)
+        {
+
+            await AddActivityEntry(Activities[ActiveTabIndex].Id);
+            VisitedTabIndexes.Add(newIndex);
+        }
+        else
+        {
+            IsPrevTabChange = true; // Hide any previous validation errors
+            await AddActivityEntry(Activities[ActiveTabIndex].Id);
+
+        }
+
+        ActiveTabIndex = newIndex;
+        LoadEntryForTab(newIndex);
+    }
+
+    private async Task GoToPreviousTab()
+    {
+        IsInternalTabChange = true; // Prevent OnTabChanged from firing due to this change
+        IsPrevTabChange = true;
+        await AddActivityEntry(Activities[ActiveTabIndex].Id);
+
+        if (ActiveTabIndex > 0)
+        {
+
+            ActiveTabIndex--;
+            LoadEntryForTab(ActiveTabIndex);
+
+            // Delay resetting the flag to ensure tab change event is ignored during this update
+            await Task.Delay(10);
+
+            StateHasChanged();
+        }
+    }
+
+    private async Task SubmitForm()
+    {
+        if (Model.CommunityCouncilId > 0 && ActivityEntries.Any())
+        {
+            if (Model.NumberOfHouseholds > 0)
+            {
+                using var context = _dbContextFactory.CreateDbContext();
+
+                foreach (var item in ActivityEntries)
+                {
+                    var activities = await context.CCRegistrationActivities.Where(x => x.Id == item.Id).FirstOrDefaultAsync();
+                    if(activities != null)
+                    {
+                        activities.ActivityDescription = item.ActivityDescription;
+                        activities.ContactPersonId = item.ContactPersonId.Value;
+                        activities.PartnersId = item.PartnersId.Value;
+                        activities.ProjectedStartDate = item.ProjectedStartDate.Value;
+                        activities.ProjectedEndDate = item.ProjectedEndDate.Value;
+                        activities.NumberOfHouseholds = item.NumberOfHouseholds.Value;
+                        activities.Documents = item.Documents;
+                        activities.IsRequired = item.IsRequired;
+
+                        await _genericService.Update<CCRegistrationActivity>(activities);
+
+
+                    }
+                }
+                LoadingService.Hide();
+                Snackbar.Add("Activity updated successfully", Severity.Success);
+                Dialog.Close(DialogResult.Ok(true));
+            }
+            else
+            {
+                LoadingService.Show();
+
+                var registeredCC = new CCsRegistered
+                {
+                    DistrictRegistrationPlanId = DistrictPlanId,
+                    CommunityCouncilId = Model.CommunityCouncilId.Value,
+                    StatusId = statusId
+                };
+
+                var data = await _genericService.Add<CCsRegistered>(registeredCC);
+
+                foreach (var c in ActivityEntries)
+                {
+                    c.StatusId = statusId;
+                    c.CCsRegisteredId = registeredCC.Id;
+                    c.NumberOfHouseholds = NumberOfHouseholds;
+                }
+
+                var entity = _mapper.Map<List<CCRegistrationActivity>>(ActivityEntries);
+                entity.ForEach(a => a.Activity = null);
+                _genericService.AddRange<CCRegistrationActivity>(entity);
+
+                LoadingService.Hide();
+                Snackbar.Add("Activity added successfully", Severity.Success);
+                Dialog.Close(DialogResult.Ok(true));
+
+            }
+
+        }
+        else
+        {
+            LoadingService.Hide();
+            Snackbar.Add("Please complete all required fields and add at least one activity entry.", Severity.Error);
+        }
+    }
+
+    private async Task AddActivityEntry(int id)
+    {
+        await form.Validate();
+
+        bool hasData =
+            CurrentEntry.PartnersId > 0 ||
+            CurrentEntry.ContactPersonId > 0 ||
+            !string.IsNullOrWhiteSpace(CurrentEntry.ActivityDescription) ||
+            CurrentEntry.ProjectedStartDate.HasValue ||
+            CurrentEntry.ProjectedEndDate.HasValue ||
+            (CurrentEntry.UploadDocuments?.Any() ?? false) ||
+            (CurrentEntry.Documents?.Any() ?? false);
+
+        if (!hasData && IsPrevTabChange)
+        {
+            IsPrevTabChange = false; // Reset flag after processing
+            return;
+        }
+
+        if (!IsPrevTabChange && CurrentEntry.IsRequired)
+        {
+            if (CurrentEntry.PartnersId == null)
+            {
+                Snackbar.Add("Responsible Organisation is required.", Severity.Error);
+                return;
+            }
+
+            if (CurrentEntry.ContactPersonId == null)
+            {
+                Snackbar.Add("Responsible Person is required.", Severity.Error);
+                return;
+            }
+
+            if (!CurrentEntry.ProjectedStartDate.HasValue)
+            {
+                Snackbar.Add("Projected Start Date is required.", Severity.Error);
+                return;
+            }
+
+            if (!CurrentEntry.ProjectedEndDate.HasValue)
+            {
+                Snackbar.Add("Projected End Date is required.", Severity.Error);
+                return;
+            }
+        }
+
+
+        var existing = ActivityEntries.FirstOrDefault(e => e.ActivityId == id);
+        if (existing != null)
+        {
+            // Preserve values if not already set
+            if (CurrentEntry.Id == 0)
+            {
+                CurrentEntry.Id = existing.Id;
+                CurrentEntry.CCsRegisteredId = existing.CCsRegisteredId;
+                // CurrentEntry.Documents = existing.Documents ?? new List<DocumentImage>();
+            }
+
+            // Remove old entry from the list
+            ActivityEntries = ActivityEntries
+                .Where(e => e.ActivityId != id)
+                .ToList();
+        }
+
+        CurrentEntry.ActivityId = id;
+
+        ActivityEntries.Add(new CCRegistrationActivityViewModel
+        {
+            Id = CurrentEntry.Id,
+            CCsRegisteredId = CurrentEntry.CCsRegisteredId,
+            ActivityId = CurrentEntry.ActivityId,
+            ActivityDescription = CurrentEntry.ActivityDescription,
+            ContactPersonId = CurrentEntry.ContactPersonId,
+            NumberOfHouseholds = CurrentEntry.NumberOfHouseholds,
+            PartnersId = CurrentEntry.PartnersId,
+            ProjectedStartDate = CurrentEntry.ProjectedStartDate,
+            ProjectedEndDate = CurrentEntry.ProjectedEndDate,
+            Documents = CurrentEntry.Documents?.ToList(),
+            IsRequired = CurrentEntry.IsRequired,
+            UploadDocuments = CurrentEntry.UploadDocuments
+        });
+
+        if (!IsInternalTabChange)
+        {
+            if (ActiveTabIndex < Activities.Count - 1)
+            {
+                ActiveTabIndex++;
+                VisitedTabIndexes.Add(ActiveTabIndex);
+            }
+            else
+            {
+                isBusy = true;
+                await SubmitForm(); // last tab
+            }
+        }
+    
+        CurrentEntry = new(); // Reset for next use
+    }
+    
+    protected override async Task OnInitializedAsync()
+    {
+        // If editing, load existing entries for the Community Council, etc.
+        if (Model?.CommunityCouncilId > 0)
+        {
+            var activityEntities = await _context.CCRegistrationActivityView
+                .Where(a => a.CommunityCouncilId == Model.CommunityCouncilId && a.DistrictRegistrationPlanId == DistrictPlanId)
+                .ToListAsync();
+
+            ActivityEntries = _mapper.Map<List<CCRegistrationActivityViewModel>>(activityEntities);
+
+            NumberOfHouseholds = Model.NumberOfHouseholds ?? 0;
+
+            Activities = await _context.SystemCodeDetailsView
+                .Where(x => x.ParentCode == "Activities")
+                .ToListAsync();
+
+            _locCCs = true;
+            if (Activities?.Count > 0)
+            {
+                // Make all tabs accessible
+                VisitedTabIndexes = Enumerable.Range(0, Activities.Count -1).ToHashSet();
+
+                // Optionally load the first tab
+                LoadEntryForTab(0);
+            }
+
+            StateHasChanged(); // Refresh UI
+        }
+        else
+        {
+            var communityCouncil = await _context.CommunityCouncils
+                 .Where(x => x.DistrictId == DistrictId)
+                 .Select(c => c.Id)
+                 .ToListAsync();
+
+            var ccOnRegistration = await _context.RegistrationDistrictCCs
+                .Where(x => x.RegistrationDistrictId == RegistrationDistrictId)
+                .Select(c => c.CCId)
+                .ToListAsync();
+
+            var recentlyAddedCCs = await _context.CCsRegistereds
+                .Where(x => x.DistrictRegistrationPlanId == DistrictPlanId)
+                .Select(c => c.CommunityCouncilId)
+                .ToListAsync();
+
+            ExcludeCCs = communityCouncil
+                .Except(ccOnRegistration)
+                .Union(recentlyAddedCCs)
+                .Distinct()
+                .ToList();
+
+            statusId = await _context.SystemCodeDetailsView
+                .Where(x => x.Code == "Open" && x.ParentCode == "Status")
+                .Select(x => x.Id)
+                .FirstOrDefaultAsync();
+        }
+        var districtPlan = await _context.DistrictRegistrationPlans
+            .AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Id == DistrictPlanId);
+        _projectedStartDate = districtPlan.ProjectedStartDate;
+        _projectedEndDate = districtPlan.ProjectedEndDate;
+    }
+
+    private async Task UploadFiles(InputFileChangeEventArgs e)
+    {
+        try
+        {
+            _uploading = true;
+            var list = new List<DocumentImage>();
+
+            foreach (var file in e.GetMultipleFiles())
+            {
+                try
+                {
+                    var filestream = file.OpenReadStream(GlobalVariable.MaxAllowedSize);
+                    var attachStream = new MemoryStream();
+                    await filestream.CopyToAsync(attachStream);
+                    attachStream.Position = 0;
+
+                    var filename = file.Name;
+                    var fi = new FileInfo(filename);
+                    var ext = fi.Extension;
+
+                    if (ext.EndsWith(".pdf"))
+                    {
+                        var result = await UploadService.UploadAsync(new UploadViewModel(Guid.NewGuid() + ext, UploadType.Document, attachStream.ToArray()));
+                        list.Add(new DocumentImage { Name = filename, Size = attachStream.Length, Url = result });
+                    }
+                    else
+                    {
+                        using (var outStream = new MemoryStream())
+                        {
+                            using (var image = Image.Load(attachStream))
+                            {
+                                image.Mutate(i => i.Resize(new ResizeOptions { Mode = ResizeMode.Min, Size = new Size(640, 320) }));
+                                image.Save(outStream, PngFormat.Instance);
+                                var result = await UploadService.UploadAsync(new UploadViewModel(Guid.NewGuid() + ext, UploadType.Document, outStream.ToArray()));
+                                list.Add(new DocumentImage { Name = filename, Size = outStream.Length, Url = result });
+                            }
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Snackbar.Add($"{ex.Message}", Severity.Error);
+                    return;
+                }
+            }
+
+            Snackbar.Add("Upload documents successfully", Severity.Info);
+
+            if (CurrentEntry.Documents.Count == 0)
+                CurrentEntry.Documents = list;
+            else
+                CurrentEntry.Documents.AddRange(list);
+        }
+        finally
+        {
+            _uploading = false;
+        }
+    }
+
+    private async Task DeleteImage(DocumentImage document)
+    {
+        if (CurrentEntry.Documents != null)
+        {
+            var parameters = new DialogParameters<ConfirmDialog>
+            {
+                { x => x.ContentText, "Are you sure you want to erase this image?" }
+            };
+            var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.ExtraSmall, FullWidth = true };
+            var dialog = await DialogService.ShowAsync<ConfirmDialog>("Erase image", parameters, options);
+            var state = await dialog.Result;
+
+            if (state is not null && !state.Canceled)
+            {
+                CurrentEntry.Documents.Remove(document);
+            }
+        }
+    }
+
+    private async Task OnCCChangeValue(int? id)
+    {
+        Model.CommunityCouncilId = id;
+        if (id.HasValue && id.Value > 0)
+        {
+            var districtPlan = await _context.RegistrationDistrictCCView.AsNoTracking()
+                .Where(x => x.RegistrationDistrictId == RegistrationDistrictId && x.CCId == id.Value)
+                .FirstOrDefaultAsync();
+
+            Activities = await _context.SystemCodeDetailsView
+                .Where(x => x.ParentCode == "Activities")
+                .ToListAsync();
+
+            if (districtPlan != null)
+            {
+                NumberOfHouseholds = districtPlan.ProjectedHHs;
+                _locCCs = true;
+                StateHasChanged();
+            }
+        }
+    }
+
+    private void LoadEntryForTab(int index)
+    {
+        var activityId = Activities[index].Id;
+        var saved = ActivityEntries.FirstOrDefault(x => x.ActivityId == activityId);
+
+        CurrentEntry = saved != null
+            ? new CCRegistrationActivityViewModel
+            {
+                ActivityId = saved.ActivityId,
+                ActivityDescription = saved.ActivityDescription,
+                ContactPersonId = saved.ContactPersonId,
+                NumberOfHouseholds = saved.NumberOfHouseholds,
+                PartnersId = saved.PartnersId,
+                ProjectedStartDate = saved.ProjectedStartDate,
+                ProjectedEndDate = saved.ProjectedEndDate,
+                Documents = saved.Documents,
+                UploadDocuments = saved.UploadDocuments,
+                IsRequired = saved.IsRequired
+            }
+            : new CCRegistrationActivityViewModel();
+    }
+
+    private void OnIsRequiredChanged(bool newValue)
+    {
+        CurrentEntry.IsRequired = newValue;
+    }
+
+    private async Task OnDownloadFile(string? str)
+    {
+        var fileURL = FilePathHelper.ToWebUrl(str);
+
+        if (string.IsNullOrEmpty(fileURL))
+            return;
+
+        await new Fancybox(JSRuntime).Preview(fileURL ?? string.Empty, []);
+    }
+
+}

@@ -1,0 +1,19 @@
+﻿@using MoGYSD.Business.Persistence
+@inherits LayoutComponentBase
+@* Required *@
+<MudThemeProvider/>
+<MudPopoverProvider />
+@* Needed for dialogs *@
+<MudDialogProvider />
+@* Needed for snackbars *@
+<MudSnackbarProvider />
+
+<MudContainer MaxWidth="MaxWidth.Large" Class="my-6">
+    <MudGrid Justify="Justify.Center">
+        <MudItem xs="12" sm="10" md="10" lg="8">
+            <MudPaper Elevation="1" Class="pa-4">
+                @Body
+            </MudPaper>
+        </MudItem>
+    </MudGrid>
+</MudContainer>

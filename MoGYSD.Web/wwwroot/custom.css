@@ -1,0 +1,91 @@
+﻿article.content.px-4 {
+    margin-top: 30px;
+}
+.sidebar-white {
+    background-color: white !important;
+}
+.mud-table-root thead.mud-table-head tr th {
+    padding-left: 5px !important;
+    padding-right: 5px !important;
+    /*  background: #14AC00 !important;*/
+    background: #6a2004 !important;
+    border-top-left-radius: 7px;
+    border-top-right-radius: 7px;
+    color: #fff !important;
+    border-right: 1px solid #fff;
+}
+
+.mud-table-root button.mud-button-root.mud-icon-button.mud-ripple.mud-ripple-icon {
+    margin: 0;
+    padding: 0;
+}
+
+.mud-table-root > tbody > tr:nth-of-type(even) > * {
+    background-color: #f9f9f9;
+}
+
+.mud-table-root > tbody > tr:hover > * {
+    background-color: #ededed;
+}
+/*.logo-indigo .page-header.navbar .page-logo {
+    background: #6a2004 !important;
+}*/
+.logo-indigo .page-header.navbar .page-logo.missa-logo {
+    background: #00a648 !important;
+}
+.logo-indigo .page-header.navbar .page-logo.nissa-logo {
+    background: #6a2004 !important;
+}
+body .mud-button-filled.mud-button-filled-primary {
+    background-color: #00a748;
+}
+.signup-content .signup-form {
+    margin-left: 10px;
+    margin-right: 10px;
+    padding-left: 0px;
+}
+    .signup-content .signup-form{
+        width:100%;
+    }
+    .signup-form .form-title {
+        text-align: center;
+    }
+img.mx-auto.d-block.logo-top-public {
+    width: 100px;
+}
+
+.mud-dialog-title,
+.custom-dialog-title {
+    font-size: 2rem !important; /* Increase font size */
+    font-weight: bold !important; /* Make it bold */
+    color: #2d3a4a !important; /* Custom color (adjust as needed) */
+    padding: 24px 24px 8px 24px !important; /* Add padding */
+    background: #f8fafc !important; /* Light background */
+    border-bottom: 1px solid #e0e0e0 !important; /* Optional: subtle border */
+    letter-spacing: 0.5px;
+}
+.divCaptach button {
+    height: 65px;
+    border-radius: 0;
+    margin-left: 0px;
+}
+.divCaptach img {
+    width: 90%;
+    height: 65px;
+}
+.page .sidemenu-container .sidemenu > li > a, .sidemenu-closed.sidemenu-container-fixed .sidemenu-container:hover .sidemenu > li > a {
+    font-size: 15px;
+}
+.mud-table-root .mud-table-body .mud-table-cell {
+    font-size: 15px;
+}
+td p.mud-typography.mud-typography-body1 {
+    border-radius: 28px !important;
+    padding: 5px 15px !important;
+}
+.mud-table-root thead.mud-table-head tr th.fit,
+.mud-table-root .mud-table-body .mud-table-cell.fit
+table td.fit, table th.fit {
+    white-space: nowrap !important;
+    width: 1% !important;
+}

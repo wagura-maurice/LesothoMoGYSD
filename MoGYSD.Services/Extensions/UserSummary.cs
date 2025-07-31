@@ -1,0 +1,3 @@
+﻿namespace MoGYSD.Services.Extensions
+{
+}

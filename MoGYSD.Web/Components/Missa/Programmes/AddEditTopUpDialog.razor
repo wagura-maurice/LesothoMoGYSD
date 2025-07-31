@@ -1,0 +1,53 @@
+﻿@using System.ComponentModel.DataAnnotations
+@using MoGYSD.ViewModels.Missa.Programmes
+
+<MudDialog>
+    <TitleContent>
+        <MudText Typo="Typo.h6">
+            <MudIcon Icon="@(TopUp.Id == 0 ? Icons.Material.Filled.Add : Icons.Material.Filled.Edit)" Class="mr-3 mb-n1" />
+            @(TopUp.Id == 0 ? "Add New TopUp" : "Edit TopUp")
+        </MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudForm @ref="_form" Model="@TopUp" ValidationDelay="0">
+            <MudGrid>
+                <MudItem xs="12">
+                    <MudTextField @bind-Value="TopUp.Name"
+                                  For="@(() => TopUp.Name)"
+                                  Label="Programme Topup Name"
+                                  Variant="Variant.Outlined" Required />
+                </MudItem>
+                <MudItem xs="12">
+                    <MudTextField @bind-Value="TopUp.Amount"
+                                  For="@(() => TopUp.Amount)"
+                                  Label="Topup Amount(Loti)"
+                                  Variant="Variant.Outlined"
+                                  Adornment="Adornment.End" AdornmentText="LSL"
+                                  InputType="InputType.Number" Format="N2" Required />
+                </MudItem>             
+            </MudGrid>
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel" Variant="Variant.Filled" Color="Color.Secondary">Close</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Submit">Save</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter] public TopUpViewModel TopUp { get; set; } = new();
+
+    private MudForm _form;
+
+    private void Cancel() => MudDialog.Cancel();
+
+    private async Task Submit()
+    {
+        await _form.Validate();
+        if (_form.IsValid)
+        {
+            MudDialog.Close(DialogResult.Ok(TopUp));
+        }
+    }
+}

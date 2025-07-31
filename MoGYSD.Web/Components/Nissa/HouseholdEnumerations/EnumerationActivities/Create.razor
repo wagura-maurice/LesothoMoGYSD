@@ -1,0 +1,380 @@
+﻿@page "/enumeration-plans/create"
+@using MoGYSD.Business.Models.Nissa.HouseHoldEnumerations
+@using MoGYSD.Business.Views.Nissa.HHEnumerations
+@using MoGYSD.ViewModels.Nissa.HouseholdEnumerations
+@using MoGYSD.Web.Components.Nissa.HouseholdEnumerations.EnumerationActivities.Components
+
+<MudGrid Class="mb-3" Justify="Justify.SpaceBetween">
+    <MudItem xs="12" md="6">
+        <MudText Typo="Typo.h2" Class="font-weight-bold"><b>Add Enumeration Plan</b></MudText>
+    </MudItem>
+    <MudItem xs="12" md="6" Class="d-flex justify-end">
+        <MudBreadcrumbs Items="_breadcrumbItems" Class="custom-breadcrumb" />
+    </MudItem>
+</MudGrid>
+
+<MudPaper Elevation="3">
+    <MudTabs @bind-ActivePanelIndex="_activeTab" KeepPanelsAlive="true">
+
+        <MudTabPanel Text="Enumeration Plan">
+            <MudPaper Class="pa-8 ma-2">
+                <!-- Master Plan Form -->
+                <MudForm @ref="form">
+                    <!-- Form Fields -->
+                    <MudGrid>
+                        <MudItem xs="12" sm="6" md="3">
+                            <DistrictAutocomplete Variant="Variant.Outlined" Label="District"
+                                                  For="@(() => DistrictId)"
+                                                  @bind-Value="DistrictId">
+                            </DistrictAutocomplete>
+                        </MudItem>
+                        <MudItem xs="12" sm="6" md="3">
+                            <HHListingPlanAutocomplete Variant="Variant.Outlined" Label="HH Listing Plan"
+                                                    For="@(() => Model.HHListingPlanId)"
+                                                    @bind-Value="Model.HHListingPlanId"
+                                                    IsCascading="true"
+                                                    DistrictId="@DistrictId">
+                            </HHListingPlanAutocomplete>
+                        </MudItem>
+                        <MudItem xs="12" sm="6" md="3">
+                            <MudTextField Variant="Variant.Outlined" Label="Enumeration Plan Name" @bind-Value="Model.Name" Required="true" For="@(() => Model.Name)" />
+                        </MudItem>
+                        <MudItem xs="12" sm="6" md="3">
+                            <MudDatePicker Variant="Variant.Outlined" Label="Projected Start Date" @bind-Date="Model.ProjectedStartDate" Color="Color.Success" For="@(() => Model.ProjectedStartDate)"
+                                Required="true" MinDate="DateTime.Today" />
+                        </MudItem>
+                        <MudItem xs="12" sm="6" md="3">
+                            <MudDatePicker Variant="Variant.Outlined" Label="Projected End Date" @bind-Date="Model.ProjectedEndDate" Color="Color.Success" For="@(() => Model.ProjectedEndDate)"
+                                           MinDate="Model.ProjectedStartDate.HasValue ? Model.ProjectedStartDate.Value.AddDays(1) : DateTime.Today.AddDays(1)" />
+                        </MudItem>
+                        <MudItem xs="12" sm="6" md="3">
+                            <MudDatePicker Variant="Variant.Outlined" Label="Actual Start Date" @bind-Date="Model.ActualStartDate" Color="Color.Success" For="@(() => Model.ActualStartDate)"
+                                           Required="true" MinDate="DateTime.Today" />
+                        </MudItem>
+                        <MudItem xs="12" sm="6" md="3">
+                            <MudDatePicker Variant="Variant.Outlined" Label="Actual End Date" @bind-Date="Model.ActualEndDate" Color="Color.Success" For="@(() => Model.ActualEndDate)"
+                                           MinDate="Model.ActualStartDate.HasValue  ? Model.ActualStartDate.Value.AddDays(1) : DateTime.Today.AddDays(1)" />
+                        </MudItem>
+
+                        <MudItem xs="12" sm="6">
+                            <MudTextField Variant="Variant.Outlined" Label="Description" @bind-Value="Model.Description" FullWidth="true" For="@(() => Model.Description)" />
+                        </MudItem>
+                        <!-- Submit Button -->
+                        <MudItem xs="12" class="d-flex justify-space-between">
+
+                            <MudButton Variant="Variant.Filled"
+                                       Color="Color.Primary"
+                                       OnClick="NextStepFromTab0">
+                                Save
+                            </MudButton>
+                        </MudItem>
+                    </MudGrid>
+                </MudForm>
+            </MudPaper>
+        </MudTabPanel>
+
+        <MudTabPanel Text="Data Collection Areas" Disabled="@(_firstEnd)">
+            <MudPaper Class="pa-8 ma-2">
+                <MudButton StartIcon="@Icons.Material.Filled.Add" Class="pull-right top-add-button mb-2 mt-2" Variant="Variant.Filled"
+                           OnClick="AddCollectionArea" DropShadow="true" Color="Color.Primary">Add Data Collection Areas</MudButton>
+                <!-- District Table -->
+                <MudDataGrid T="EnumerationPlanCCSummary" Items="_EnumerationPlanCCSummary" Bordered="true" Dense="true">
+                    <Columns>
+                        <PropertyColumn Property="x => x.Name" Title="Data Collection Area Name" />
+                        <PropertyColumn Property="x => x.CommunityCouncilName" Title="Community Council Name" />
+                        <PropertyColumn Property="x => x.VillageCount" CellStyle="text-align: centre;" Title="No. of Villages" Format="N0" />
+                        <TemplateColumn Title="Actions">
+                            <CellTemplate>
+                                <MudMenu Icon="@Icons.Material.Filled.MoreVert" Color="Color.Primary" Dense="true">
+                                    <MudMenuItem OnClick="@(() => EditCollectionArea(context.Item))">
+                                        <MudIcon Icon="@Icons.Material.Filled.Edit" Class="me-2" /> Edit
+                                    </MudMenuItem>
+                                    <MudMenuItem OnClick="@(() => ViewCollectionArea(context.Item))">
+                                        <MudIcon Icon="@Icons.Material.Filled.ViewList" Class="me-2" /> View
+                                    </MudMenuItem>
+                                </MudMenu>
+                            </CellTemplate>
+                        </TemplateColumn>
+                    </Columns>
+
+                    <PagerContent>
+                        <MudDataGridPager T="EnumerationPlanCCSummary" />
+                    </PagerContent>
+                </MudDataGrid>
+                <MudItem xs="12" class="d-flex justify-space-between mt-2">
+                    <MudButton Variant="Variant.Filled"
+                               Color="Color.Secondary"
+                               OnClick="BackTab">
+                        Back
+                    </MudButton>
+                    <MudButton Variant="Variant.Filled"
+                               OnClick="NextTab"
+                               Color="Color.Primary">
+                        Next
+                    </MudButton>
+                </MudItem>
+
+            </MudPaper>
+        </MudTabPanel>
+
+        <MudTabPanel Text="Data Collection Team" Disabled="@(_secondEnd)">
+            <MudPaper Class="pa-8 ma-2">
+                <MudButton StartIcon="@Icons.Material.Filled.Add" Class="pull-right top-add-button mb-2 mt-2" Variant="Variant.Filled"
+                           OnClick="AddCollectionTeam" DropShadow="true" Color="Color.Primary">Add Data Collection Team</MudButton>
+                <MudItem xs="12" class="d-flex justify-space-between mt-2">
+                    <MudDataGrid T="EnumerationTeamView" Items="_EnumerationTeamView" Bordered="true" Dense="true">
+                        <Columns>
+                            @* <PropertyColumn Property="x => x.EnumerationAreaName" Title="Data Collection Area Name" /> *@
+                            <PropertyColumn Property="x => x.EnumeratorNames" Title="Enumerator Names" />
+                            <PropertyColumn Property="x => x.CommunityCouncilName" Title="CommunityCouncil Name" />
+                            <PropertyColumn Property="x => x.VillageName" Title="Village Name" />
+                            <TemplateColumn Title="Supervisor" HeaderClass="fit">
+                                <CellTemplate>
+                                    <MudText Style="@($"{GetStatusStyle(context.Item.IsSupervisor)} display:block; padding:4px; border-radius:6px; width:100%; text-align: center;")">
+                                        @(context.Item.IsSupervisor ? "Yes" : "No")
+                                    </MudText>
+                                </CellTemplate>
+                            </TemplateColumn>
+                            <TemplateColumn Title="Actions">
+                                <CellTemplate>
+                                    <MudMenu Icon="@Icons.Material.Filled.MoreVert" Color="Color.Primary" Dense="true">
+                                        <MudMenuItem OnClick="@(() => EditCollectionTeam(context.Item))">
+                                            <MudIcon Icon="@Icons.Material.Filled.Edit" Class="me-2" /> Edit
+                                        </MudMenuItem>
+                                        @* <MudMenuItem OnClick="@(() => ViewCollectionTeam(context.Item))">
+                                            <MudIcon Icon="@Icons.Material.Filled.ViewList" Class="me-2" /> View
+                                        </MudMenuItem> *@
+                                    </MudMenu>
+                                </CellTemplate>
+                            </TemplateColumn>
+                        </Columns>
+
+                        <PagerContent>
+                            <MudDataGridPager T="EnumerationTeamView" />
+                        </PagerContent>
+                    </MudDataGrid>
+                    <MudButton Variant="Variant.Filled"
+                               Color="Color.Secondary"
+                               OnClick="BackTab">
+                        Back
+                    </MudButton>
+                </MudItem>
+            </MudPaper>
+        </MudTabPanel>
+
+    </MudTabs>
+</MudPaper>
+
+
+@code {
+
+    private List<BreadcrumbItem> _breadcrumbItems =
+    [
+        new("Home", href: "/", icon: Icons.Material.Filled.Home),
+        new("Household Enumerations", href: null, icon: Icons.Material.Filled.NextPlan),
+        new("Enumeration Plans", href: "/enumeration-plans", icon: Icons.Material.Filled.ManageAccounts),
+        new("Add Enumeration Plan", href: null, disabled: true, icon: Icons.Material.Filled.AddBox)
+    ];
+    private int? DistrictId;
+    private int _activeTab = 0;
+    private bool _firstEnd = true;
+    private bool _secondEnd = true;
+    private MudForm form;
+    private int statusId;
+    private HHEnumerationPlanViewModel Model = new();
+    private List<EnumerationTeamView> _EnumerationTeamView = new();
+    private List<EnumerationAreaView> _EnumerationAreaView = new();
+    private List<EnumerationPlanCCSummary> _EnumerationPlanCCSummary = new();
+    private int EnumerationAreaId;
+
+    private void BuildSummaryView()
+    {
+        _EnumerationPlanCCSummary = _EnumerationAreaView
+            .GroupBy(x => new { x.CommunityCouncilId, x.CommunityCouncilName })
+            .Select(group => new EnumerationPlanCCSummary
+            {
+                Name = group.FirstOrDefault()?.Name ?? "N/A",
+                CommunityCouncilId = group.Key.CommunityCouncilId,
+                CommunityCouncilName = group.Key.CommunityCouncilName,
+                VillageCount = group.Select(x => x.VillageId).Distinct().Count()
+            })
+            .ToList();
+    }
+
+    private void BackTab()
+    {
+        _activeTab--;
+    }
+
+    private void NextTab()
+    {
+        _secondEnd = false;
+        _activeTab++;
+    }
+
+    private async Task NextStepFromTab0()
+    {
+        await form.Validate();
+
+        if (form.IsValid)
+        {
+            // Save the current step data if needed
+            try
+            {
+                LoadingService.Show();
+
+                _firstEnd = false;
+                Model.StatusId = statusId;
+                Model.CreatedOn = DateTime.Now;
+                Model.CreatedById = UserProfileService.UserId;
+                var data = _mapper.Map<HHEnumerationPlan>(Model);
+                await _context.AddAsync(data);
+                await _context.SaveChangesAsync();
+                Model.Id = data.Id;
+                LoadingService.Hide();
+                _activeTab++;
+                _firstEnd = false;
+
+            }
+            catch (Exception ex)
+            {
+                LoadingService.Hide();
+                Snackbar.Add($"An unexpected error occurred: {ex.Message}", Severity.Error, config => { config.RequireInteraction = true; });
+                return;
+            }
+        }
+        else
+        {
+            Snackbar.Add("Please fill in all required fields.", Severity.Error);
+        }
+    }
+
+    private async Task AddCollectionArea()
+    {
+        // HHEnumerationPlanId will be Model.Id
+        var model = new EnumerationAreaViewModel();
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Medium, FullWidth = true };
+        var parameters = new DialogParameters
+        {
+            { "Model", model },
+            { "HHEnumerationPlanId", Model.Id},
+            { "HHListingPlanId", Model.HHListingPlanId}
+        };
+        var dialogRef = await DialogService.ShowAsync<CreateEditDataCollectionArea>("Add Data Collection Area", parameters, options);
+        var state = await dialogRef.Result;
+        if (state is not null && !state.Canceled)
+        {
+            _EnumerationAreaView = await _context.EnumerationAreaView
+                .Where(x => x.HHEnumerationPlanId == Model.Id)
+                .ToListAsync();
+            EnumerationAreaId = _EnumerationAreaView.FirstOrDefault().Id;
+            BuildSummaryView();
+
+        }
+    }
+
+    private async Task EditCollectionArea(EnumerationPlanCCSummary item)
+    {
+        // HHEnumerationPlanId will be Model.Id
+        var model = new EnumerationAreaViewModel();
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Medium, FullWidth = true };
+        var parameters = new DialogParameters
+        {
+            { "Model", model },
+            { "HHEnumerationPlanId", Model.Id},
+            { "HHListingPlanId", Model.HHListingPlanId},
+            { "EditCommunityCouncilId", item.CommunityCouncilId},
+        };
+        var dialogRef = await DialogService.ShowAsync<CreateEditDataCollectionArea>("Edit Data Collection Area", parameters, options);
+        var state = await dialogRef.Result;
+        if (state is not null && !state.Canceled)
+        {
+            _EnumerationAreaView = await _context.EnumerationAreaView
+                .Where(x => x.HHEnumerationPlanId == Model.Id)
+                .ToListAsync();
+            EnumerationAreaId = _EnumerationAreaView.FirstOrDefault().Id;
+            BuildSummaryView();
+        }
+    }
+
+    private async Task ViewCollectionArea(EnumerationPlanCCSummary item)
+    {
+        var model = await _context.EnumerationAreaView
+        .Where(a => a.HHEnumerationPlanId == Model.Id && a.CommunityCouncilId == item.CommunityCouncilId)
+        .ToListAsync();
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Medium, FullWidth = true };
+        var parameters = new DialogParameters
+        {
+            { "Data", model }
+        };
+        var dialogRef = await DialogService.ShowAsync<ViewDataCollectionArea>("View Data Collection Area", parameters, options);
+        var state = await dialogRef.Result;
+        if (state is not null && !state.Canceled)
+        {
+            _EnumerationAreaView = await _context.EnumerationAreaView
+                .Where(x => x.HHEnumerationPlanId == Model.Id)
+                .ToListAsync();
+            EnumerationAreaId = _EnumerationAreaView.FirstOrDefault().Id;
+            BuildSummaryView();
+        }
+    }
+
+    private async Task AddCollectionTeam()
+    {
+        var model = new EnumerationTeamViewModel { EnumerationAreaId = EnumerationAreaId };
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Medium, FullWidth = true };
+        var parameters = new DialogParameters
+        {
+            { "Model", model },
+            { "DistrictId", DistrictId}
+        };
+        var dialogRef = await DialogService.ShowAsync<CreateEditDataCollectionTeam>("Add Data Collection Area", parameters, options);
+        var state = await dialogRef.Result;
+        if (state is not null && !state.Canceled)
+        {
+            await LoadEnumerationTeam();
+        }
+    }
+
+    private async Task EditCollectionTeam(EnumerationTeamView item)
+    {
+        var model = new EnumerationTeamViewModel { EnumerationAreaId = EnumerationAreaId };
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Medium, FullWidth = true };
+        var parameters = new DialogParameters
+        {
+            { "Model", model },
+            { "DistrictId", DistrictId},
+            { "EditTeamByCCId",item.CommunityCouncilId}
+        };
+        var dialogRef = await DialogService.ShowAsync<CreateEditDataCollectionTeam>("Add Data Collection Area", parameters, options);
+        var state = await dialogRef.Result;
+        if (state is not null && !state.Canceled)
+        {
+            await LoadEnumerationTeam();
+        }
+    }
+
+    private async Task ViewCollectionTeam(EnumerationTeamView item)
+    {
+        
+    }
+
+    private async Task LoadEnumerationTeam()
+    {
+        _EnumerationTeamView = await _context.EnumerationTeamView
+            .Where(x => x.DistrictId == DistrictId && x.HHEnumerationPlanId == Model.Id)
+            .ToListAsync();
+    }
+
+    private string GetStatusStyle(bool isSupervisor)
+    {
+        return isSupervisor
+            ? "background-color:#e6f4ea; color:#2e7d32; border: 1px solid #c8e6c9;"
+            : "background-color:#fcebea; color:#c62828; border: 1px solid #f5c6cb;";
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        statusId = await _context.SystemCodeDetailsView.AsNoTracking().Where(x => x.Code == "Open" && x.ParentCode == "Status").Select(x => x.Id).FirstOrDefaultAsync();
+    }
+}

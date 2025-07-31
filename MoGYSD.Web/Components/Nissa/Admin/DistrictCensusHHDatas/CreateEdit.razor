@@ -1,0 +1,108 @@
+﻿@using MoGYSD.Business.Models.Nissa.Admin
+@using MoGYSD.ViewModels.Nissa.Administration
+
+<MudDialog Class="blur dialog-background" TitleClass="blur dialog-background-title" ContentClass="dialog-background-surface py-10" ActionsClass="dialog-background-surface">
+    <DialogContent>
+        <MudForm @ref="form" Class="d-flex flex-column gap-2">
+            <DistrictAutocomplete Variant="Variant.Outlined" Label="District Name"
+                                  For="@(() => Model.DistrictId)"
+                                  @bind-Value="Model.DistrictId"
+                                  Class="mb-2">
+            </DistrictAutocomplete>
+            <MudTextField Variant="Variant.Outlined" T="int?" @bind-Value="Model.Year" For="@(() => Model.Year)" Label="Census Year" Class="mb-2" />
+            <MudTextField Variant="Variant.Outlined" T="int?" @bind-Value="Model.HouseholdData" For="@(() => Model.HouseholdData)" Label="No. of Household" Class="mb-2" />
+            <MudTextField Variant="Variant.Outlined" T="int?" @bind-Value="Model.PopulationData" For="@(() => Model.PopulationData)" Label="Population" Class="mb-2" />
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel"
+                   Variant="Variant.Filled"
+                   Size="Size.Small"
+                   Class="ml-0">Cancel</MudButton>
+        <MudButton OnClick="SubmitForm" Color="Color.Primary" Variant="Variant.Filled"
+                   Size="Size.Small">Submit</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter]
+    private IMudDialogInstance Dialog { get; set; }
+    [Parameter] public DistrictCensusHHDataViewModel Model { get; set; }
+
+    private MudForm form;
+    private void Cancel() => Dialog.Cancel();
+
+
+    private async Task SubmitForm()
+    {
+        await form.Validate();
+
+        if (form.IsValid)
+        {
+            if (Model.Id > 0)
+            {
+                try
+                {
+                    LoadingService.Show();
+                    var year = await _context.DistrictCensusHHDatas.Where(y => y.Year == Model.Year && y.DistrictId == Model.DistrictId && y.Id != Model.Id).FirstOrDefaultAsync();
+                    if (year != null)
+                    {
+                        LoadingService.Hide();
+                        Snackbar.Add($"Same year {Model.Year} oready exist", Severity.Error);
+                        return;
+                    }
+                    var dataToUpdate = _mapper.Map<DistrictCensusHHData>(Model);
+                    SentenceCaseService.ProcessEntityStrings(dataToUpdate);
+                    await _genericService.Update(dataToUpdate);
+
+                    LoadingService.Hide();
+                    Dialog.Close(DialogResult.Ok(true));
+                    Snackbar.Add("Census data updated successfully", Severity.Success);
+                }
+                catch (Exception ex)
+                {
+                    LoadingService.Hide();
+                    Snackbar.Add($"An unexpected error occurred: {(ex.InnerException is null ? ex.Message : ex.InnerException.Message)}", Severity.Error, config => { config.RequireInteraction = true; });
+                    return;
+                }
+            }
+            else
+            {
+                try
+                {
+                    LoadingService.Show();
+                    var year = await _context.DistrictCensusHHDatas.Where(y => y.Year == Model.Year && y.DistrictId == Model.DistrictId).FirstOrDefaultAsync();
+                    if(year != null)
+                    {
+                        LoadingService.Hide();
+                        Snackbar.Add($"Same year {Model.Year} oready exist", Severity.Error);
+                        return;
+                    }
+                    var addData = _mapper.Map<DistrictCensusHHData>(Model);
+
+                    SentenceCaseService.ProcessEntityStrings(addData);
+                    await _genericService.Add(addData);
+
+                    LoadingService.Hide();
+                    Dialog.Close(DialogResult.Ok(true));
+                    Snackbar.Add("Census Data saved successfully", Severity.Success);
+                }
+                catch (Exception ex)
+                {
+                    LoadingService.Hide();
+                    Snackbar.Add(
+                        $"An unexpected error occurred: {(ex.InnerException is null ? ex.Message : ex.InnerException.Message)}",
+                        Severity.Error,
+                        config => { config.RequireInteraction = true; }
+                    );
+                    return;
+                }
+
+            }
+        }
+        else
+        {
+            Snackbar.Add("Please fill in all required fields.", Severity.Error);
+        }
+    }
+}

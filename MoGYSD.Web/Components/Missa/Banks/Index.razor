@@ -1,0 +1,159 @@
+﻿@page "/banks"
+@using MoGYSD.Business.Persistence
+@using MoGYSD.Business.Views.Missa.Setups
+@using MoGYSD.ViewModels.Missa.Setups
+
+
+<MudGrid Class="mb-3" AlignItems="Center" Justify="Justify.SpaceBetween">
+    <MudItem xs="12" md="6">
+        <MudText Typo="Typo.h2" Class="font-weight-bold"><b>Banks</b></MudText>
+        <MudText>
+            Enables setting up and managing banks used in the system.
+        </MudText>
+    </MudItem>
+    <MudItem xs="12" md="6" Class="d-flex justify-end">
+        <MudBreadcrumbs Items="_breadcrumbItems" Class="custom-breadcrumb" />
+    </MudItem>
+</MudGrid>
+
+<MudExpansionPanels>
+    <SearchPanel Filter="@filterModel" OnFilterApplied="@ReloadTable" />
+</MudExpansionPanels>
+
+<MudPaper Class="p-4">
+    @if (UserProfileService.UserProfile.Contains("BANKS:CREATE"))
+    {
+        <MudButton StartIcon="@Icons.Material.Filled.Add"
+                   Class="pull-right top-add-button mb-2"
+                   Variant="Variant.Filled"
+                   OnClick="AddNewBank"
+                   DropShadow="true"
+                   Color="Color.Primary">
+            Add New Bank
+        </MudButton>
+    }
+
+    <MudDataGrid @ref="table" ServerData="@(LoadBankData)" T="BankView" Bordered="true" Striped="true" Hover="true" Dense="true" RowsPerPage="20">
+        <NoRecordsContent>
+            <MudText Typo="Typo.subtitle1" Class="my-4 text-muted text-center">
+                No banks found. Try adjusting your filters or add a new bank.
+            </MudText>
+        </NoRecordsContent>
+        <ToolBarContent>
+            <MudText><b>Total Banks: @totalItems</b></MudText>
+        </ToolBarContent>
+        <Columns>
+            <PropertyColumn Property="x => x.Name" Title="Bank Name" />
+            <PropertyColumn Property="x => x.BankDescription" Title="Description" />
+            <PropertyColumn Property="x => x.CreatedByName" Title="Created By" />
+            <PropertyColumn Property="x => x.CreatedOn" Title="Created On" Format="yyyy-MM-dd HH:mm" />
+
+            <TemplateColumn Title="Actions" Class="text-end">
+                <CellTemplate>
+                    <MudMenu Icon="@Icons.Material.Filled.MoreVert" Color="Color.Primary" Dense="true">
+                        @if (UserProfileService.UserProfile.Contains("BANKS:VIEW"))
+                        {
+                            <MudMenuItem OnClick="@(() => ViewBankDetails(context.Item.Id))">
+                                <MudIcon Icon="@Icons.Material.Filled.Info" Class="me-2 text-primary" /> Details
+                            </MudMenuItem>
+                        }
+                        @if (UserProfileService.UserProfile.Contains("BANKS:MODIFY"))
+                        {
+                            <MudMenuItem OnClick="@(() => EditBank(context.Item.Id))">
+                                <MudIcon Icon="@Icons.Material.Filled.Edit" Class="me-2" /> Edit
+                            </MudMenuItem>
+                        }
+                    </MudMenu>
+                </CellTemplate>
+            </TemplateColumn>
+        </Columns>
+        <PagerContent>
+            <MudDataGridPager T="BankView" PageSizes="@(new int[] { 10, 20, 50, 100 })" />
+        </PagerContent>
+    </MudDataGrid>
+</MudPaper>
+
+@code { 
+ 
+
+    private MudDataGrid<BankView> table = default!;
+    private BanksSearchFilter filterModel = new();
+    private bool isLoading = false;
+    private int totalItems;
+    private List<BreadcrumbItem> _breadcrumbItems =
+    [
+        new("Home", href: "/", icon: Icons.Material.Filled.Home),
+        new("Settings", href: "/", icon: Icons.Material.Filled.Settings),
+        new("Banks", href: null, disabled: true)
+    ];
+
+    private async Task<GridData<BankView>> LoadBankData(GridState<BankView> state)
+    {
+        isLoading = true;
+        try
+        {
+            if (_context == null)
+            {
+                Snackbar.Add("Database context is not available.", Severity.Error);
+                return new GridData<BankView> { Items = Enumerable.Empty<BankView>(), TotalItems = 0 };
+            }
+
+            IQueryable<BankView> query = _context.BankView.AsNoTracking();
+
+            if (!string.IsNullOrWhiteSpace(filterModel.Name))
+            {
+                query = query.Where(x => x.Name != null && x.Name.Contains(filterModel.Name) ||
+                                         x.BankDescription != null && x.BankDescription.Contains(filterModel.Name));
+            }
+
+            // Default sorting
+            query = query.OrderBy(p => p.Name);
+
+            totalItems = await query.CountAsync();
+
+            var items = await query
+                .Skip(state.Page * state.PageSize)
+                .Take(state.PageSize)
+                .ToListAsync();
+
+            return new GridData<BankView>
+            {
+                Items = items,
+                TotalItems = totalItems
+            };
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine(ex.ToString());
+            Snackbar.Add($"Error loading banks: {ex.Message}", Severity.Error);
+            return new GridData<BankView> { Items = Enumerable.Empty<BankView>(), TotalItems = 0 };
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task ReloadTable()
+    {
+        if (table != null)
+        {
+            await table.ReloadServerData();
+        }
+    }
+
+    private void ViewBankDetails(int id)
+    {
+        Navigation.NavigateTo($"/bank/view/{id}");
+    }
+
+    private void EditBank(int id)
+    {
+        Navigation.NavigateTo($"/bank/edit/{id}");
+    }
+
+    private void AddNewBank()
+    {
+        Navigation.NavigateTo("/bank/add");
+    }
+}

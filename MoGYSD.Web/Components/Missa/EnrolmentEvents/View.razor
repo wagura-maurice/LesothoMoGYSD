@@ -1,0 +1,170 @@
+﻿@page "/enrolment/events/view/{Id:int}"
+
+@using MoGYSD.Business.Models.Missa.Enrolments
+@using MoGYSD.Business.Models.Missa.Setups
+@using MoGYSD.Business.ViewModels.Missa.Enrolments
+@using MudBlazor
+
+
+<PageTitle>@(HeaderText)</PageTitle>
+
+@if (_isLoading)
+{
+    <div class="d-flex justify-center pa-10">
+        <MudProgressCircular Color="Color.Primary" Indeterminate="true" />
+    </div>
+}
+else if (Model != null)
+{
+    <MudGrid Class="mb-3" AlignItems="Align.Center" Justify="Justify.SpaceBetween">
+        <MudItem xs="12" md="8">
+            <MudText Typo="Typo.h4" Class="font-weight-bold">@HeaderText</MudText>
+        </MudItem>
+        <MudItem xs="12" md="4" Class="d-flex justify-start justify-md-end">
+            <MudBreadcrumbs Items="_breadcrumbItems" Class="custom-breadcrumb" />
+        </MudItem>
+    </MudGrid>
+
+    <MudPaper Class="pa-4 pa-md-6 mb-6" Elevation="3">
+        <MudCard Elevation="0">
+            <MudCardHeader>
+                <CardHeaderContent>
+                    <MudText Typo="Typo.h5" Class="font-weight-bold"><b>Enrolment Event Details</b></MudText>
+                </CardHeaderContent>
+            </MudCardHeader>
+            <MudCardContent>
+                <MudGrid Spacing="3">
+                    <MudItem xs="12" sm="6" md="4">
+                        <MudText><b>Event Name:</b> @Model.EnrolmentEventName</MudText>
+                    </MudItem>
+                    <MudItem xs="12" sm="6" md="4">
+                        <MudText><b>Programme:</b> @Model.ProgrammeName</MudText>
+                    </MudItem>
+                    <MudItem xs="12" sm="6" md="4">
+                        <MudText><b>District:</b> @Model.DistrictName</MudText>
+                    </MudItem>
+                    <MudItem xs="12" sm="6" md="4">
+                        <MudText><b>Community Council:</b> @Model.CommunityCouncilName</MudText>
+                    </MudItem>
+                    <MudItem xs="12" sm="6" md="4">
+                        <MudText><b>Village:</b> @Model.VillageName</MudText>
+                    </MudItem>
+                    <MudItem xs="12" sm="6" md="4">
+                        <MudText><b>Quota:</b> @Model.Quota</MudText>
+                    </MudItem>
+                    <MudItem xs="12" sm="6" md="4">
+                        <MudText><b>Start Date:</b> @(Model.StartDate?.ToString("dd/MM/yyyy"))</MudText>
+                    </MudItem>
+                    <MudItem xs="12" sm="6" md="4">
+                        <MudText><b>End Date:</b> @(Model.EndDate?.ToString("dd/MM/yyyy"))</MudText>
+                    </MudItem>
+                  
+                </MudGrid>
+            </MudCardContent>
+        </MudCard>
+    </MudPaper>
+
+    <MudPaper Class="pa-4 mt-6" Elevation="0">
+        <MudButton Variant="Variant.Filled"
+                   Color="Color.Secondary"
+                   OnClick="BackToList"
+                   StartIcon="@Icons.Material.Filled.ArrowBack">
+            Back
+        </MudButton>
+       
+    </MudPaper>
+}
+else
+{
+    <MudAlert Severity="Severity.Error" Class="mt-4">The requested Enrolment Event could not be found.</MudAlert>
+    <MudButton Variant="Variant.Filled"
+               Color="Color.Secondary"
+               OnClick="BackToList"
+               StartIcon="@Icons.Material.Filled.ArrowBack"
+               Class="mt-4">
+        Back
+    </MudButton>
+}
+
+@code {
+    [Parameter]
+    public int Id { get; set; }
+
+    private EnrolmentEventViewModel Model { get; set; }
+    private bool _isLoading = true;
+    private string HeaderText = "Enrolment Event Details";
+    private List<BreadcrumbItem> _breadcrumbItems = new();
+
+
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        _isLoading = true;
+        Model = null;
+
+        try
+        {
+            var entity = await _context.Set<EnrolmentEvent>()
+                .Include(e => e.Programme)
+                .Include(e => e.District)
+                .Include(e => e.CommunityCouncil)
+                .Include(e => e.Village)
+                .AsNoTracking()
+                .FirstOrDefaultAsync(e => e.Id == Id);
+
+            if (entity == null)
+            {
+                Snackbar.Add("Enrolment Event not found.", Severity.Error);
+                return;
+            }
+
+            Model = _mapper.Map<EnrolmentEventViewModel>(entity);
+
+            HeaderText = $"Details for Enrolment Event '{Model.EnrolmentEventName}'";
+            UpdateBreadcrumbs();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading enrolment event: {ex.Message}");
+            Snackbar.Add($"An error occurred while loading the enrolment event: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private void UpdateBreadcrumbs()
+    {
+        _breadcrumbItems =
+        [
+            new("Home", href: "/", icon: Icons.Material.Filled.Home),
+            new("Enrolment Events", href: "/enrolment/events"),
+            new(HeaderText, href: null, disabled: true)
+        ];
+    }
+
+    private void EditEnrolmentEvent()
+    {
+        Navigation.NavigateTo($"/enrolment/events/edit/{Id}");
+    }
+
+    private void BackToList() => Navigation.NavigateTo("/enrolment/events");
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_context is IAsyncDisposable asyncDisposable)
+        {
+            await asyncDisposable.DisposeAsync();
+        }
+        else
+        {
+            _context?.Dispose();
+        }
+    }
+}

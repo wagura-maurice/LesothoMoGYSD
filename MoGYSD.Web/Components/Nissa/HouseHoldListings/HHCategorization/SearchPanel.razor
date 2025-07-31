@@ -1,0 +1,58 @@
+﻿<MudExpansionPanel Text="Expand to apply search filter">
+    <MudGrid Class="py-2">
+        <MudItem xs="12" sm="6" md="3">
+            <MudTextField Variant="Variant.Outlined" @bind-Value="Filter.Name"
+                          Label="Search Name"
+                          Placeholder="Enter name..." />
+        </MudItem>
+
+        <MudItem xs="12" sm="6" md="3">
+            <HHListingPlanAutocomplete Variant="Variant.Outlined" Label="Search by HH Listing Plan Name"
+                                       @bind-Value="Filter.HHListingId">
+            </HHListingPlanAutocomplete>
+        </MudItem>
+
+
+        <MudItem xs="12" sm="6" md="3">
+            <MudDatePicker Variant="Variant.Outlined" @bind-Date="Filter.Date"
+                           Label="Search by Date" />
+        </MudItem>
+
+        <MudItem xs="12">
+            <div class="d-flex justify-content-between mt-2">
+                <MudButton Variant="Variant.Filled"
+                           Color="Color.Secondary"
+                           StartIcon="@Icons.Material.Filled.Clear"
+                           OnClick="ClearFilter"
+                           Class="ml-2">
+                    Clear
+                </MudButton>
+                <MudButton Variant="Variant.Filled"
+                           Color="Color.Primary"
+                           StartIcon="@Icons.Material.Filled.Search"
+                           OnClick="OnFilter">
+                    Search
+                </MudButton>
+            </div>
+        </MudItem>
+    </MudGrid>
+</MudExpansionPanel>
+
+@code {
+    [Parameter] public CategorizationSearchFilter Filter { get; set; } = new();
+    [Parameter] public EventCallback OnFilterApplied { get; set; }
+
+    private async Task OnFilter()
+    {
+        await OnFilterApplied.InvokeAsync();
+    }
+    private async Task ClearFilter()
+    {
+        // Reset all filter properties to their default values
+        Filter.Name = string.Empty;
+        Filter.HHListingId = null;
+        Filter.Date = null;
+
+        await OnFilterApplied.InvokeAsync();
+    }
+}

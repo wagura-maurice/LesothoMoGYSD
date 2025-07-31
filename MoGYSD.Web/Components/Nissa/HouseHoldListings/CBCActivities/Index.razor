@@ -1,0 +1,267 @@
+﻿@page "/householdlisting/cbcactivities"
+@using MoGYSD.Business.Views.HouseHoldListings
+@using MoGYSD.ViewModels.Nissa.HouseHoldListings
+@using MoGYSD.Web.Components.HouseHoldListings.CBCActivities
+
+<MudGrid Class="mb-3" Justify="Justify.SpaceBetween">
+    <MudItem xs="12" md="6">
+        <MudText Typo="Typo.h2" Class="font-weight-bold"><b>CBC Activity Plans</b></MudText>
+        <MudText>
+            This module is used to create and manage CBC activity plans to coordinate all CBC data collection tasks.
+        </MudText>
+    </MudItem>
+    <MudItem xs="12" md="6" Class="d-flex justify-end">
+        <MudBreadcrumbs Items="_breadcrumbItems" Class="custom-breadcrumb" />
+    </MudItem>
+</MudGrid>
+
+<MudExpansionPanels>
+    <SeachPanel Filter="@filterModel"
+                OnFilterApplied="@ReloadTable" />
+</MudExpansionPanels>
+
+<MudPaper Class="pa-4">
+    @if (UserProfileService.UserProfile.Contains("CBC ACTIVITIES:CREATE"))
+    {
+        <MudButton StartIcon="@Icons.Material.Filled.Add" Class="pull-right top-add-button mb-2 mt-2" Variant="Variant.Filled"
+                   OnClick="AddNew" DropShadow="true" Color="Color.Primary">Add New</MudButton>        
+    }
+
+    <MudDataGrid T="CbcActivitiesView" Items="Data" Bordered="true" Dense="true">
+        <ToolBarContent>
+            <MudText><b>Total CBC Activity Plan(s): @totalItems</b></MudText>
+        </ToolBarContent>
+        <NoRecordsContent>
+            <MudText Typo="Typo.subtitle1" Class="my-4 text-muted text-center">
+                No CBC Activity Plan found. Try adjusting your filters.
+            </MudText>
+        </NoRecordsContent>
+        <Columns>
+            <PropertyColumn Property="x => x.HHListingActivityName" Title="HH Listing Plan Name" />
+            <PropertyColumn Property="x => x.DistrictName" Title="District Name" />
+            <PropertyColumn Property="x => x.CommunityCouncilName" Title="Community Council Name" />
+            @* <PropertyColumn Property="x => x.TotalNumberofCBCParticipants" Title="Total HH Participants" /> *@
+            <PropertyColumn Property="x => x.DateCBCConducted" Title="Date CBC Conducted" Format="dd-MMM-yyyy" />
+            <PropertyColumn Property="x => x.PartnerName" Title="Responsible Organisation" />
+            <PropertyColumn Property="x => x.ContactPersonName" Title="Responsible Person" />
+            <TemplateColumn Title="Status">
+                <CellTemplate>
+                    <MudText Style="@($"{GetStatusStyle(context.Item.StatusName)} display:block; padding:4px; border-radius:4px; width:100%;")">
+                        @context.Item.StatusName
+                    </MudText>
+                </CellTemplate>
+            </TemplateColumn>
+            <PropertyColumn Property="x => x.VillageCount" Title="No. of Villages" />
+
+            <TemplateColumn Title="Actions">
+                <CellTemplate>
+                    <MudMenu Icon="@Icons.Material.Filled.MoreVert" Color="Color.Primary" Dense="true">
+                        @if (UserProfileService.UserProfile.Contains("CBC ACTIVITIES:MODIFY"))
+                        {
+                            @if(context.Item?.StatusName?.ToLower() == "open")
+                            {
+                                <MudMenuItem OnClick="@(() => Edit(context.Item))">
+                                    <MudIcon Icon="@Icons.Material.Filled.Edit" Class="me-2" /> Edit
+                                </MudMenuItem>                                
+                            }
+                        }
+                        @if (context.Item.StatusName.Trim()?.ToLower() == "open")
+                        {
+                            @if (UserProfileService.UserProfile.Contains("CBC ACTIVITIES:CREATE"))
+                            {
+                                <MudMenuItem OnClick="@(() => ViewDetails(context.Item, false))">
+                                    <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Class="me-2 text-success" /> In Progress
+                                </MudMenuItem>
+                            }
+                        }
+                        else if (context.Item.StatusName == "In Progress")
+                        {
+                            @if (UserProfileService.UserProfile.Contains("CBC ACTIVITIES:CREATE"))
+                            {
+                                <MudMenuItem OnClick="@(() => ViewDetails(context.Item, false))">
+                                    <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Class="me-2 text-success" /> Close
+                                </MudMenuItem>
+                            }
+                        }
+                        @if (UserProfileService.UserProfile.Contains("CBC ACTIVITIES:VIEW"))
+                        {
+                            <MudMenuItem OnClick="@(() => ViewDetails(context.Item, true))">
+                                <MudIcon Icon="@Icons.Material.Filled.Rule" Class="me-2 text-success" /> View Villages
+                            </MudMenuItem>
+                        }
+                    </MudMenu>
+                </CellTemplate>
+            </TemplateColumn>
+        </Columns>
+
+        <PagerContent>
+            <MudDataGridPager T="CbcActivitiesView" />
+        </PagerContent>
+    </MudDataGrid>
+
+</MudPaper>
+
+@code {
+    private List<CbcActivitiesView> Data = new();
+    private CBCActivitySearchFilter filterModel = new();
+
+    private int? _selectedCBCActivities;
+    private bool _isLoading = false;
+    private int totalItems;
+
+
+    private List<BreadcrumbItem> _breadcrumbItems =
+    [
+        new("Home", href: "/", icon: Icons.Material.Filled.Home),
+        new("HouseHold Listing", href: "/", icon: Icons.Material.Filled.ViewList),
+        new("CBC Activity Plans", href: null, disabled: true, icon: Icons.Material.Filled.MenuBook)
+    ];
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!UserProfileService.UserProfile.Contains("CBC ACTIVITIES:VIEW"))
+        {
+            Navigation.NavigateTo("/AccessDenied");
+        }
+        await Init();
+    }
+
+    private void OnCheckChanged(VillageSelect village, bool newValue)
+    {
+        village.IsSelected = newValue;
+        Console.WriteLine($"{village.Name} selected: {newValue}");
+    }
+
+    private async Task ReloadTable()
+    {
+        await Init();
+        StateHasChanged();
+    }
+
+    private async Task Init()
+    {
+        try
+        {
+            // Base query
+            var query = _context.CbcActivitiesView.AsNoTracking();
+
+            // Apply filters conditionally
+            if (!string.IsNullOrWhiteSpace(filterModel.Name))
+            {
+                string keyword = filterModel.Name.Trim();
+                query = query.Where(x =>
+                    x.HHListingActivityName.Contains(keyword) ||
+                    x.DistrictName.Contains(keyword) ||
+                    x.CommunityCouncilName.Contains(keyword));
+            }
+
+            if (filterModel.DistrictId.GetValueOrDefault() > 0)
+            {
+                query = query.Where(d => d.DistrictId == filterModel.DistrictId.Value);
+            }
+
+            if (filterModel.CommunityCouncilId.GetValueOrDefault() > 0)
+            {
+                query = query.Where(d => d.CommunityCouncilId == filterModel.CommunityCouncilId.Value);
+            }
+
+            if (filterModel.PartnerId.GetValueOrDefault() > 0)
+            {
+                query = query.Where(d => d.PartnerId == filterModel.PartnerId.Value);
+            }
+
+            // Materialize filtered list
+            var data = await query.ToListAsync();
+
+            // Get all activity IDs at once to avoid N+1 queries
+            var activityIds = data.Select(d => d.Id).ToList();
+
+            // Get village counts in one grouped query
+            var villageCounts = await _context.CbcActivityVillages
+                .Where(av => activityIds.Contains(av.CbcActivityId))
+                .GroupBy(av => av.CbcActivityId)
+                .Select(g => new { ActivityId = g.Key, Count = g.Count() })
+                .ToDictionaryAsync(g => g.ActivityId, g => g.Count);
+
+            // Set VillageCount for each item
+            foreach (var item in data)
+            {
+                item.VillageCount = villageCounts.TryGetValue(item.Id, out var count) ? count : 0;
+            }
+
+            // Assign results
+            Data = data;
+            totalItems = data.Count;
+        }
+        catch (Exception ex)
+        {
+            LoadingService.Hide();
+            Snackbar.Add($"An unexpected error occurred: {(ex.InnerException is null ? ex.Message : ex.InnerException.Message)}", Severity.Error, config => { config.RequireInteraction = true; });
+            return;
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+        // StateHasChanged();
+    }
+
+    private async Task AddNew()
+    {
+        var model = new CbcActivitiesViewModel();
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Small, FullWidth = true };
+        var parameters = new DialogParameters
+        {
+            { "Model", model }
+        };
+        var dialogRef = await DialogService.ShowAsync<CreateEdit>("Add CBC Activity Plan", parameters, options);
+        var state = await dialogRef.Result;
+        if (state is not null && !state.Canceled)
+        {
+            await Init();
+        }
+
+    }
+
+    private async Task Edit(CbcActivitiesView activities)
+    {
+        var model = _mapper.Map<CbcActivitiesViewModel>(activities);
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Small, FullWidth = true };
+        var parameters = new DialogParameters
+        {
+            { "Model", model }
+        };
+        var dialogRef = await DialogService.ShowAsync<CreateEdit>("Edit CBC Activity Plan", parameters, options);
+        var state = await dialogRef.Result;
+        if (state is not null && !state.Canceled)
+        {
+            await Init();
+        }
+    }
+
+    private async Task ViewDetails(CbcActivitiesView model, bool isView)
+    {
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Small, FullWidth = true };
+        var parameters = new DialogParameters
+        {
+            { "Model", model },
+            { "IsView", isView }
+        };
+        var dialogRef = await DialogService.ShowAsync<View>("View Villages", parameters, options);
+        var state = await dialogRef.Result;
+    }
+
+    private string GetStatusStyle(string? status)
+    {
+        return status switch
+        {
+            "Open" => "background-color:#f5f5f5; color:#616161; border: 1px solid #e0e0e0;",
+            "Under Review" => "background-color:#fff8e1; color:#f9a825; border: 1px solid #ffecb3;",
+            "Approved" => "background-color:#e6f4ea; color:#2e7d32; border: 1px solid #c8e6c9;",
+            "InProgress" => "background-color:#e3f2fd; color:#1565c0; border: 1px solid #90caf9;",
+            "Closed" => "background-color:#fff3e0; color:#ef6c00; border: 1px solid #ffe0b2;",
+            "Rejected" => "background-color:#fdecea; color:#c62828; border: 1px solid #f5c6cb;",
+            _ => "background-color:#eeeeee; color:#424242; border: 1px solid #bdbdbd;"
+        };
+    }
+}

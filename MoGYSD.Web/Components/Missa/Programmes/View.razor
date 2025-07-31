@@ -1,0 +1,420 @@
+﻿@page "/programmes/view/{Id:int}"
+
+@using System.ComponentModel.DataAnnotations
+@using AutoMapper
+@using Microsoft.EntityFrameworkCore
+@using MoGYSD.Business.Models.Missa.ProgrammeConfiguration
+@using MoGYSD.Business.Persistence
+@using MoGYSD.Business.Views.Missa.Programmes
+@using MoGYSD.ViewModels.Missa.Programmes
+@using MoGYSD.Services
+@using MudBlazor
+@using MudBlazor.Utilities
+
+@if (_isLoading)
+{
+    <div class="d-flex justify-center pa-10">
+        <MudProgressCircular Color="Color.Primary" Indeterminate="true" />
+    </div>
+}
+else if (Model != null && Model.Id > 0)
+{
+    <MudGrid Class="mb-3" AlignItems="Align.Center" Justify="Justify.SpaceBetween">
+        <MudItem xs="12" md="6">
+            <MudText Typo="Typo.h4" Class="font-weight-bold"><b>@HeaderText</b></MudText>
+        </MudItem>
+        <MudItem xs="12" md="6" Class="d-flex justify-start justify-sm-end">
+            <MudBreadcrumbs Items="_breadcrumbItems"  Class="custom-breadcrumb" />
+        </MudItem>
+    </MudGrid>
+
+    <MudPaper Class="pa-4 pa-md-6" Elevation="3">
+        <MudCard Elevation="0">
+            <MudCardHeader>
+                <CardHeaderContent>
+                    <MudText Typo="Typo.h5"><b>Programme Details</b></MudText>
+                </CardHeaderContent>
+            </MudCardHeader>
+            <MudCardContent>
+                <MudGrid Spacing="3">
+                    <MudItem xs="12" sm="6" md="4"><MudText><b>Programme Code:</b> @Model.Code</MudText></MudItem>
+                    <MudItem xs="12" sm="6" md="4"><MudText><b>Programme Name:</b> @Model.Name</MudText></MudItem>
+                    <MudItem xs="12" sm="6" md="4"><MudText><b>Assistance Unit:</b> @_assistanceUnitName</MudText></MudItem>
+                    <MudItem xs="12" sm="6" md="4"><MudText><b>Programme Type:</b> @_programmeTypeName</MudText></MudItem>
+                    <MudItem xs="12" sm="6" md="4">
+                        <MudText>
+                            <b>Payment Modes Allowed:</b>
+                            @(_paymentModesAllowedNames.Any() ? string.Join(", ", _paymentModesAllowedNames) : "None specified")
+                        </MudText>
+                    </MudItem>
+                    <MudItem xs="12" sm="6" md="4"><MudText><b>Proxies Allowed:</b> @Model.ProxiesAllowed</MudText></MudItem>
+                    <MudItem xs="12" sm="6" md="4"><MudText><b>Payment Frequency:</b> @_paymentFrequencyName</MudText></MudItem>
+                    <MudItem xs="12" sm="6" md="4"><MudText><b>Payment Amount(Loti):</b> @Model.Amount.ToString("N2")</MudText></MudItem>
+                    <MudItem xs="12" sm="6" md="4">
+                        <div class="d-flex align-center">
+                            <MudText Class="me-2"><b>Programme Color:</b></MudText>
+                            <MudChip T="string" Text="@Model.ColourScheme" Style="@($"background-color: {Model.ColourScheme}; color: {GetTextColorForBackground(_color)};")" />
+                        </div>
+                    </MudItem>
+                    <MudItem xs="12" sm="6" md="4"><MudText><b>Proof of Life Type:</b> @_proofOfLifeSpanTypeName</MudText></MudItem>
+                    <MudItem xs="12" sm="6" md="4"><MudText><b>Proof of Life Span:</b> @Model.ProofOfLifeSpan</MudText></MudItem>
+                    <MudItem xs="12" sm="6" md="4">
+                        <div class="d-flex align-center">
+                            <MudText Class="me-2"><b>Status:</b></MudText>
+                            @if (Model.IsActive)
+                            {
+                                <MudChip T="string" Icon="@Icons.Material.Filled.CheckCircle" Color="Color.Success" Variant="Variant.Text">Active</MudChip>
+                            }
+                            else
+                            {
+                                <MudChip T="string" Icon="@Icons.Material.Filled.Cancel" Color="Color.Error" Variant="Variant.Text">Inactive</MudChip>
+                            }
+                        </div>
+                    </MudItem>
+                </MudGrid>
+            </MudCardContent>
+        </MudCard>
+
+        <MudDivider Class="my-6" />
+
+        <MudText Typo="Typo.h5" Class="mb-4"><b>Programme Topups</b></MudText>
+        <MudDataGrid T="TopUpViewModel" Items="@Model.TopUps" Bordered="true" Striped="true" Dense="true">
+            <Columns>
+                <PropertyColumn Property="x => x.Name" Title="Topup Name" />
+                <TemplateColumn Title="Topup Amount (Loti)" SortBy="new Func<TopUpViewModel, object>(x => x.Amount)" CellStyle="text-align: right;">
+                    <CellTemplate>
+                        @context.Item.Amount.ToString("N2")
+                    </CellTemplate>
+                </TemplateColumn>
+                <TemplateColumn Title="Status">
+                    <CellTemplate>
+                        @if (context.Item.IsActive)
+                        {
+                            <MudChip T="string" Icon="@Icons.Material.Filled.CheckCircle" Color="Color.Success" Size="Size.Small" Variant="Variant.Text">Active</MudChip>
+                        }
+                        else
+                        {
+                            <MudChip T="string" Icon="@Icons.Material.Filled.Cancel" Color="Color.Error" Size="Size.Small" Variant="Variant.Text">Inactive</MudChip>
+                        }
+                    </CellTemplate>
+                </TemplateColumn>
+            </Columns>
+            <NoRecordsContent>
+                <MudText>No programme top-ups defined.</MudText>
+            </NoRecordsContent>
+            <PagerContent>
+                <MudDataGridPager T="TopUpViewModel" />
+            </PagerContent>
+        </MudDataGrid>
+
+        <MudDivider Class="my-6" />
+
+        <MudText Typo="Typo.h5" Class="mb-4"><b>Programme Benefit Rules</b></MudText>
+        <MudDataGrid T="BenefitRuleViewModel" Items="@Model.BenefitRule" Bordered="true" Striped="true" Dense="true">
+            <Columns>
+                <PropertyColumn Property="x => x.MinHHMembers" Title="Minimum HH Members" />
+                <PropertyColumn Property="x => x.MaxHHMembers" Title="Maximum HH Members" />
+                <TemplateColumn Title="Benefit Amount (Loti)" SortBy="new Func<BenefitRuleViewModel, object>(x => x.Amount)" CellStyle="text-align: right;">
+                    <CellTemplate>
+                        @context.Item.Amount.ToString("N2")
+                    </CellTemplate>
+                </TemplateColumn>
+                <TemplateColumn Title="Status">
+                    <CellTemplate>
+                        @if (context.Item.IsActive)
+                        {
+                            <MudChip T="string" Icon="@Icons.Material.Filled.CheckCircle" Color="Color.Success" Size="Size.Small" Variant="Variant.Text">Active</MudChip>
+                        }
+                        else
+                        {
+                            <MudChip T="string" Icon="@Icons.Material.Filled.Cancel" Color="Color.Error" Size="Size.Small" Variant="Variant.Text">Inactive</MudChip>
+                        }
+                    </CellTemplate>
+                </TemplateColumn>
+            </Columns>
+            <NoRecordsContent>
+                <MudText>No benefit rules defined.</MudText>
+            </NoRecordsContent>
+            <PagerContent>
+                <MudDataGridPager T="BenefitRuleViewModel" />
+            </PagerContent>
+        </MudDataGrid>
+
+        <MudDivider Class="my-6" />
+
+        @if (Model.Code?.Trim().ToUpper() == "OVC-B")
+        {
+            <MudText Typo="Typo.h5" Class="mb-4"><b>OVC-B Configurations</b></MudText>
+            <MudDataGrid T="OVCBConfigurationFormViewModel" Items="@Model.OVCBConfigurations" Bordered="true" Striped="true" Dense="true">
+                <Columns>
+                    <PropertyColumn Property="x => x.FacilityTypeName" Title="Facility Type" />
+                    <PropertyColumn Property="x => x.GradeName" Title="Grade" />
+                    <PropertyColumn Property="x => x.FeeTypeName" Title="Fee Type" />
+                    <TemplateColumn Title="Fee Amount (Loti)" SortBy="x => x.FeeAmount" CellStyle="text-align: right;">
+                        <CellTemplate>
+                            @context.Item.FeeAmount.ToString("N2")
+                        </CellTemplate>
+                    </TemplateColumn>
+                    <PropertyColumn Property="x => x.FinYearName" Title="Financial Year" />
+                    <TemplateColumn Title="Status">
+                        <CellTemplate>
+                            @if (context.Item.Status)
+                            {
+                                <MudChip T="string" Icon="@Icons.Material.Filled.CheckCircle" Color="Color.Success" Size="Size.Small" Variant="Variant.Text">Active</MudChip>
+                            }
+                            else
+                            {
+                                <MudChip T="string" Icon="@Icons.Material.Filled.Cancel" Color="Color.Error" Size="Size.Small" Variant="Variant.Text">Inactive</MudChip>
+                            }
+                        </CellTemplate>
+                    </TemplateColumn>
+                </Columns>
+                <NoRecordsContent>
+                    <MudText>No OVC-B configurations defined.</MudText>
+                </NoRecordsContent>
+                <PagerContent>
+                    <MudDataGridPager T="OVCBConfigurationFormViewModel" />
+                </PagerContent>
+            </MudDataGrid>
+            <MudDivider Class="my-6" />
+        }
+
+        <MudText Typo="Typo.h5" Class="mb-4"><b>Programme Arrears</b></MudText>
+        <MudDataGrid T="ArrearsConfigurationViewModel" Items="@Model.ArrearsConfigurations" Bordered="true" Striped="true" Dense="true">
+            <Columns>
+                <PropertyColumn Property="x => x.MaximumCycles" Title="Maximum Cycles" />
+                <PropertyColumn Property="x => x.PenaltyDescription" Title="Form of Penalty" />
+                <TemplateColumn Title="Accrued After Penalty">
+                    <CellTemplate>
+                        @(context.Item.AccruedAfterPenalty ? "Yes" : "No")
+                    </CellTemplate>
+                </TemplateColumn>
+                <TemplateColumn Title="Arrears Over Year">
+                    <CellTemplate>
+                        @(context.Item.ArrearsOverYear ? "Yes" : "No")
+                    </CellTemplate>
+                </TemplateColumn>
+                <TemplateColumn Title="Status">
+                    <CellTemplate>
+                        @if (context.Item.IsActive)
+                        {
+                            <MudChip T="string" Icon="@Icons.Material.Filled.CheckCircle" Color="Color.Success" Size="Size.Small" Variant="Variant.Text">Active</MudChip>
+                        }
+                        else
+                        {
+                            <MudChip T="string" Icon="@Icons.Material.Filled.Cancel" Color="Color.Error" Size="Size.Small" Variant="Variant.Text">Inactive</MudChip>
+                        }
+                    </CellTemplate>
+                </TemplateColumn>
+            </Columns>
+            <NoRecordsContent>
+                <MudText>No arrears configurations defined.</MudText>
+            </NoRecordsContent>
+            <PagerContent>
+                <MudDataGridPager T="ArrearsConfigurationViewModel" />
+            </PagerContent>
+        </MudDataGrid>
+    </MudPaper>
+
+
+    <MudPaper Class="pa-4 mt-4" Elevation="0">
+        <MudButton Variant="Variant.Filled"
+                   Color="Color.Secondary"
+                   OnClick="BackToList"
+                   StartIcon="@Icons.Material.Filled.ArrowBack">
+            Back
+        </MudButton>
+    </MudPaper>
+}
+else
+{
+    <MudAlert Severity="Severity.Error" Class="mt-4">The requested Programme could not be found.</MudAlert>
+    <MudButton Variant="Variant.Filled" Color="Color.Secondary" OnClick="BackToList" StartIcon="@Icons.Material.Filled.ArrowBack" Class="mt-4">Back</MudButton>
+}
+
+
+@code {
+    [Parameter] public int Id { get; set; }
+
+    private ProgrammeViewModel Model { get; set; }
+    private bool _isLoading = true;
+    private string HeaderText = "Programme Configuration Details";
+    private List<BreadcrumbItem> _breadcrumbItems = new();
+    private MudColor _color = new MudColor("#2196F3");
+
+    // Display names for ID-based fields
+    private string _assistanceUnitName = "";
+    private string _programmeTypeName = "";
+    private List<string> _paymentModesAllowedNames = new();
+    private string _paymentFrequencyName = "";
+    private string _proofOfLifeSpanTypeName = "";
+
+    protected override async Task OnParametersSetAsync()
+    {
+        await LoadProgrammeData();
+    }
+
+    private async Task LoadProgrammeData()
+    {
+        _isLoading = true;
+        await InvokeAsync(StateHasChanged);
+
+        try
+        {
+            var programmeEntity = await _context.Set<Programmes>()
+                .Include(p => p.EligibilityCriteria)
+                .Include(p => p.TopUps)
+                .Include(p => p.BenefitRule)
+                .Include(p => p.PaymentModesAllowed)
+                .Include(p => p.OVCBConfigurations)
+                    .ThenInclude(oc => oc.FacilityType) 
+                .Include(p => p.OVCBConfigurations)
+                    .ThenInclude(oc => oc.Grade)       
+                .Include(p => p.OVCBConfigurations)
+                    .ThenInclude(oc => oc.FeeType)      
+                .Include(p => p.OVCBConfigurations)
+                    .ThenInclude(oc => oc.FinancialYear)
+                .Include(p => p.ArrearsConfigurations) // Make sure Arrears are included
+                .AsNoTracking()
+                .FirstOrDefaultAsync(p => p.Id == Id);
+
+            if (programmeEntity != null)
+            {
+                Model = _mapper.Map<ProgrammeViewModel>(programmeEntity);
+
+                // Ensure all collections are initialized, even if empty, for safety
+                Model.EligibilityCriteria ??= new List<EligibilityCriteriaViewModel>();
+                Model.TopUps ??= new List<TopUpViewModel>();
+                Model.BenefitRule ??= new List<BenefitRuleViewModel>();
+                Model.OVCBConfigurations ??= new List<OVCBConfigurationFormViewModel>();
+                Model.ArrearsConfigurations ??= new List<ArrearsConfigurationViewModel>(); // Initialize Arrears
+
+                // Custom mapping/population for OVCBConfigurations (if not fully handled by AutoMapper)
+                if (programmeEntity.OVCBConfigurations != null && programmeEntity.OVCBConfigurations.Any())
+                {
+                    var ovcbVmList = new List<OVCBConfigurationFormViewModel>();
+                    foreach (var entityConfig in programmeEntity.OVCBConfigurations)
+                    {
+                        var vmConfig = _mapper.Map<OVCBConfigurationFormViewModel>(entityConfig);
+                        // Populate navigation property names directly from the included entities
+                        vmConfig.FacilityTypeName = entityConfig.FacilityType?.Name;
+                        vmConfig.GradeName = entityConfig.Grade?.Code;
+                        vmConfig.FeeTypeName = entityConfig.FeeType?.Name; // Assuming SystemCodeDetail has a Name
+                        vmConfig.FinYearName = entityConfig.FinancialYear?.Name;
+                        ovcbVmList.Add(vmConfig);
+                    }
+                    Model.OVCBConfigurations = ovcbVmList;
+                }
+
+                if (!string.IsNullOrEmpty(Model.ColourScheme))
+                {
+                    _color = new MudColor(Model.ColourScheme);
+                }
+                
+                // Populating PaymentModesAllowedIds from the included entity for display
+                Model.PaymentModesAllowedIds = programmeEntity.PaymentModesAllowed
+                                                            .Select(pm => (int?)pm.Id)
+                                                            .ToList();
+
+                await LoadDisplayNamesAsync(); // This loads names for programme details and arrears
+                BuildBreadcrumbs();
+            }
+            else
+            {
+                Snackbar.Add("Program not found.", Severity.Error);
+                Model = null;
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"An error occurred while loading the programme: {ex.Message}", Severity.Error);
+            Model = null;
+        }
+        finally
+        {
+            _isLoading = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task LoadDisplayNamesAsync()
+    {
+        if (Model == null) return;
+
+        // General Programme Details Lookups
+        _assistanceUnitName = await GetSystemCodeNameAsync(Model.AssistanceUnitId, "AssistanceUnit");
+        _programmeTypeName = await GetSystemCodeNameAsync(Model.ProgramTypeId, "ProgramType");
+        _proofOfLifeSpanTypeName = await GetSystemCodeNameAsync(Model.ProofOfLifeSpanId, "ProofOfLifeSpan");
+
+        if (Model.PaymentFrequencyId > 0)
+        {
+            _paymentFrequencyName = await _context.Set<PaymentFrequencyView>()
+                .Where(pf => pf.Id == Model.PaymentFrequencyId)
+                .Select(pf => pf.Name)
+                .FirstOrDefaultAsync();
+        }
+        else
+        {
+            _paymentFrequencyName = "";
+        }
+
+        if (Model.PaymentModesAllowedIds != null && Model.PaymentModesAllowedIds.Any())
+        {
+            var paymentModeParent = await _context.SystemCodes.FirstOrDefaultAsync(sc => sc.Code == "PaymentMode");
+            if (paymentModeParent != null)
+            {
+                _paymentModesAllowedNames = await _context.SystemCodeDetails
+                   .Where(scd => scd.SystemCodeId == paymentModeParent.Id && Model.PaymentModesAllowedIds.Contains(scd.Id))
+                   .Select(scd => scd.Name)
+                   .ToListAsync();
+            }
+        }
+
+        // Arrears Configurations Display Names
+        if (Model.ArrearsConfigurations?.Any() == true)
+        {
+            var penaltyIds = Model.ArrearsConfigurations.Where(a => a.PenaltyId.HasValue).Select(a => a.PenaltyId.Value).Distinct().ToList();
+            var penaltyNames = await _context.SystemCodeDetails
+                                             .Where(scd => scd.SystemCode.Code == "FormOfPenalty" && penaltyIds.Contains(scd.Id))
+                                             .ToDictionaryAsync(scd => scd.Id, scd => scd.Name);
+
+            foreach (var arrears in Model.ArrearsConfigurations)
+            {
+                if (arrears.PenaltyId.HasValue && penaltyNames.TryGetValue(arrears.PenaltyId.Value, out var name))
+                    arrears.PenaltyDescription = name;
+            }
+        }
+    }
+
+    private async Task<string> GetSystemCodeNameAsync(int? id, string parentCode)
+    {
+        if (!id.HasValue || id.Value == 0) return null; // Handle 0 or null IDs
+        return await (from scd in _context.SystemCodeDetails
+                      join sc in _context.SystemCodes on scd.SystemCodeId equals sc.Id
+                      where sc.Code == parentCode && scd.Id == id.Value
+                      select scd.Name).FirstOrDefaultAsync();
+    }
+
+    private void BuildBreadcrumbs()
+    {
+        _breadcrumbItems = new List<BreadcrumbItem>
+        {
+            new("Home", href: "/", icon: Icons.Material.Filled.Home),
+            new("Settings", href: "/", icon: Icons.Material.Filled.Settings),
+            new("Programme Configuration", href: "/programmes", icon: Icons.Material.Filled.LibraryBooks),
+            new("View Programme Configuration Details", href: null, disabled: true)
+        };
+    }
+
+    private string GetTextColorForBackground(MudColor color)
+    {
+        // Using YIQ formula to determine brightness of a color for text contrast
+        double luminance = ((color.R * 299) + (color.G * 587) + (color.B * 114)) / 1000;
+        return luminance >= 128 ? "black" : "white";
+    }
+
+    private void BackToList()
+    {
+        Navigation.NavigateTo("/programmes");
+    }
+}

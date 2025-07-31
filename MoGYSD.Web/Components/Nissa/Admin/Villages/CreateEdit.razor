@@ -1,0 +1,268 @@
+﻿@using MoGYSD.Business.Models.Nissa.Admin
+@using MoGYSD.Business.Persistence
+@using MoGYSD.ViewModels.Nissa.Administration
+@using MoGYSD.Web.Components.Autocompletes
+
+<MudDialog Class="blur dialog-background" TitleClass="blur dialog-background-title" ContentClass="dialog-background-surface py-10" ActionsClass="dialog-background-surface">
+    <DialogContent>
+        <MudForm @ref="form">
+            <MudGrid>
+                <!-- District -->
+                <MudItem xs="12" sm="6">
+                    <DistrictAutocomplete Variant="Variant.Outlined" Label="District Name"
+                                          For="@(() => Model.DistrictId)"
+                                          Value="Model.DistrictId" 
+                                          ValueChanged="OnDistrictChanged"/>
+                </MudItem>
+
+                <!-- Constituency -->
+                <MudItem xs="12" sm="6">
+                    <ConstituencyAutocomplete Label="Constituency Name" Variant="Variant.Outlined"
+                                                For="@(() => Model.ConstituencyId)"
+                                                Value="Model.ConstituencyId"
+                                                ValueChanged="OnConstituencyChanged"
+                                                IsCascading="true"
+                                                DistrictId="Model.DistrictId" />                    
+                </MudItem>
+
+                <!-- Community Council -->
+                <MudItem xs="12" sm="6">
+                    <CommunityCouncilAutocomplete Variant="Variant.Outlined" Label="Community Council Name"
+                                                    For="@(() => Model.CommunityCouncilId)"
+                                                    Value="Model.CommunityCouncilId"
+                                                    IsCascading="true"
+                                                    ValueChanged="OnCommunityCouncilChanged"
+                                                    ConstituencyId="Model.ConstituencyId" />
+                </MudItem>
+
+                <!-- Village Name -->
+                <MudItem xs="12" sm="6">
+                    <MudTextField Variant="Variant.Outlined" @bind-Value="Model.Name" Label="Village name" For="@(() => Model.Name)" />
+                </MudItem>
+
+                <!-- Village Code -->
+                <!-- Show full code, read-only -->
+                <MudItem xs="12" sm="6">
+                    <MudTextField Variant="Variant.Outlined" Label="Unique Code"
+                                  Value="@Model.Code"
+                                  ReadOnly="true"
+                                  Class="mb-2" />
+                </MudItem>
+
+                <!-- Editable input for user code suffix -->
+                <MudItem xs="12" sm="6">
+                    <MudTextField Variant="Variant.Outlined" Label="Village code"
+                                  For="@(() => Model.UserCodeSuffix)"
+                                  Value="Model.UserCodeSuffix"
+                                  MaxLength="3"
+                                  ValueChanged="@(EventCallback.Factory.Create<string>(this, OnUserCodeChanged))"
+                                  Class="mb-2"
+                                  Immediate="true" />
+                </MudItem>
+
+                <!-- Is Active Switch -->
+                @if (Model.Id > 0)
+                {
+                    <MudItem xs="12" sm="6" >
+                        <MudSwitch @bind-Value="Model.IsActive"
+                                   Style="@(Model.IsActive ? "color:green" : "color:red")"
+                                   ThumbIcon="@(Model.IsActive? Icons.Material.Filled.Done : Icons.Material.Filled.Close)"
+                                   ThumbIconColor="@(Model.IsActive? Color.Success: Color.Error)"
+                                   Label="@(Model.IsActive ? "Active" : "Not Active")"
+                                   Class="mb-3" />
+                    </MudItem>                    
+                }
+            </MudGrid>
+        </MudForm>
+
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Filled" OnClick="Cancel">Cancel</MudButton>
+        <MudButton Variant="Variant.Filled" OnClick="SubmitForm" Color="Color.Primary">Submit</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter]
+    private IMudDialogInstance Dialog { get; set; }
+    [Parameter] public VillageViewModel Model { get; set; }
+    private string CommunityCouncilCode = string.Empty;
+
+    private MudForm form;
+    private void Cancel() => Dialog.Cancel();
+
+    private async Task SubmitForm()
+    {
+        await form.Validate();
+        if (form.IsValid)
+        {
+            try
+            {
+                if (Model.Id > 0)
+                {
+                    LoadingService.Show();
+                    var code = await _context.Villages.Where(a => (a.Code == Model.Code || (a.Name.ToLower() == Model.Name.ToLower() && a.Code == Model.Code)) && a.Id != Model.Id).FirstOrDefaultAsync();
+                    if (code != null)
+                    {
+                        var message = code.Code == Model.Code ? "Code" : "Name";
+                        LoadingService.Hide();
+                        Snackbar.Add($"{message} already exist!!", Severity.Error);
+                    }
+                    {
+                        var changes = _mapper.Map<Village>(Model);
+                        changes.Code = changes.Code.Trim();
+                        await _genericService.Update(changes, false);
+                        LoadingService.Hide();
+                        Snackbar.Add("Village updated successfully", Severity.Success);
+                        Dialog.Close(DialogResult.Ok(true));
+                    }
+                }
+                else
+                {
+                    LoadingService.Show();
+                    var code = await _context.Villages
+                                    .Where(a => a.Code == Model.Code || (a.Name.ToLower() == Model.Name.ToLower() && a.Code == Model.Code))
+                                    .FirstOrDefaultAsync();
+                    if (code != null)
+                    {
+                        var message = code.Code == Model.Code ? "Code" : "Name";
+                        LoadingService.Hide();
+                        Snackbar.Add($"{message} already exist!!", Severity.Error);
+                    }
+                    else
+                    {
+                        var dataAdded = _mapper.Map<Village>(Model);
+                        Model.Code = Model.Code.Trim();
+                        Model.IsActive = true; // Default to active when creating a new village
+                        await _genericService.Add(dataAdded, false);
+
+
+                        LoadingService.Hide();
+                        Snackbar.Add("Village saved successfully", Severity.Success);
+                        Dialog.Close(DialogResult.Ok(true));
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                LoadingService.Hide();
+                Snackbar.Add($"An unexpected error occurred: {(ex.InnerException is null ? ex.Message : ex.InnerException.Message)}", Severity.Error, config => { config.RequireInteraction = true; });
+                return;
+            }
+        }
+        else
+        {
+            Snackbar.Add("Please fill in all required fields.", Severity.Error);
+        }
+    }
+
+    private async Task OnCommunityCouncilChanged(int? id)
+    {
+        Model.CommunityCouncilId = id;
+
+        if (id.HasValue)
+        {
+            var council = await _context.CommunityCouncils.Where(i => i.Id == id).Select(c => c.Code).FirstOrDefaultAsync();
+            if (council != null)
+            {
+                CommunityCouncilCode = council;
+                Model.UserCodeSuffix = await GenerateNextCodeAsync(CommunityCouncilCode);
+                UpdateFullCode();
+            }
+        }
+    }
+
+    private async Task OnUserCodeChanged(string newValue)
+    {
+        Model.UserCodeSuffix = newValue;
+        UpdateFullCode();
+    }
+
+    private void UpdateFullCode()
+    {
+        Model.Code = $"{CommunityCouncilCode}-{Model.UserCodeSuffix}" + "-A"
+        ;
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (Model.Id > 0)
+        {
+            var council = await _context.CommunityCouncils.Where(i => i.Id == Model.CommunityCouncilId).Select(c => c.Code).FirstOrDefaultAsync();
+            if (council != null)
+            {
+                CommunityCouncilCode = council;
+                Model.UserCodeSuffix = Model.Code.Split("-")[3];
+            }
+        }
+    }
+
+    public async Task<string> GenerateNextCodeAsync(string prefix)
+    {
+        // Ensure prefix ends with dash (e.g., "01-01-01-")
+        if (!prefix.EndsWith("-"))
+            prefix += "-";
+
+        var latestCode = await _context.Villages
+            .Where(x => x.Code.StartsWith(prefix))
+            .OrderByDescending(x => x.Code)
+            .Select(x => x.Code)
+            .FirstOrDefaultAsync();
+
+        int nextSequence = 1;
+
+        if (!string.IsNullOrEmpty(latestCode))
+        {
+            var parts = latestCode.Split('-');
+            if (parts.Length == 4 && int.TryParse(parts[3], out int lastSeq))
+            {
+                nextSequence = lastSeq + 1;
+            }
+        }
+
+        // Format as 3-digit string with leading zeros
+        return $"{nextSequence.ToString("D3")}"; //{prefix}
+    }
+
+    private async Task OnDistrictChanged(int? districtId)
+    {
+        if (districtId == null || districtId == 0)
+        {
+            // Clear all dependent fields when district is cleared
+            Model.DistrictId = null;
+            Model.ConstituencyId = null;
+            Model.CommunityCouncilId = null;
+        }
+        else
+        {
+            // Only clear constituency if the district actually changed
+            if (Model.DistrictId != districtId)
+            {
+                Model.ConstituencyId = null;
+                Model.CommunityCouncilId = null;
+            }
+            Model.DistrictId = districtId;
+        }
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task OnConstituencyChanged(int? constituencyId)
+    {
+        if (constituencyId == null || constituencyId == 0)
+        {
+            // Clear community council when constituency is cleared
+            Model.ConstituencyId = null;
+            Model.CommunityCouncilId = null;
+        }
+        else
+        {
+            // Only clear community council if constituency actually changed
+            if (Model.ConstituencyId != constituencyId)
+            {
+                Model.CommunityCouncilId = null;
+            }
+            Model.ConstituencyId = constituencyId;
+        }
+        await InvokeAsync(StateHasChanged);
+    }
+}

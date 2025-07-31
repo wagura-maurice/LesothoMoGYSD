@@ -1,0 +1,231 @@
+﻿@page "/household-listing-plans"
+
+@using MoGYSD.Business.Views.HouseHoldListings
+@using MoGYSD.Web.Components.HouseHoldListings
+
+<PageTitle>Household Listing Planning</PageTitle>
+<MudGrid Class="mb-3" AlignItems="Center" Justify="Justify.SpaceBetween">
+    <MudItem xs="12" md="6">
+        <MudText Typo="Typo.h2" Class="font-weight-bold"><b>Household Listing Plans</b></MudText>
+        <MudText>
+            Used to capture household listing plan information as provided by the communities at village level.
+        </MudText>
+    </MudItem>
+    <MudItem xs="12" md="6" Class="d-flex justify-end">
+        <MudBreadcrumbs Items="_breadcrumbItems" Class="custom-breadcrumb" />
+    </MudItem>
+</MudGrid>
+
+<MudExpansionPanels>
+    <SearchPanel Filter="@filterModel"
+        OnFilterApplied="@ReloadTable" />
+</MudExpansionPanels>
+
+<MudPaper Class="p-4">
+    @if (UserProfileService.UserProfile.Contains("HOUSEHOLD LISTING PLANS:CREATE"))
+    {
+        <MudButton StartIcon="@Icons.Material.Filled.Add" Class="pull-right top-add-button mb-2 mt-2" Variant="Variant.Filled"
+                    OnClick="() => AddNew()" DropShadow="true" Color="Color.Primary">Add New</MudButton>        
+    }
+    <MudDataGrid @ref="table" ServerData="@(LoadServerData)" T="HHListingPlanView"  Bordered="true" Striped="true" Elevation="1" RowsPerPage="20">
+        <ToolBarContent>
+            <MudText><b>Total Household Listing Plan(s): @totalItems</b></MudText>
+        </ToolBarContent>
+        <NoRecordsContent>
+            <MudText Typo="Typo.subtitle1" Class="my-4 text-muted text-center">
+                No Household Listing Plan found. Try adjusting your filters.
+            </MudText>
+        </NoRecordsContent>
+        <Columns>
+            <PropertyColumn Property="x => x.MasterRegistrationPlanName" Title="Master Registration Name" />
+            <PropertyColumn Property="x => x.DistrictRegistrationPlanName" Title="District Registration Name" />
+            <PropertyColumn Property="x => x.HHListingActivityName" Title="HH Listing Plan Name" />
+            <PropertyColumn Property="x => x.ExpectedNoHouseholds" Title="Expected No. Households" Format="N0" CellStyle="text-align: right;" />
+            <PropertyColumn Property="x => x.PartnerName" Title="Responsible Organisation" />
+            <PropertyColumn Property="x => x.ContactPersonName" Title="Responsible Person" />
+            <TemplateColumn Title="Status">
+                <CellTemplate>
+                    <MudText Style="@($"{GetStatusStyle(context.Item.StatusName)} display:block; padding:4px; border-radius:4px; width:100%;")">
+                        @context.Item.StatusName
+                    </MudText>
+                </CellTemplate>
+            </TemplateColumn>            
+            <TemplateColumn Title="Actions">
+                <CellTemplate>
+                    <MudMenu Icon="@Icons.Material.Filled.MoreVert" Color="Color.Primary" Dense="true">
+                        @if (UserProfileService.UserProfile.Contains("HOUSEHOLD LISTING PLANS:VIEW"))
+                        {
+                            <MudMenuItem OnClick="@(() => ViewDetails(context.Item.Id))">
+                                <MudIcon Icon="@Icons.Material.Filled.RemoveRedEye" Class="me-2" /> Details
+                            </MudMenuItem>                            
+                        }
+                        @if (context.Item.StatusName.Trim().ToLower() == "under review")
+                        {
+                            @if (UserProfileService.UserProfile.Contains("HOUSEHOLD LISTING PLANS:APPROVE"))
+                            {
+                                <MudMenuItem OnClick="@(() => ViewDetails(context.Item.Id))">
+                                    <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Class="me-2 text-success" /> Approve
+                                </MudMenuItem>                                
+                            }
+                        }
+                        else if (context.Item.StatusName.Trim().ToLower() == "open")
+                        {
+                            @if (UserProfileService.UserProfile.Contains("HOUSEHOLD LISTING PLANS:MODIFY"))
+                            {
+                                <MudMenuItem OnClick="@(() => EditPlan(context.Item.Id))">
+                                    <MudIcon Icon="@Icons.Material.Filled.Edit" Class="me-2" /> Edit
+                                </MudMenuItem>                                
+                            }
+
+                            <MudMenuItem OnClick="@(() => ViewDetails(context.Item.Id))">
+                                <MudIcon Icon="@Icons.Material.Filled.Rule" Class="me-2 text-success" /> Send to review
+                            </MudMenuItem>
+                        }
+                        else if (context.Item.StatusName.Trim().ToLower() == "approved")
+                        {
+                            @if (UserProfileService.UserProfile.Contains("HOUSEHOLD LISTING PLANS:APPROVE"))
+                            {
+                                <MudMenuItem OnClick="@(() => ViewDetails(context.Item.Id))">
+                                    <MudIcon Icon="@Icons.Material.Filled.Close" Class="me-2 text-danger" /> Close
+                                </MudMenuItem>                                
+                            }
+                        }
+                    </MudMenu>
+                </CellTemplate>
+            </TemplateColumn>
+        </Columns>
+        <PagerContent>
+            <MudDataGridPager T="HHListingPlanView" />
+        </PagerContent>
+    </MudDataGrid>
+</MudPaper>
+
+@code {
+    private List<HHListingPlanView> plans = new();
+    private MudDataGrid<HHListingPlanView> table = default!;
+    private HouseHoldListingSearchFilter filterModel = new();
+    private bool isLoading = false;
+    private int totalItems;
+    private List<BreadcrumbItem> _breadcrumbItems =
+    [
+        new("Home", href: "/", icon: Icons.Material.Filled.Home),
+        new("HouseHold Listing", href: "/", icon: Icons.Material.Filled.ViewList),
+        new("HouseHold Listing Plan", href: null, disabled: true, icon: Icons.Material.Filled.ManageAccounts)
+    ];
+
+    private async Task<GridData<HHListingPlanView>> LoadServerData(GridState<HHListingPlanView> state)
+    {
+        try
+        {
+            LoadingService.Show();
+
+            var query = _context.HHListingPlanView.AsNoTracking().AsQueryable();
+
+            #region Filter Conditions
+            // Apply filters with null checks
+            if ( !string.IsNullOrEmpty(filterModel.Name))
+                query = query.Where(x => x.MasterRegistrationPlanName.Contains(filterModel.Name) ||
+                x.DistrictRegistrationPlanName.Contains(filterModel.Name) ||
+                x.HHListingActivityName.Contains(filterModel.Name) ||
+                x.ContactPersonName.Contains(filterModel.Name) ||
+                x.PartnerName.Contains(filterModel.Name));
+
+            if (filterModel.StatusId.HasValue && filterModel.StatusId > 0)
+                query = query.Where(x => x.StatusId == filterModel.StatusId);
+
+            if (filterModel.ProjectedStartDate.HasValue)
+                query = query.Where(x => x.ProjectedStartDate.Value.Date >= filterModel.ProjectedStartDate.Value.Date);
+
+            if (filterModel.ProjectedEndDate.HasValue)
+                query = query.Where(x => x.ProjectedEndDate.Value.Date <= filterModel.ProjectedEndDate.Value.Date);
+
+            // Additional date filters for actual activity dates
+            if (filterModel.ActivityDateFrom.HasValue)
+                query = query.Where(x => x.ActualStartDate.Value.Date >= filterModel.ActivityDateFrom.Value.Date);
+
+            if (filterModel.ActivityDateTo.HasValue)
+                query = query.Where(x => x.ActualEndDate.Value.Date <= filterModel.ActivityDateTo.Value.Date);
+
+            #endregion Filter Conditions
+
+            totalItems = await query.CountAsync();
+
+            // Apply default sorting
+            query = query.OrderByDescending(x => x.CreatedOn);
+
+            var items = await query
+                .Skip(state.Page * state.PageSize)
+                .Take(state.PageSize)
+                .ToListAsync();
+
+            LoadingService.Hide();
+
+            return new GridData<HHListingPlanView>
+            {
+                Items = items,
+                TotalItems = totalItems
+            };
+        }
+        catch (Exception ex)
+        {
+            LoadingService.Hide();
+            Snackbar.Add($"An unexpected error occurred: {(ex.InnerException is null ? ex.Message : ex.InnerException.Message)}", Severity.Error, config => { config.RequireInteraction = true; });
+            return new GridData<HHListingPlanView>();
+        }
+    }
+
+    private string GetStatusStyle(string? status)
+    {
+        return status switch
+        {
+            "Open" => "background-color:#f5f5f5; color:#616161; border: 1px solid #e0e0e0;",
+            "Under Review" => "background-color:#fff8e1; color:#f9a825; border: 1px solid #ffecb3;",
+            "Approved" => "background-color:#e6f4ea; color:#2e7d32; border: 1px solid #c8e6c9;",
+            "InProgress" => "background-color:#e3f2fd; color:#1565c0; border: 1px solid #90caf9;",
+            "Closed" => "background-color:#fff3e0; color:#ef6c00; border: 1px solid #ffe0b2;",
+            "Rejected" => "background-color:#fdecea; color:#c62828; border: 1px solid #f5c6cb;",
+            _ => "background-color:#eeeeee; color:#424242; border: 1px solid #bdbdbd;"
+        };
+    }
+
+    private async Task AddNew()
+    {
+        Navigation.NavigateTo("/household-listing-plans-create"); 
+    }
+
+    private async Task EditPlan(int id)
+    {
+        Navigation.NavigateTo($"/household-listing-plans-edit/{id}");
+    }
+
+    private async Task ViewDetails(int id)
+    {
+        Navigation.NavigateTo($"/household-listing-plan-details/{id}");
+    }
+
+    private async Task ReloadTable()
+    {
+        if (table is not null && !isLoading)
+        {
+            try
+            {
+                LoadingService.Show();
+                isLoading = true;
+                await table.ReloadServerData();
+                LoadingService.Hide();
+            }
+            finally
+            {
+                isLoading = false;
+            }
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!UserProfileService.UserProfile.Contains("HOUSEHOLD LISTING PLANS:VIEW"))
+        {
+            Navigation.NavigateTo("/AccessDenied");
+        }
+    }
+}

@@ -1,0 +1,165 @@
+﻿@page "/enumeration-plans"
+@using MoGYSD.Business.Views.Nissa.HHEnumerations
+<PageTitle>Household Enumerations Plans</PageTitle>
+
+<MudGrid Class="mb-3" Justify="Justify.SpaceBetween">
+    <MudItem xs="12" md="6">
+        <MudText Typo="Typo.h2" Class="font-weight-bold"><b>Enumeration Plans</b></MudText>
+        <MudText>
+            Used to create and manage enumerations plans to coordinate all activities for NISSA during each registration cycle.
+        </MudText>
+    </MudItem>
+    <MudItem xs="12" md="6" Class="d-flex justify-end">
+        <MudBreadcrumbs Items="_breadcrumbItems" Class="custom-breadcrumb" />
+    </MudItem>
+</MudGrid>
+
+<MudExpansionPanels>
+    <SearchPanel Filter="@filterModel"
+    OnFilterApplied="@ReloadTable" />
+</MudExpansionPanels>
+
+<MudPaper Class="p-4">
+    @if (UserProfileService.UserProfile.Contains("ENUMERATION PLANS:CREATE"))
+    {
+    }
+    <MudButton StartIcon="@Icons.Material.Filled.Add" Class="pull-right top-add-button mb-2" Variant="Variant.Filled"
+                OnClick="AddNew" DropShadow="true" Color="Color.Primary">Add New</MudButton>
+    <MudDataGrid @ref="table" ServerData="@(LoadServerData)" T="HHEnumerationPlanView" Bordered="true" Striped="true" Elevation="1" RowsPerPage="20">
+        <NoRecordsContent>
+            <MudText Typo="Typo.subtitle1" Class="my-4 text-muted text-center">
+                No Enumeration Plan found. Try adjusting your filters.
+            </MudText>
+        </NoRecordsContent>
+        <ToolBarContent>
+            <MudText><b>Total Enumeration Plan(s): @totalItems</b></MudText>
+        </ToolBarContent>
+        <Columns>
+            <PropertyColumn Property="x => x.Name" Title="Enumeration Plan Name"/>
+            <PropertyColumn Property="x => x.HHListingPlanName" Title="HH Listing Plan Name" />
+            @* <PropertyColumn Property="x => x.PlanTypeName" Title="Plan Type" /> *@
+            <PropertyColumn Property="x => x.ProjectedStartDate" Title="Projected Start Date"  Format="dd-MMM-yyyy"/>
+            <TemplateColumn Title="Status">
+                <CellTemplate>
+                    <MudText Style="@($"{GetStatusStyle(context.Item.StatusName)} display:block; padding:4px; border-radius:6px; width:100%; text-align: center;")">
+                        @context.Item.StatusName
+                    </MudText>
+                </CellTemplate>
+            </TemplateColumn>
+            <TemplateColumn Title="Actions">
+                <CellTemplate>
+                    <MudMenu Icon="@Icons.Material.Filled.MoreVert" Color="Color.Primary" Dense="true">
+                        @if (UserProfileService.UserProfile.Contains("ENUMERATION PLANS:VIEW"))
+                        {
+                        }
+                        <MudMenuItem OnClick="() => ViewDetails(context.Item?.Id)">
+                            <MudIcon Icon="@Icons.Material.Filled.Visibility" /> View
+                        </MudMenuItem>
+                        @if (UserProfileService.UserProfile.Contains("ENUMERATION PLANS:EDIT"))
+                        {
+                        }
+                        <MudMenuItem OnClick="() => EditDetails(context.Item?.Id)">
+                            <MudIcon Icon="@Icons.Material.Filled.Edit" /> Edit
+                        </MudMenuItem>
+                    </MudMenu>
+                </CellTemplate>
+            </TemplateColumn>
+        </Columns>
+    </MudDataGrid>
+
+</MudPaper>
+
+@code {
+    private EnumerationPlanSearchFilter filterModel = new();
+    private MudDataGrid<HHEnumerationPlanView> table = default!;
+    private int totalItems;
+
+    private List<BreadcrumbItem> _breadcrumbItems =
+    [
+        new("Home", href: "/", icon: Icons.Material.Filled.Home),
+        new("Household Enumerations", href: null, icon: Icons.Material.Filled.NextPlan),
+        new("Enumeration Plans", href: null, disabled: true, icon: Icons.Material.Filled.ManageAccounts)
+    ];
+
+    private async Task ReloadTable()
+    {
+        await table.ReloadServerData();
+    }
+
+    private string GetStatusStyle(string? status)
+    {
+        return status switch
+        {
+            "Open" => "background-color:#f5f5f5; color:#616161; border: 1px solid #e0e0e0;",
+            "Under Review" => "background-color:#fff8e1; color:#f9a825; border: 1px solid #ffecb3;",
+            "Approved" => "background-color:#e6f4ea; color:#2e7d32; border: 1px solid #c8e6c9;",
+            "In Progress" => "background-color:#e3f2fd; color:#1565c0; border: 1px solid #90caf9;",
+            "Closed" => "background-color:#fff3e0; color:#ef6c00; border: 1px solid #ffe0b2;",
+            "Rejected" => "background-color:#fdecea; color:#c62828; border: 1px solid #f5c6cb;",
+            _ => "background-color:#eeeeee; color:#424242; border: 1px solid #bdbdbd;"
+        };
+    }
+
+    private void AddNew()
+    {
+        // Logic to add a new enumeration plan
+        Navigation.NavigateTo("/enumeration-plans/create");
+    }
+
+    private void ViewDetails(int? planId)
+    {
+        // Logic to view details of the selected enumeration plan
+        Navigation.NavigateTo($"/enumeration-plans/{planId}");
+
+    }
+
+    private void EditDetails(int? planId)
+    {
+        // Logic to edit the selected enumeration plan
+        Navigation.NavigateTo($"/enumeration-plans/edit/{planId}");
+
+    }
+
+    private async Task<GridData<HHEnumerationPlanView>> LoadServerData(GridState<HHEnumerationPlanView> state)
+    {
+        try
+        {
+            LoadingService.Show();
+            var query = _context.HHEnumerationPlanView.AsQueryable();
+
+            if (!string.IsNullOrWhiteSpace(filterModel.Name))
+                query = query.Where(x => x.Name.ToLower().Contains(filterModel.Name.ToLower()));
+
+            if (filterModel.StatusId.HasValue && filterModel.StatusId.Value > 0)
+                query = query.Where(x => x.StatusId == filterModel.StatusId.Value);
+
+            // if (filterModel.PlanTypeId.HasValue && filterModel.PlanTypeId.Value > 0)
+            //     query = query.Where(x => x.PlanTypeId == filterModel.PlanTypeId.Value);
+
+
+            totalItems = await query.CountAsync();
+
+            var items = await query
+                .Skip(state.Page * state.PageSize)
+                .Take(state.PageSize)
+                .ToListAsync();
+            return new GridData<HHEnumerationPlanView>
+            {
+                Items = items.OrderByDescending(d => d.Id).ToList(),
+                TotalItems = totalItems
+            };
+        }
+        catch (Exception ex)
+        {
+            LoadingService.Hide();
+            Snackbar.Add($"An unexpected error occurred: {(ex.InnerException is null ? ex.Message : ex.InnerException.Message)}", Severity.Error, config => { config.RequireInteraction = true; });
+            return new GridData<HHEnumerationPlanView>();
+        }
+        finally
+        {
+            LoadingService.Hide();
+        }
+    }
+
+
+}

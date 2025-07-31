@@ -1,0 +1,417 @@
+﻿@using MoGYSD.Business.Persistence
+@* @page "/security/user"
+
+@using AutoMapper
+@using Microsoft.AspNetCore.Identity
+@using MoGYSD.Business.Views.Admin
+@using MoGYSD.ViewModels.Email
+@using MoGYSD.Services
+@using MoGYSD.Web.Components.Security.Users
+@inject UserManager<ApplicationUser> UserManager
+@inject ApplicationDbContext DbContext
+@inject IEmailService EmailService
+<MudExpansionPanels>
+    <SearchPanel Filter="@filterModel"
+                     Roles="@Roles"
+                     Statuses="@Statuses"
+                     OnFilterApplied="@ReloadTable" />
+</MudExpansionPanels>
+<MudPaper Class="pa-4">
+    <MudTable @ref="table" T="UserSummaryView" ServerData="LoadServerData"  Bordered="true" Striped="true" Dense="true" Filterable="true">
+        <ToolBarContent>
+            <MudTextField Variant="Variant.Outlined" @bind-Value="searchString" Placeholder="Search..." Adornment="Adornment.Start"
+                          AdornmentIcon="@Icons.Material.Filled.Search" IconSize="Size.Medium" Class="mx-2" Immediate="true" />
+        </ToolBarContent>
+
+        <HeaderContent>
+            <MudTh>Full Name</MudTh>
+            <MudTh>Email</MudTh>
+            <MudTh>Phone</MudTh>
+            <MudTh>Role</MudTh>
+            <MudTh>Status</MudTh>
+            <MudTh>Active</MudTh>
+            <MudTh>Created</MudTh>
+            <MudTh>Actions</MudTh>
+        </HeaderContent>
+
+        <RowTemplate>
+            <MudTd>@($"{context.FirstName} {context.MiddleName} {context.Surname}")</MudTd>
+            <MudTd>@context.Email</MudTd>
+            <MudTd>@context.PhoneNumber</MudTd>
+            <MudTd>@context.RoleName</MudTd>
+            <MudTd Style="@GetStatusStyle(context.StatusDescription)">
+                @(context.StatusDescription ?? string.Empty)
+            </MudTd>
+            <MudTd Style="@GetStatusStyle(context.IsActive)">
+                @(context.IsActive ? "Active" : "Inactive")
+            </MudTd>
+            <MudTd>@context.CreatedOn.ToString("dd-MMM-yyyy")</MudTd>
+            <MudTd>
+                <MudMenu Icon="@Icons.Material.Filled.MoreVert" Color="Color.Primary" Dense="true">
+                    <MudMenuItem OnClick="@(() => EditUser(context))">
+                        <MudIcon Icon="@Icons.Material.Filled.Edit" Class="me-2" /> Edit
+                    </MudMenuItem>
+                    <MudMenuItem OnClick="@(() => ViewUserDetails(context))">
+                        <MudIcon Icon="@Icons.Material.Filled.Info" Class="me-2 text-primary" /> Details
+                    </MudMenuItem>
+                    <MudMenuItem OnClick="@(() => ApproveUser(context.Id))">
+                        <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Class="me-2 text-success" /> Approve
+                    </MudMenuItem>
+                    @if (context.IsActive)
+                    {
+                        <MudMenuItem OnClick="@(() => ActivateDeactivateUser(context.Id, false))">
+                            <MudIcon Icon="@Icons.Material.Filled.Block" Class="me-2 text-warning" /> Deactivate
+                        </MudMenuItem>
+                    }
+                    else
+                    {
+                        <MudMenuItem OnClick="@(() => ActivateDeactivateUser(context.Id, true))">
+                            <MudIcon Icon="@Icons.Material.Filled.Check" Class="me-2 text-success" /> Activate
+                        </MudMenuItem>
+                    }
+                </MudMenu>
+            </MudTd>
+        </RowTemplate>
+
+        <PagerContent>
+            <MudTablePager />
+        </PagerContent>
+    </MudTable>
+
+</MudPaper>
+
+
+
+
+@code {
+    private List<string> Districts = new();
+    private List<string> CommunityCouncils = new();
+    private List<string> Villages = new();
+    private List<string> Roles = new();
+    private List<string> Statuses = new();
+
+    private string searchString = string.Empty;
+
+    public List<UserProfileViewModel> model { get; set; } = new();
+    [Inject] protected IServiceProvider Services { get; init; } = null!;
+
+    private SearchFilter filterModel = new();
+
+    private MudTable<UserSummaryView> table;
+    private int statusId;
+    private int statusClosed;
+
+
+    private async Task ReloadTable()
+    {
+        if (table is not null)
+        {
+            await table.ReloadServerData();
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            await Init();
+
+        }
+        catch (Exception ex)
+        {
+
+            throw;
+        }
+    }
+
+    private async Task<TableData<UserSummaryView>> LoadServerData(TableState state, CancellationToken cancellationToken)
+    {
+
+        try
+        {
+            var query = DbContext.UserSummaryView.AsQueryable();
+
+            if (!string.IsNullOrWhiteSpace(filterModel.EmailAddress))
+                query = query.Where(x => x.Email.Contains(filterModel.EmailAddress));
+
+            if (filterModel.District > 0)
+                query = query.Where(x => x.DistrictId == filterModel.District);
+
+            if (filterModel.CommunityCouncil > 0)
+                query = query.Where(x => x.CommunityCouncilId == filterModel.CommunityCouncil);
+
+            if (filterModel.Village > 0)
+                query = query.Where(x => x.VillageId == filterModel.Village);
+
+            if (!string.IsNullOrWhiteSpace(filterModel.Role))
+                query = query.Where(x => x.RoleName == filterModel.Role);
+
+            if (!string.IsNullOrWhiteSpace(filterModel.Status))
+                query = query.Where(x => x.StatusDescription == filterModel.Status);
+
+            if (filterModel.IsActive.HasValue)
+                query = query.Where(x => x.IsActive == filterModel.IsActive.Value);
+
+            var totalItems = await query.CountAsync(cancellationToken);
+
+            var items = await query
+                .Skip(state.Page * state.PageSize)
+                .Take(state.PageSize)
+                .ToListAsync(cancellationToken);
+
+            return new TableData<UserSummaryView>
+            {
+                Items = items,
+                TotalItems = totalItems
+            };
+        }
+        catch (Exception ex)
+        {
+
+            throw;
+        }
+
+    }
+
+    private string GetStatusStyle(bool isActive)
+    {
+        return isActive
+            ? "background-color:#4CAF50; color:white;"
+            : "background-color:#F44336; color:white;";
+    }
+
+    private string GetStatusStyle(string? status)
+    {
+        return status switch
+        {
+            "Approved" => "background-color:#4CAF50; color:white;",
+            "Closed" => "background-color:#F44336; color:white;",
+            "Under Review" => "background-color:#FFC107; color:black;",
+            _ => string.Empty
+        };
+    }
+    private async Task Init()
+    {
+        // UserManager = Services.GetRequiredService<UserManager<ApplicationUser>>();
+        // var users = await UserManager.Users.Include(x => x.UserRoles).OrderBy(x => x.UserName).ToListAsync();
+        // model = _mapper.Map<List<UserProfileViewModel>>(users);
+        statusId = _context.SystemCodeDetailsView.Where(p => p.ParentCode == "Status" && p.Code == "Approved").Select(p => p.Id).FirstOrDefault();
+        statusClosed = _context.SystemCodeDetailsView.Where(p => p.Code == "Closed").Select(p => p.Id).FirstOrDefault();
+
+    }
+
+    private async Task EditUser(UserSummaryView user)
+    {
+        var parameters = new DialogParameters { ["User"] = user };
+
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Small, FullWidth = true };
+
+        var dialog = DialogService.Show<EditDialog>("Edit User", parameters, options);
+
+        var result = await dialog.Result;
+
+        if (!result.Canceled)
+        {
+            var updatedUser = (UserProfileViewModel)result.Data!;
+            try
+            {
+                // Retrieve the existing user by Id from the database
+                var existingUser = await UserManager.FindByIdAsync(user.Id);
+                if (existingUser == null)
+                {
+                    Snackbar.Add($"User not found", Severity.Error, config =>
+                    {
+                        config.RequireInteraction = true;
+                    });
+
+                    return;
+                }
+
+                existingUser.FirstName = updatedUser.FirstName;
+                existingUser.MiddleName = updatedUser.MiddleName;
+                existingUser.Surname = updatedUser.Surname;
+                existingUser.PhoneNumber = updatedUser.PhoneNumber;
+
+                // Save changes
+                var update = await UserManager.UpdateAsync(existingUser);
+
+                if (update.Succeeded)
+                {
+                    Snackbar.Add("User updated successfully", Severity.Success);
+                }
+
+                await Init();
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add($"An unexpected error occurred: {ex.Message}", Severity.Error, config => { config.RequireInteraction = true; });
+            }
+        }
+
+
+    }
+
+    private async Task ViewUserDetails(UserSummaryView user)
+    {
+        var parameters = new DialogParameters { ["User"] = user };
+
+        var options = new DialogOptions() { CloseButton = true, MaxWidth = MaxWidth.Small };
+
+        var dialog = DialogService.Show<DetailsDialog>("User Details", parameters, options);
+
+        var result = await dialog.Result;
+
+    }
+
+    private async Task ApproveUser(string userId)
+    {
+        var parameters = new DialogParameters
+        {
+            ["ContentText"] = "Are you sure you want to approve this user?"
+        };
+
+        var options = new DialogOptions
+        {
+            CloseButton = true,
+            MaxWidth = MaxWidth.ExtraSmall,
+            FullWidth = true
+        };
+
+        var dialog = DialogService.Show<ConfirmRejectDialog>("Approve User", parameters, options);
+        var result = await dialog.Result;
+
+        if (!result.Canceled)
+        {
+            var action = result.Data?.ToString();
+
+            if (action == "Confirmed")
+            {
+                try
+                {
+                    var existingUser = await UserManager.FindByIdAsync(userId);
+                    if (existingUser == null)
+                    {
+                        Snackbar.Add($"User not found", Severity.Error, config =>
+                        {
+                            config.RequireInteraction = true;
+                        });
+
+                        return;
+                    }
+
+                    existingUser.StatusId = statusId;
+                    existingUser.IsActive = true;
+                    // Save changes
+                    var updateUser = await UserManager.UpdateAsync(existingUser);
+
+                    if (updateUser.Succeeded)
+                    {
+                        // Send Email
+                        var emailData = new EmailViewModel<ActionAccountEmail>()
+                        {
+                            To = existingUser.Email,
+                            IsHtml = true,
+                            Subject = "Account Approved",
+                            Email = new ActionAccountEmail
+                            {
+                                FirstName = existingUser.FirstName,
+                                Action = "Approved",
+                            }
+                        };
+                        await EmailService.SendEmailAsync(emailData).ConfigureAwait(false);
+                        Snackbar.Add("User approved successfully", Severity.Success);
+                    }
+
+
+                }
+                catch (Exception ex)
+                {
+                    Snackbar.Add($"An unexpected error occurred: {ex.Message}", Severity.Error, config => { config.RequireInteraction = true; });
+
+                }
+                await ReloadTable();
+            }
+            else if (action == "Rejected")
+            {
+                try
+                {
+                    var existingUser = await UserManager.FindByIdAsync(userId);
+                    if (existingUser == null)
+                    {
+                        Snackbar.Add($"User not found", Severity.Error, config =>
+                        {
+                            config.RequireInteraction = true;
+                        });
+
+                        return;
+                    }
+
+                    existingUser.StatusId = statusClosed;
+                    // Save changes
+                    var updateUser = await UserManager.UpdateAsync(existingUser);
+                    if (updateUser.Succeeded)
+                    {
+                        Snackbar.Add("User rejected successfully", Severity.Success);
+                    }
+
+                }
+                catch (Exception ex)
+                {
+                    Snackbar.Add($"An unexpected error occurred: {ex.Message}", Severity.Error, config => { config.RequireInteraction = true; });
+
+                }
+                await ReloadTable();
+            }
+        }
+        else
+        {
+            Console.WriteLine("Approval cancelled.");
+        }
+    }
+
+    private async Task ActivateDeactivateUser(string userId, bool isActive)
+    {
+        try
+        {
+            var existingUser = await UserManager.FindByIdAsync(userId);
+
+            if (existingUser == null)
+            {
+                Snackbar.Add($"User not found", Severity.Error, config =>
+                {
+                    config.RequireInteraction = true;
+                });
+
+                return;
+            }
+
+            existingUser.IsActive = isActive;
+            // Save changes
+            var result = await UserManager.UpdateAsync(existingUser);
+
+            var message = isActive ? "Activated" : "Deactivated";
+
+            if (result.Succeeded)
+            {
+                Snackbar.Add($"User {message} successfully", Severity.Success);
+                await ReloadTable();
+            }
+
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"An unexpected error occurred: {ex.Message}", Severity.Error, config => { config.RequireInteraction = true; });
+
+        }
+    }
+
+    // protected override async Task OnAfterRenderAsync(bool firstRender)
+    // {
+    //     if (firstRender)
+    //     {
+    //         // isFirstRender = false;
+    //         await ReloadTable();
+    //     }
+    // }
+}
+ *@

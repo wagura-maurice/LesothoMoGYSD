@@ -1,0 +1,387 @@
+﻿@page "/district/registration/details/{Id:int}"
+
+@using MoGYSD.Business.Models.Nissa.DistrictRegistrations
+@using MoGYSD.Business.Persistence
+@using MoGYSD.Business.Views.Nissa.Districtregistrations
+@using MoGYSD.ViewModels.Email
+
+<MudGrid Class="mb-3" AlignItems="Center" Justify="Justify.SpaceBetween">
+    <MudItem xs="12" md="6">
+        <MudText Typo="Typo.h2" Class="font-weight-bold"><b>District Registration Planning Details</b></MudText>
+    </MudItem>
+    <MudItem xs="12" md="6" Class="d-flex justify-end">
+        <MudBreadcrumbs Items="_breadcrumbItems" Class="custom-breadcrumb" />
+    </MudItem>
+</MudGrid>
+
+<MudPaper Class="p-4">
+    @if (DistrictRegistration == null)
+    {
+        <MudProgressCircular Color="Color.Primary" Indeterminate="true" />
+    }
+    else
+    {
+        <!-- MasterRegistration Card -->
+        <MudCard Class="mb-4">
+            <MudCardHeader>
+                <MudText Typo="Typo.h3"><b>District Registration - @DistrictRegistration.RegistrationPlanName</b></MudText>
+            </MudCardHeader>
+            <MudCardContent>
+                <MudGrid>
+                    <MudItem xs="12" sm="6" md="3">
+                        <MudText><b>Master Registration Name:</b> @DistrictRegistration.MasterRegistrationName</MudText>
+                    </MudItem>
+                    <MudItem xs="12" sm="6" md="3">
+                        <MudText><b>District:</b> @DistrictRegistration.DistrictName</MudText>
+                    </MudItem>
+                    <MudItem xs="12" sm="6" md="3">
+                        <MudText><b>Status:</b> @DistrictRegistration.StatusName</MudText>
+                    </MudItem>
+                    <MudItem xs="12" sm="6" md="3">
+                        <MudText><b>Approved Budget (LSL):</b> @DistrictRegistration.ApprovedBudgetAmount.ToString("N2")</MudText>
+                    </MudItem>
+                    <MudItem xs="12" sm="6" md="3">
+                        <MudText><b>Expected No. Households:</b> @DistrictRegistration.ExpectedNoHouseholds.ToString("N0")</MudText>
+                    </MudItem>
+                    <MudItem xs="12" sm="6" md="3">
+                        <MudText><b>Projected Start Date:</b> @DistrictRegistration.ProjectedStartDate?.ToString("dd-MMM-yyyy")</MudText>
+                    </MudItem>
+                    <MudItem xs="12" sm="6" md="3">
+                        <MudText><b>Projected End Date:</b> @DistrictRegistration.ProjectedEndDate?.ToString("dd-MMM-yyyy")</MudText>
+                    </MudItem>
+                    <MudItem xs="12" sm="6" md="3">
+                        <MudText><b>Actual Start Date:</b> @DistrictRegistration.ActualStartDate?.ToString("dd-MMM-yyyy")</MudText>
+                    </MudItem>
+                    <MudItem xs="12" sm="6" md="3">
+                        <MudText><b>Actual End Date:</b> @DistrictRegistration.ActualEndDate?.ToString("dd-MMM-yyyy")</MudText>
+                    </MudItem>
+                    <MudItem xs="12">
+                        <MudText><b>Description:</b> @DistrictRegistration.Description</MudText>
+                    </MudItem>
+                </MudGrid>
+            </MudCardContent>
+        </MudCard>
+        <!-- District Cards -->
+        @foreach (var community in CCsRegistered)
+        {
+            <MudCard Class="mb-3">
+                <MudCardHeader>
+                    <MudText Typo="Typo.h3"><b>District - @community.CommunityCouncilName</b></MudText>
+                </MudCardHeader>
+
+                <MudCardContent>
+                    <MudGrid>
+                        <MudItem xs="12" sm="4">
+                            <MudText><b>Registration Plan:</b> @community.DistrictRegistrationPlanName</MudText>
+                        </MudItem>
+                        <MudItem xs="12" sm="4">
+                            <MudText><b>Status:</b> @community.StatusName</MudText>
+                        </MudItem>
+                    </MudGrid>
+
+                    <MudExpansionPanels>
+                        <MudExpansionPanel Text="View Activities"
+                                           ExpandedChanged="@((bool expanded) => OnExpansionChanged(expanded, community.Id))">
+                            @{
+                                var activities = CCRegistrationActivity.ContainsKey(community.Id)
+                                ? CCRegistrationActivity[community.Id]
+                                : null;
+                            }
+
+                            @if (activities == null)
+                            {
+                                <MudText Color="Color.Info">Loading...</MudText>
+                            }
+                            else if (!activities.Any())
+                            {
+                                <MudText Color="Color.Warning">No activities found.</MudText>
+                            }
+                            else
+                            {
+                                <MudTable Items="activities" Dense="true">
+                                    <HeaderContent>
+                                        <MudTh>Name</MudTh>
+                                        <MudTh>Households</MudTh>
+                                        <MudTh>Partner</MudTh>
+                                        <MudTh>Contact</MudTh>
+                                        <MudTh>Email</MudTh>
+                                    </HeaderContent>
+                                    <RowTemplate>
+                                        <MudTd>@context.ActivityName</MudTd>
+                                        <MudTd>@context.NumberOfHouseholds</MudTd>
+                                        <MudTd>@context.PartnersName</MudTd>
+                                        <MudTd>@context.ContactPersonName</MudTd>
+                                        <MudTd>@context.ContactPersonEmail</MudTd>
+                                    </RowTemplate>
+                                </MudTable>
+                            }
+                        </MudExpansionPanel>
+                    </MudExpansionPanels>
+                </MudCardContent>
+            </MudCard>
+        }
+        <!-- Navigation Buttons -->
+        <MudGrid Class="mt-4">
+            <MudItem xs="6">
+                <MudButton Variant="Variant.Filled" Color="Color.Secondary" OnClick="Back">Back</MudButton>
+            </MudItem>
+            @if (@DistrictRegistration.StatusName == "Under Review")
+            {
+                <MudItem xs="6" Class="d-flex justify-end">
+                    <MudButton Variant="Variant.Filled" Color="Color.Error" OnClick="SendBackToOpen">
+                        Reject
+                    </MudButton>
+
+                    <MudButton Variant="Variant.Filled" Color="Color.Success" OnClick="ApproveRegistration" Class="ml-2">
+                        Approve
+                    </MudButton>
+                </MudItem>
+            }
+            @if (@DistrictRegistration.StatusName == "In Progress")
+            {
+                <MudItem xs="6" Class="d-flex justify-end">
+                    <MudButton Variant="Variant.Filled" Color="Color.Success" OnClick="CloseRegistration">Close</MudButton>
+                </MudItem>
+            }
+            @if (@DistrictRegistration.StatusName?.Trim().ToLower() == "open")
+            {
+                <MudItem xs="6" Class="d-flex justify-end">
+                    <MudButton Variant="Variant.Filled" Color="Color.Success" OnClick="SendToReview">Submit To Review</MudButton>
+                </MudItem>
+            }
+            @if (@DistrictRegistration.StatusName?.Trim().ToLower() == "Approved")
+            {
+                <MudItem xs="6" Class="d-flex justify-end">
+                    <MudButton Variant="Variant.Filled" Color="Color.Success" OnClick="InProgress">In Progress</MudButton>
+                </MudItem>
+            }
+        </MudGrid>
+    }
+</MudPaper>
+
+@code {
+    [Parameter] public int Id { get; set; }
+
+    private DistrictRegistrationPlanView DistrictRegistration { get; set; } = new();
+    private List<CCsRegisteredView> CCsRegistered { get; set; } = new();
+    private Dictionary<int, List<CCRegistrationActivityView>> CCRegistrationActivity = new();
+    private List<BreadcrumbItem> _breadcrumbItems =
+    [
+        new("Home", href: "/", icon: Icons.Material.Filled.Home),
+        new("Registration Planning", href: "/", icon: Icons.Material.Filled.NextPlan),
+        new("District Registration List", href: "/district/registration", icon: Icons.Material.Filled.AppRegistration),
+        new("District Registration Detail", href: null, disabled: true, icon: Icons.Material.Filled.Details)
+    ];
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!UserProfileService.UserProfile.Contains("DISTRICT REGISTRATION PLANS:VIEW"))
+        {
+            Navigation.NavigateTo("/AccessDenied");
+        }
+
+        DistrictRegistration = await _context.DistrictRegistrationPlanView.AsNoTracking().FirstOrDefaultAsync(x => x.Id == Id);
+
+        CCsRegistered = await _context.CCsRegisteredView.AsNoTracking()
+            .Where(x => x.DistrictRegistrationPlanId == Id)
+            .ToListAsync();
+    }
+
+    private async Task OnExpansionChanged(bool expanded, int cCsRegisteredId)
+    {
+        if (expanded && !CCRegistrationActivity.ContainsKey(cCsRegisteredId))
+        {
+            var activities = await _context.CCRegistrationActivityView
+                .Where(x => x.CCsRegisteredId == cCsRegisteredId)
+                .ToListAsync();
+            CCRegistrationActivity[cCsRegisteredId] = activities ?? new List<CCRegistrationActivityView>();
+            StateHasChanged();
+        }
+    }
+
+    private void Back()
+    {
+        Navigation.NavigateTo("/district/registration");
+    }
+
+    private async Task CloseRegistration()
+    {
+        var result = await DialogServiceHelper.ShowConfirmationDialogAsync(DialogService, "Are you sure you want to close this plan?");
+        if (result)
+        {
+            var masterRegistration = await _context.MasterRegistrations
+                .Where(p => p.Id == DistrictRegistration.MasterRegistrationPlanId)
+                .FirstOrDefaultAsync();
+
+            if (masterRegistration == null)
+            {
+                Snackbar.Add("Master Registration not found", Severity.Error);
+                return;
+            }
+
+            masterRegistration.ActualEndDate = DistrictRegistration.ActualEndDate;
+            await _genericService.Update(masterRegistration, false);
+
+            await UpdateStatusAndNotify("Closed", "closed", "Closed", "closed successfully");
+        }
+    }
+
+    private async Task ApproveRegistration()
+    {
+        var result = await DialogServiceHelper.ShowConfirmationDialogAsync(DialogService, "Are you sure you want to approve this plan?");
+        if (result)
+        {
+            var statusId = await _context.SystemCodeDetailsView
+                .AsNoTracking()
+                .Where(p => p.Code == "In Progress")
+                .Select(p => p.Id)
+                .FirstOrDefaultAsync();
+
+            var masterRegistration = await _context.MasterRegistrations
+                .Where(p => p.Id == DistrictRegistration.MasterRegistrationPlanId)
+                .FirstOrDefaultAsync();
+
+            if (masterRegistration == null)
+            {
+                Snackbar.Add("Master Registration not found", Severity.Error);
+                return;
+            }
+            masterRegistration.StatusId = statusId;
+            masterRegistration.ActualStartDate = DistrictRegistration.ActualStartDate;
+            await _genericService.Update(masterRegistration, false);
+
+            await UpdateStatusAndNotify("Approved", "approved", "Approved", "approved successfully");
+
+        }
+    }
+
+    private async Task SendToReview()
+    {
+        var result = await DialogServiceHelper.ShowConfirmationDialogAsync(DialogService, "Are you sure you want to send this plan for review?");
+        if (result)
+        {
+            await UpdateStatusAndNotify("Under Review", "send back for review", "SendBack", "sent for review");
+        }
+    }
+
+    private async Task InProgress()
+    {
+        var result = await DialogServiceHelper.ShowConfirmationDialogAsync(DialogService, "Are you sure you want to mark this plan as in progress?");
+        if (result)
+        {
+            await UpdateStatusAndNotify("In Progress", "marked as in progress", "InProgress", "marked as in progress");
+        }
+    }
+
+    private async Task SendBackToOpen()
+    {
+        var result = await DialogServiceHelper.ShowRejectDialogAsync(DialogService, "Are you sure you want to reject this plan and send it back for amendments?");
+        if (result != null)
+        {
+            await UpdateStatusAndNotify("Open", "rejected", "Rejected", "reject successfully", result);
+        }
+    }
+
+    private async Task UpdateStatusAndNotify(string code, string subjectSuffix, string action, string successMessage, string message = null)
+    {
+        try
+        {
+            LoadingService.Show();
+            var data = await _context.DistrictRegistrationPlans.Where(d => d.Id == Id).FirstOrDefaultAsync();
+
+            if (data == null)
+            {
+                LoadingService.Hide();
+                Snackbar.Add("District Registration not found", Severity.Error, cfg => cfg.RequireInteraction = true);
+                return;
+            }
+
+            var statusId = await _context.SystemCodeDetailsView
+                .Where(p => p.Code == code)
+                .Select(p => p.Id)
+                .FirstOrDefaultAsync();
+
+            if (statusId == 0)
+            {
+                LoadingService.Hide();
+                Snackbar.Add("Status not found", Severity.Error, cfg => cfg.RequireInteraction = true);
+                return;
+            }
+
+            data.StatusId = statusId;
+            await _genericService.Update(data,false);
+
+            if(code == "Approved")
+            {
+                // 1. Batch fetch emails with names in one optimized query
+                var recipients = await _context.DistrictRegistrationUserEmailNotificationView
+                    .Where(p => p.DistrictRegistrationPlansId == data.Id)
+                    .Select(p => new { p.Email, p.Name }) // Only select needed columns
+                    .Distinct() // Remove duplicates
+                    .ToListAsync();
+
+                if (recipients.Any())
+                {
+                    // 2. Prepare common email data
+                    var commonTemplateData = new ActionDistrictRegistrationEmail
+                    {
+                        Action = action,
+                        DistrctPlanName = DistrictRegistration.RegistrationPlanName
+                    };
+
+                    // 3. Create and execute send tasks
+                    var sendTasks = recipients.Select(recipient =>
+                    {
+                        var personalizedTemplate = new ActionMasterRegistrationEmail
+                        {
+                            FirstName = recipient.Name, // Personalized for each recipient
+                            Action = commonTemplateData.Action,
+                            MasterPlanName = commonTemplateData.DistrctPlanName
+                        };
+
+                        return EmailService.SendEmailAsync(new EmailViewModel<ActionMasterRegistrationEmail>
+                        {
+                            To = recipient.Email,
+                            IsHtml = true,
+                            Subject = $"{DistrictRegistration.RegistrationPlanName} {subjectSuffix}",
+                            Email = personalizedTemplate
+                        });
+                    });
+
+                    // 4. Execute with error handling per email
+                    await Task.WhenAll(sendTasks).ConfigureAwait(false);
+                }
+            }
+
+            if (code == "Open")
+            {
+                if (DistrictRegistration.CreatedByEmail != null && DistrictRegistration.CreatedByName != null)
+                {
+                    // Send email to the creator of the Master Registration
+                    await EmailService.SendEmailAsync(new EmailViewModel<ActionDistrictRegistrationEmail>
+                    {
+                        To = DistrictRegistration.CreatedByEmail,
+                        IsHtml = true,
+                        Subject = $"{DistrictRegistration.RegistrationPlanName} {subjectSuffix}",
+                        Email = new ActionDistrictRegistrationEmail
+                        {
+                            FirstName = DistrictRegistration.CreatedByName,
+                            Action = action,
+                            DistrctPlanName = DistrictRegistration.RegistrationPlanName,
+                            Message = message
+                        }
+                    });
+                }
+            }
+            LoadingService.Hide();
+            Snackbar.Add($"{DistrictRegistration.RegistrationPlanName} {successMessage}", Severity.Success);
+            Navigation.NavigateTo("/district/registration");
+        }
+        catch (Exception ex)
+        {
+            LoadingService.Hide();
+            Snackbar.Add($"Unexpected error: {ex.Message}", Severity.Error, cfg => cfg.RequireInteraction = true);
+            return;
+        }
+    }
+}

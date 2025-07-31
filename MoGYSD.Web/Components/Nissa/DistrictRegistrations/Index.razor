@@ -1,0 +1,226 @@
+﻿@page "/district/registration"
+@using MoGYSD.Business.Persistence
+@using MoGYSD.Business.Views.Nissa.Districtregistrations
+@using MoGYSD.Web.Components.DistrictRegistrations
+
+<PageTitle>District Registration Planning</PageTitle>
+<MudGrid Class="mb-3" AlignItems="Center" Justify="Justify.SpaceBetween">
+    <MudItem xs="12" md="6">
+        <MudText Typo="Typo.h2" Class="font-weight-bold"><b>District Registration Plans</b></MudText>
+        <MudText>
+            Enables the creation and management of district-level registration plans aligned with existing master registration plans.
+        </MudText>
+    </MudItem>
+    <MudItem xs="12" md="6" Class="d-flex justify-end">
+        <MudBreadcrumbs Items="_breadcrumbItems" Class="custom-breadcrumb" />
+    </MudItem>
+</MudGrid>
+
+<MudExpansionPanels>
+    <SearchPanel Filter="@filterModel" DistrictAccessLevelId="@filterDistrictIdForAccessLevel"
+        OnFilterApplied="@ReloadTable" />
+</MudExpansionPanels>
+
+<MudPaper Class="p-4">
+    @if (UserProfileService.UserProfile.Contains("DISTRICT REGISTRATION PLANS:CREATE"))
+    {
+        <MudButton StartIcon="@Icons.Material.Filled.Add" Class="pull-right top-add-button mb-2" Variant="Variant.Filled"
+        OnClick="() => AddNew()" DropShadow="true" Color="Color.Primary">Add New</MudButton>
+    }
+
+    <MudDataGrid @ref="table" ServerData="@(LoadServerData)" T="DistrictRegistrationPlanView"  Bordered="true" Striped="true" Elevation="1" Dense="true" RowsPerPage="20">
+        <NoRecordsContent>
+            <MudText Typo="Typo.subtitle1" Class="my-4 text-muted text-center">
+                No District Registration Plans found. Try adjusting your filters.
+            </MudText>
+        </NoRecordsContent>
+        <ToolBarContent>
+            <MudText><b>Total District Registration Plan(s): @totalItems</b></MudText>
+        </ToolBarContent>
+        <Columns>
+            <PropertyColumn Property="x => x.MasterRegistrationName" Title="Master Registration Plan Name" />
+            <PropertyColumn Property="x => x.RegistrationPlanName" Title="District Registration Plan Name" />
+            <PropertyColumn Property="x => x.DistrictName" Title="District Name" />
+            <PropertyColumn Property="x => x.ApprovedBudgetAmount" Title="Budget (LSL)" Format="N2" CellStyle="text-align: right;" />
+            <PropertyColumn Property="x => x.ExpectedNoHouseholds" Title="No. of Households" Format="N0" CellStyle="text-align: right;" />
+            <PropertyColumn Property="x => x.ProjectedStartDate" Title="Projected Start Date" Format="dd-MMM-yyyy" />
+            <TemplateColumn Title="Status" HeaderClass="fit">
+                <CellTemplate>
+                    <MudText Style="@($"{GetStatusStyle(context.Item.StatusName)} display:block; padding:4px; border-radius:4px; width:100%;")">
+                        @context.Item.StatusName
+                    </MudText>
+                </CellTemplate>
+            </TemplateColumn>
+            <TemplateColumn Title="Actions">
+                <CellTemplate>
+                    <MudMenu Icon="@Icons.Material.Filled.MoreVert" Color="Color.Primary" Dense="true">
+                        @if (UserProfileService.UserProfile.Contains("DISTRICT REGISTRATION PLANS:VIEW"))
+                        {
+                            <MudMenuItem OnClick="@(() => ViewDetails(context.Item.Id))">
+                                <MudIcon Icon="@Icons.Material.Filled.Info" Class="me-2 text-primary" /> Details
+                            </MudMenuItem>                            
+                        }
+                        @if(context.Item.StatusName == "Open")
+                        {
+                            @if (UserProfileService.UserProfile.Contains("DISTRICT REGISTRATION PLANS:MODIFY"))
+                            {
+                                <MudMenuItem OnClick="@(() => EditPlan(context.Item.Id))">
+                                    <MudIcon Icon="@Icons.Material.Filled.Edit" Class="me-2" /> Edit
+                                </MudMenuItem>                                
+                            }
+                            <MudMenuItem OnClick="@(() => ViewDetails(context.Item.Id))">
+                                <MudIcon Icon="@Icons.Material.Filled.Send" Class="me-2 text-primary" /> Submit To Review
+                            </MudMenuItem>
+                        }
+                        @if (context.Item.StatusName == "Under Review")
+                        {
+                            @if (UserProfileService.UserProfile.Contains("DISTRICT REGISTRATION PLANS:APPROVE"))
+                            {
+                                <MudMenuItem OnClick="@(() => ViewDetails(context.Item.Id))">
+                                    <MudIcon Icon="@Icons.Material.Filled.Approval" Class="me-2 text-primary" /> Approve
+                                </MudMenuItem>                                
+                            }
+                        }
+                        @if (context.Item.StatusName == "Approved")
+                        {
+                            @if (UserProfileService.UserProfile.Contains("DISTRICT REGISTRATION PLANS:APPROVE"))
+                            {
+                                <MudMenuItem OnClick="@(() => ViewDetails(context.Item.Id))">
+                                    <MudIcon Icon="@Icons.Material.Filled.Pending" Class="me-2 text-primary" /> In progress
+                                </MudMenuItem>
+                            }
+                        }
+                        @if (context.Item.StatusName == "In Progress")
+                        {
+                            @if (UserProfileService.UserProfile.Contains("DISTRICT REGISTRATION PLANS:APPROVE"))
+                            {
+                                <MudMenuItem OnClick="@(() => ViewDetails(context.Item.Id))">
+                                    <MudIcon Icon="@Icons.Material.Filled.Close" Class="me-2 text-primary" /> Close
+                                </MudMenuItem>
+                            }
+                        }
+                    </MudMenu>
+                </CellTemplate>
+            </TemplateColumn>
+        </Columns>
+        <PagerContent>
+            <MudDataGridPager T="DistrictRegistrationPlanView" />
+        </PagerContent>
+    </MudDataGrid>
+</MudPaper>
+
+@code {
+    private List<DistrictRegistrationPlanView> districtRegistrations = new();
+    private MudDataGrid<DistrictRegistrationPlanView> table = default!;
+    private DistrictRegistrationSearchFilter filterModel = new();
+    private bool isLoading = false;
+    private int totalItems;
+    private List<int> filterDistrictIdForAccessLevel;
+    private List<BreadcrumbItem> _breadcrumbItems =
+    [
+        new("Home", href: "/", icon: Icons.Material.Filled.Home),
+        new("Registration Planning", href: null, icon: Icons.Material.Filled.NextPlan),
+        new("District Registration Plans", href: null, disabled: true, icon: Icons.Material.Filled.AppRegistration)
+    ];
+
+    private async Task ReloadTable()
+    {
+        isLoading = true;
+        await table.ReloadServerData();
+        isLoading = false;
+    }
+
+    private async Task<GridData<DistrictRegistrationPlanView>> LoadServerData(GridState<DistrictRegistrationPlanView> state)
+    {
+        try
+        {
+            var query = _context.DistrictRegistrationPlanView.AsQueryable();
+
+            if (filterModel.DistrictId > 0)
+                query = query.Where(x => x.DistrictId == filterModel.DistrictId);
+            if (filterModel.StatusId > 0)
+                query = query.Where(x => x.StatusId == filterModel.StatusId);
+            if (filterModel.MasterRegistrationPlanId > 0)
+                query = query.Where(x => x.MasterRegistrationPlanId == filterModel.MasterRegistrationPlanId);
+            if (!string.IsNullOrEmpty(filterModel.Name))
+                query = query.Where(x => x.RegistrationPlanName.Contains(filterModel.Name) || x.MasterRegistrationName.Contains(filterModel.Name)
+                || x.DistrictName.Contains(filterModel.Name));
+
+            if (filterModel.ApprovedBudgetAmount > 0)
+                query = query.Where(x => x.ApprovedBudgetAmount >= filterModel.ApprovedBudgetAmount);
+
+            totalItems = await query.CountAsync();
+            var items = await query
+                .Skip(state.Page * state.PageSize)
+                .Take(state.PageSize)
+                .ToListAsync();
+            return new GridData<DistrictRegistrationPlanView>
+            {
+                Items = items.OrderByDescending(d => d.Id).ToList(),
+                TotalItems = totalItems
+            };
+        }
+        catch (Exception ex)
+        {
+            throw;
+        }
+    }
+
+    private string GetStatusStyle(string? status)
+    {
+        return status switch
+        {
+            "Open" => "background-color:#f5f5f5; color:#616161; border: 1px solid #e0e0e0;",
+            "Under Review" => "background-color:#fff8e1; color:#f9a825; border: 1px solid #ffecb3;",
+            "Approved" => "background-color:#e6f4ea; color:#2e7d32; border: 1px solid #c8e6c9;",
+            "InProgress" => "background-color:#e3f2fd; color:#1565c0; border: 1px solid #90caf9;",
+            "Closed" => "background-color:#fff3e0; color:#ef6c00; border: 1px solid #ffe0b2;",
+            "Rejected" => "background-color:#fdecea; color:#c62828; border: 1px solid #f5c6cb;",
+            _ => "background-color:#eeeeee; color:#424242; border: 1px solid #bdbdbd;"
+        };
+    }
+
+    private void ViewDetails(int id)
+    {
+        Navigation.NavigateTo($"/district/registration/details/{id}");
+    }
+
+    private void EditPlan(int id)
+    {
+        Navigation.NavigateTo($"/district/registration/edit/{id}");
+    }
+
+    private void AddNew()
+    {
+        if (filterDistrictIdForAccessLevel != null && filterDistrictIdForAccessLevel.Count > 0)
+        {
+            var filterDistrictIds = string.Join("-", filterDistrictIdForAccessLevel);
+            Navigation.NavigateTo($"/district/registration/create/{filterDistrictIds}");
+
+        }
+        else
+        {
+            Navigation.NavigateTo("/district/registration/create");
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!UserProfileService.UserProfile.Contains("DISTRICT REGISTRATION PLANS:VIEW"))
+        {
+            Navigation.NavigateTo("/AccessDenied");
+        }
+        if (UserProfileService.AccessLevel.Contains("DISTRICT"))
+        {
+            var userId = UserProfileService.UserId; // Get current user ID
+            if (!string.IsNullOrEmpty(userId))
+            {
+                filterDistrictIdForAccessLevel = await _context.UserDistrictAssignments
+                    .Where(a => a.ApplicationUserId == userId)
+                    .Select(a => a.DistrictId)
+                    .ToListAsync();
+            }
+        }
+    }
+
+}

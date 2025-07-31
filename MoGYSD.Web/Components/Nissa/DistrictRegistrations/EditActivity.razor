@@ -1,0 +1,251 @@
+﻿@using Image = SixLabors.ImageSharp.Image
+@using MoGYSD.Business.Models.Nissa.DistrictRegistrations
+@using MoGYSD.ViewModels
+@using MoGYSD.ViewModels.Nissa.DistrictRegistrations
+@using MoGYSD.Web.Components.Account.Pages
+@using ResizeMode = SixLabors.ImageSharp.Processing.ResizeMode
+@using SixLabors.ImageSharp
+@using SixLabors.ImageSharp.Formats.Png
+@using SixLabors.ImageSharp.Processing
+@using Size = SixLabors.ImageSharp.Size
+@using static MoGYSD.Web.Components.Account.Pages.Register
+
+@inject IUploadService UploadService
+
+<MudDialog Class="blur dialog-background" TitleClass="blur dialog-background-title" ContentClass="dialog-background-surface py-10" ActionsClass="dialog-background-surface">
+    <DialogContent>
+        <MudForm @ref="form">
+            <MudCard Class="mb-4">
+                <MudCardContent>
+                    <MudText Typo="Typo.h6" Class="mb-2">Community Council</MudText>
+                    <MudGrid>
+                        <MudItem xs="12" sm="6">
+                            <CommunityCouncilAutocomplete Variant="Variant.Outlined"Exclude Label=""
+                                                                 For="@(() => Model.CommunityCouncilId)"
+                                                                 @bind-Value="Model.CommunityCouncilId"
+                                                                 DistrictId="@DistrictId" Disabled="true"/>
+                        </MudItem>
+                    </MudGrid>
+                </MudCardContent>
+            </MudCard>
+            <!-- Card 1: Community Council Selection -->
+            <MudCard Class="mb-4">
+                <MudCardContent>
+                    <MudText Typo="Typo.h6" Class="mb-2">Activity Details</MudText>
+                    <MudGrid>
+                        <MudItem xs="12" sm="6">
+                            <MudTextField Variant="Variant.Outlined" T="int?" Label="Number of Households"
+                                          @bind-Value="Model.NumberOfHouseholds"
+                                          Immediate="true"
+                                          For="@(() => Model.NumberOfHouseholds)"
+                                          Required="true" />
+                        </MudItem>
+
+                        <MudItem xs="12" sm="6">
+                            <SystemCodeAutocomplete Variant="Variant.Outlined" Label="Activities"
+                                                    For="@(() => Model.ActivityId)"
+                                                    @bind-Value="Model.ActivityId"
+                                                    ParentCode="Activities"
+                                                    Required="true" />
+                        </MudItem>
+
+                        <MudItem xs="12" sm="6">
+                            <PartnersAutocomplete Label="Partners"
+                                                  For="@(() => Model.PartnersId)"
+                                                  @bind-Value="Model.PartnersId"
+                                                  DistrictId="@DistrictId"
+                                                  Required="true" />
+                        </MudItem>
+
+                        <MudItem xs="12" sm="6">
+                            <ContactPersonsAutocomplete Label="Contact Person"
+                                                        For="@(() => Model.ContactPersonId)"
+                                                        @bind-Value="Model.ContactPersonId"
+                                                        PartnerId="@Model.PartnersId"
+                                                        Required="true" />
+                        </MudItem>
+
+                        <MudItem xs="12">
+                            <MudTextField  Class="mt-2 mb-2"
+                                          Label="Activity Description"
+                                          @bind-Value="Model.ActivityDescription"
+                                          Immediate="true"
+                                          Variant="Variant.Outlined"
+                                          Lines="3" />
+                        </MudItem>
+                                                <!-- File Upload -->
+                        <MudItem xs="12">
+                            <MudPaper Class="pa-4">
+                                <MudText Typo="Typo.h6">Supporting Documents</MudText>
+                                <MudText Typo="Typo.body2" Class="mb-2">Recommended: 640x320 resolution, .pdf or image files.</MudText>
+                                <MudFileUpload T="IReadOnlyList<IBrowserFile>" multiple
+                                               @bind-Files="Model.UploadDocuments"
+                                                OnFilesChanged="UploadFiles"
+                                                Accept=".pdf,image/*"
+                                                AppendMultipleFiles
+                                               Disabled="@_uploading">
+                                    <ActivatorContent>
+                                        <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.UploadFile">Upload</MudButton>
+                                    </ActivatorContent>
+                                </MudFileUpload>
+
+                                @if (Model.Documents is not null)
+                                {
+                                    <MudSimpleTable Dense>
+                                        <tbody>
+                                            @foreach (var dto in Model.Documents)
+                                            {
+                                                <tr @onclick="() => OnDownloadFile(dto.Url)" style="cursor:pointer">
+                                                    <td><Thumbnail FileName="@dto.Name" FileUrl="@dto.Url" /></td>
+                                                    <td><FileSizeFormatter FileSizeInBytes="@dto.Size" /></td>
+                                                    <td>
+                                                        <MudIconButton Icon="@Icons.Material.Outlined.Delete" Color="MudBlazor.Color.Error" OnClick="@(() => DeleteImage(dto))" />
+                                                    </td>
+                                                </tr>
+                                            }
+                                        </tbody>
+                                    </MudSimpleTable>
+                                }
+                            </MudPaper>
+                        </MudItem>
+                    </MudGrid>
+                </MudCardContent>
+            </MudCard>
+
+        </MudForm>
+    </DialogContent>
+
+    <DialogActions>
+        <MudButton OnClick="Cancel" Variant="Variant.Filled" Color="MudBlazor.Color.Error">Cancel</MudButton>
+        <MudButton OnClick="SubmitForm" Color="MudBlazor.Color.Primary" Variant="Variant.Filled">Submit</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance Dialog { get; set; }
+    [Parameter] public CCRegistrationActivityViewModel Model { get; set; } = new();
+    [Parameter] public int DistrictId { get; set; }
+    private MudForm form;
+    private void Cancel() => Dialog.Cancel();
+    private bool _uploading;
+
+    private async Task SubmitForm()
+    {
+        await form.Validate();
+
+        if (form.IsValid)
+        {
+            try
+            {
+                var entity = _mapper.Map<CCRegistrationActivity>(Model);
+                entity.Activity = null;
+                await _genericService.Update<CCRegistrationActivity>(entity);
+
+                LoadingService.Hide();
+                Snackbar.Add("Activity updated successfully", Severity.Success);
+                Dialog.Close(DialogResult.Ok(true));
+            }
+            catch (Exception ex)
+            {
+                LoadingService.Hide();
+                Snackbar.Add($"An unexpected error occurred: {(ex.InnerException is null ? ex.Message : ex.InnerException.Message)}", Severity.Error, config => { config.RequireInteraction = true; });
+                return;
+            }
+        }
+        else
+        {
+            Snackbar.Add("Please fill in all required fields.", Severity.Error);
+        }
+    }
+
+    private async Task OnDownloadFile(string? str)
+    {
+        var fileURL = FilePathHelper.ToWebUrl(str);
+        if (!string.IsNullOrWhiteSpace(fileURL))
+        {
+            await JSRuntime.InvokeVoidAsync("open", fileURL, "_blank");
+        }
+        // await new Fancybox(JSRuntime).Preview(fileURL ?? string.Empty, []);
+    }
+
+    private async Task UploadFiles(InputFileChangeEventArgs e)
+    {
+        try
+        {
+            _uploading = true;
+            var list = new List<DocumentImage>();
+            foreach (var file in e.GetMultipleFiles())
+            {
+                try
+                {
+                    var filestream = file.OpenReadStream(GlobalVariable.MaxAllowedSize);
+                    var attachStream = new MemoryStream();
+                    await filestream.CopyToAsync(attachStream);
+                    attachStream.Position = 0;
+                    var filename = file.Name;
+                    var fi = new FileInfo(filename);
+                    var ext = fi.Extension;
+                    if (ext.EndsWith(".pdf"))
+                    {
+                        var result = await UploadService.UploadAsync(new UploadViewModel(Guid.NewGuid() + ext, UploadType.Document, attachStream.ToArray()));
+                        list.Add(new DocumentImage { Name = filename, Size = attachStream.Length, Url = result });
+                    }
+                    else
+                    {
+                        using (var outStream = new MemoryStream())
+                        {
+                            using (var image = Image.Load(attachStream))
+                            {
+                                image.Mutate(
+                                    i => i.Resize(new ResizeOptions { Mode = ResizeMode.Min, Size = new Size(640, 320) }));
+                                image.Save(outStream, PngFormat.Instance);
+                                var result = await UploadService.UploadAsync(new UploadViewModel(Guid.NewGuid() + ext, UploadType.Document, outStream.ToArray()));
+                                list.Add(new DocumentImage { Name = filename, Size = outStream.Length, Url = result });
+                            }
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Snackbar.Add($"{ex.Message}", Severity.Error);
+                    return;
+                }
+            }
+
+            Snackbar.Add("Upload documents successfully", Severity.Info);
+
+            if (Model.Documents is null)
+                Model.Documents = list;
+            else
+                Model.Documents.AddRange(list);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"{ex.Message}", Severity.Error);
+            return;
+        }
+        finally
+        {
+            _uploading = false;
+        }
+    }
+
+    private async Task DeleteImage(DocumentImage document)
+    {
+        if (Model.Documents != null)
+        {
+            var parameters = new DialogParameters<ConfirmDialog>
+            {
+                { x => x.ContentText, $"{"Are you sure you want to erase this image?"}" }
+            };
+            var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.ExtraSmall, FullWidth = true };
+            var dialog = await DialogService.ShowAsync<ConfirmDialog>("Erase image", parameters, options);
+            var state = await dialog.Result;
+
+            if (state is not null && !state.Canceled)
+            {
+                Model.Documents.Remove(document);
+            }
+        }
+    }
+}

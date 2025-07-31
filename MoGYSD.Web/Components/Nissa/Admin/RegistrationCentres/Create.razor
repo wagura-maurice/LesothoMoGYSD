@@ -1,0 +1,255 @@
+﻿@using Microsoft.AspNetCore.Identity
+@using MoGYSD.Business.Persistence
+@using MoGYSD.Business.Views.Nissa.Admin
+@using MoGYSD.ViewModels.Nissa.Administration
+@using MoGYSD.Web.Components.Autocompletes
+
+<MudDialog Class="blur dialog-background" TitleClass="blur dialog-background-title" ContentClass="dialog-background-surface" ActionsClass="dialog-background-surface">
+    <DialogContent>
+        <MudPaper Class="pa-8 ma-2" Elevation="2">
+            <MudForm @ref="form">
+                <MudGrid>
+                    <MudItem xs="12" sm="6">
+                        <MudTextField Variant="Variant.Outlined" @bind-Value="Model.CentreName" Label="Centre Name" Required="true" />
+                    </MudItem>
+                    <!-- District -->
+                    <MudItem xs="12" sm="6">
+                        <DistrictAutocomplete Variant="Variant.Outlined"  Label="District Name"
+                                              For="@(() => Model.DistrictId)"
+                                              Value="Model.DistrictId" 
+                                              ValueChanged="OnDistrictChanged"
+                                              Required="true" />
+                    </MudItem>
+
+                    <!-- Constituency -->
+                    <MudItem xs="12" sm="6">
+                        <ConstituencyAutocomplete Label="Constituency Name" Variant="Variant.Outlined"
+                                                    For="@(() => Model.ConstituencyId)"
+                                                    IsCascading="true" 
+                                                    Value="Model.ConstituencyId"
+                                                    ValueChanged="OnConstituencyChanged"
+                                                     DistrictId="Model.DistrictId" Required="true"/>
+                        
+                    </MudItem>
+
+                    <!-- Community Council -->
+                    <MudItem xs="12" sm="6">
+                        <CommunityCouncilAutocomplete Variant="Variant.Outlined" Label="Community Council Name"
+                                                      IsCascading="true"
+                                                      For="@(() => Model.CommunityCouncilId)"
+                                                        Value="Model.CommunityCouncilId"
+                                                        ValueChanged="@(async id =>
+                                                        {
+                                                            Model.CommunityCouncilId = id;
+                                                            await LoadVillagesAsync(id);
+                                                        })"
+                                                        ConstituencyId="Model.ConstituencyId" Required="true"/>
+                        
+                    </MudItem>
+
+                    <MudItem xs="12" sm="6">
+                       <MudSelectExtended  Variant="Variant.Outlined" T="int"
+                                           ItemCollection="Villages.Select(v => v.Id).ToList()"
+                                           ToStringFunc="GetVillageNameById"
+                                           SearchBox="true"
+                                           SelectAllPosition="SelectAllPosition.AfterSearchBox"
+                                           MultiSelectionTextFunc="GetMultiSelectionText"
+                                           MultiSelection="true"
+                                           ValuePresenter="_valuePresenter"
+                                           @bind-SelectedValues="_selectedVillageIds"
+                                           Label="Select Villages"
+                                           AdornmentIcon="@Icons.Material.Filled.Search"
+                                           AnchorOrigin="Origin.BottomCenter"
+                                           MaxHeight="300"
+                                           ChipCloseable="false"
+                                           ChipSize="Size.Small"
+                                           ChipVariant="Variant.Filled"
+                                           Clearable="true">
+
+                            @foreach (var village in Villages)
+                            {
+                               <MudSelectItemExtended T="int" Value="@village.Id" Text="@village.Name" />
+                            }
+                        </MudSelectExtended>
+                    </MudItem>
+                    @if (Model.Id > 0)
+                    {
+                        <MudSwitch @bind-Value="Model.IsActive"
+                                   Style="@(Model.IsActive ? "color:green" : "color:red")"
+                                   ThumbIcon="@(Model.IsActive? Icons.Material.Filled.Done : Icons.Material.Filled.Close)"
+                                   ThumbIconColor="@(Model.IsActive? Color.Success: Color.Error)"
+                                   Label="@(Model.IsActive ? "Active" : "Not Active")"
+                                   Class="mb-3" />
+                    }
+                </MudGrid>
+            </MudForm>
+        </MudPaper>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel" Variant="Variant.Filled">Cancel</MudButton>
+        <MudButton OnClick="SubmitForm" Color="Color.Primary" Variant="Variant.Filled">Submit</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter]
+    private IMudDialogInstance Dialog { get; set; }
+    [Parameter] public RegistrationCentreViewModel Model { get; set; }
+    ValuePresenter _valuePresenter = ValuePresenter.Text;
+    private MudForm form;
+    private void Cancel() => Dialog.Cancel();
+    // private string RoleId = string.Empty;
+    private List<VillageView> Villages = new();
+    private IEnumerable<int> _selectedVillageIds = new List<int>();
+
+    private async Task SubmitForm()
+    {
+        await form.Validate();
+        bool hasConflict;
+        if (Model.Id == 0)
+        {
+            hasConflict = await _context.RegistrationCentreVillageView.AnyAsync(v => _selectedVillageIds.Contains(v.VillageId));
+        }
+        else
+        {
+            hasConflict = await _context.RegistrationCentreVillageView.AnyAsync(v => v.RegistrationCentreId != Model.Id && _selectedVillageIds.Contains(v.VillageId));
+        }
+        if (hasConflict)
+        {
+            Snackbar.Add("One or more selected villages are already assigned to a different centre.", Severity.Error);
+            return;
+        }
+
+        if (form.IsValid)
+        {
+            Model.VillageIds = _selectedVillageIds.ToList();
+            Dialog.Close(Model);
+        }
+        else
+        {
+            Snackbar.Add("Please fill in all required fields.", Severity.Error);
+            return;
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        // RoleId = _context.Roles.Where(p => p.Name.ToLower() == "enumerator").Select(a => a.Id).FirstOrDefault();
+       
+        if(Model.Id == 0)
+        {
+            var villageIds = Villages.Select(v => v.Id).ToList();
+
+            var existingVillageIds = await _context.RegistrationCentreVillageView
+                .Where(rcv => villageIds.Contains(rcv.VillageId))
+                .Select(rcv => rcv.VillageId)
+                .ToListAsync();
+
+            var existingVillageIdsSet = new HashSet<int>(existingVillageIds);
+
+            var filteredVillages = Villages.Where(v => !existingVillageIdsSet.Contains(v.Id)).ToList();
+            Villages = filteredVillages;
+        }
+        else if(Model.Id > 0)
+        {
+            var villageIds = Villages.Select(v => v.Id).ToList();
+            // Load existing villages for the registration centre
+
+            var existingVillages = await _context.RegistrationCentreVillageView
+                .Where(v => v.RegistrationCentreId != Model.Id && villageIds.Contains(v.VillageId))
+                .Select(v => v.VillageId)
+                .ToListAsync();
+
+            var filteredVillages = Villages.Where(v => !existingVillages.Contains(v.Id)).ToList();
+            Villages = filteredVillages;
+        }
+    }
+
+    private async Task LoadVillagesAsync(int? communityCouncilId)
+    {
+        if (communityCouncilId > 0)
+        {
+            Villages = await _context.VillageView.Where(v => v.CommunityCouncilId == communityCouncilId).ToListAsync();
+            _selectedVillageIds = new List<int>();
+            StateHasChanged();
+        }
+        else
+        {
+            Villages.Clear();
+            _selectedVillageIds = new List<int>();
+            StateHasChanged();
+        }
+    }
+
+    protected override void OnParametersSet()
+    {
+        if (Model?.VillageIds != null)
+        {
+            _selectedVillageIds = Model.VillageIds;
+        }
+    }
+
+    private string GetMultiSelectionText(IEnumerable<int> selectedIds)
+    {
+        var names = Villages
+            .Where(v => selectedIds.Contains(v.Id))
+            .Select(v => v.Name);
+
+        return string.Join(", ", names);
+    }
+
+    private string GetVillageNameById(int id)
+    {
+        return Villages.FirstOrDefault(v => v.Id == id)?.Name ?? $"Village {id}";
+    }
+
+    private async Task OnDistrictChanged(int? districtId)
+    {
+        if (districtId == null || districtId == 0)
+        {
+            // Clear all dependent fields when district is cleared
+            Model.DistrictId = null;
+            Model.ConstituencyId = null;
+            Model.CommunityCouncilId = null;
+            Villages.Clear();
+            _selectedVillageIds = new List<int>();
+        }
+        else
+        {
+            // Only clear constituency if the district actually changed
+            if (Model.DistrictId != districtId)
+            {
+                Model.ConstituencyId = null;
+                Model.CommunityCouncilId = null;
+                Villages.Clear();
+                _selectedVillageIds = new List<int>();
+            }
+            Model.DistrictId = districtId;
+        }
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task OnConstituencyChanged(int? constituencyId)
+    {
+        if (constituencyId == null || constituencyId == 0)
+        {
+            // Clear community council when constituency is cleared
+            Model.ConstituencyId = null;
+            Model.CommunityCouncilId = null;
+            Villages.Clear();
+            _selectedVillageIds = new List<int>();
+        }
+        else
+        {
+            // Only clear community council if constituency actually changed
+            if (Model.ConstituencyId != constituencyId)
+            {
+                Model.CommunityCouncilId = null;
+                Villages.Clear();
+                _selectedVillageIds = new List<int>();
+            }
+            Model.ConstituencyId = constituencyId;
+        }
+        await InvokeAsync(StateHasChanged);
+    }
+}

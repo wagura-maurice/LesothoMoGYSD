@@ -1,0 +1,81 @@
+﻿@using MoGYSD.Web.Components.HouseHoldListings
+<MudExpansionPanel Text="Expand to apply search filter">
+    <MudGrid Class="py-2">
+        <MudItem xs="12" sm="6" md="3">
+            <MudTextField Variant="Variant.Outlined" @bind-Value="Filter.Name" Label="Search by Name" />
+        </MudItem>
+        <MudItem xs="12" sm="6" md="3">
+            <DistrictAutocomplete Variant="Variant.Outlined" Label="Search by District"
+                                              @bind-Value="Filter.DistrictPlanNameId">
+            </DistrictAutocomplete>
+        </MudItem>
+        
+        <MudItem xs="12" sm="6" md="3">
+            <SystemCodeAutocomplete Variant="Variant.Outlined" Label="Search by Status" 
+                                   ParentCode="Status"
+                                    @bind-Value="Filter.StatusId">
+            </SystemCodeAutocomplete>
+        </MudItem>
+                 
+        <MudItem xs="12" sm="6" md="3">
+            <MudDatePicker Variant="Variant.Outlined"  @bind-Date="Filter.ProjectedStartDate"
+                           Label="Search by Projected Start Date" />
+        </MudItem>
+        
+        <MudItem xs="12" sm="6" md="3">
+            <MudDatePicker Variant="Variant.Outlined"  @bind-Date="Filter.ProjectedEndDate"
+                           Label="Search by Projected End Date" />
+        </MudItem>
+        
+        <MudItem xs="12" sm="6" md="3">
+            <MudDatePicker Variant="Variant.Outlined"  @bind-Date="Filter.ActivityDateFrom"
+                           Label="Search by Actual Start Date" />
+        </MudItem>
+        
+        <MudItem xs="12" sm="6" md="3">
+            <MudDatePicker Variant="Variant.Outlined"  @bind-Date="Filter.ActivityDateTo"
+                           Label="Search by Actual End Date" />
+        </MudItem>
+        <MudItem xs="12">
+            <div class="d-flex justify-content-between mt-2">
+                <MudButton Variant="Variant.Filled"
+                           Color="Color.Secondary"
+                           StartIcon="@Icons.Material.Filled.Clear"
+                           OnClick="ClearFilter"
+                           Class="ml-2">
+                    Clear
+                </MudButton>
+                <MudButton Variant="Variant.Filled"
+                           Color="Color.Primary"
+                           StartIcon="@Icons.Material.Filled.Search"
+                           OnClick="OnFilter">
+                    Search
+                </MudButton>
+            </div>
+        </MudItem>
+    </MudGrid>
+</MudExpansionPanel>
+
+@code {
+    [Parameter] public HouseHoldListingSearchFilter Filter { get; set; } = new();
+    [Parameter] public EventCallback OnFilterApplied { get; set; }
+
+    private async Task OnFilter()
+    {
+        await OnFilterApplied.InvokeAsync();
+    }
+    private async Task ClearFilter()
+    {
+        // Reset all filter properties to their default values
+        Filter.Name = string.Empty;
+        Filter.DistrictId = null;
+        Filter.StatusId = null;
+        Filter.HHListingActivityName = string.Empty;
+        Filter.ProjectedStartDate = null;
+        Filter.ProjectedEndDate = null;
+        Filter.ActivityDateFrom = null;
+        Filter.ActivityDateTo = null;
+
+        await OnFilterApplied.InvokeAsync();        
+    }
+}

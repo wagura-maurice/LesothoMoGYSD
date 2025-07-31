@@ -1,0 +1,130 @@
+﻿@using MoGYSD.Business.Models.Nissa.MasterRegistrations
+@using MoGYSD.ViewModels.Nissa.MasterRegistrations
+
+<MudDialog Class="blur dialog-background" TitleClass="blur dialog-background-title" ContentClass="dialog-background-surface py-10" ActionsClass="dialog-background-surface">
+    <DialogContent>
+        <MudForm @ref="form">
+            <MudGrid>
+                <MudItem xs="12" sm="6">
+                    <CommunityCouncilAutocompleteExclude Variant="Variant.Outlined" Label="Community Council Name"
+                                            For="@(() => Model.CCId)"
+                                            @bind-Value="Model.CCId"
+                                            DistrictId="DistrictId"
+                                            ExcludedCommunityCouncilIds="@ExcludeCCs" />
+                </MudItem>
+
+                <MudItem xs="12" sm="6">
+                    <MudTextField Variant="Variant.Outlined" T="int?" @bind-Value="Model.ProjectedHHs"
+                                  For="@(() => Model.ProjectedHHs)"
+                                  Label="Projected HHs"
+                                  Error="@IsProjectedHHsInvalid"
+                                  ErrorText="Cannot exceed estimated HHs"
+                                  OnBlur="ValidateTotalHHs" />
+                </MudItem>
+                <MudItem xs="12">
+                    <MudText Typo="Typo.body2" Color="@(TotalProjectedHHsEntry + Model.ProjectedHHs > TotalHHsToTarget ? Color.Error : Color.Default)">
+                        Total HHs should not exceed: "@(TotalHHsToTarget - TotalProjectedHHsEntry)"
+                    </MudText>
+                </MudItem>
+            </MudGrid>
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel"
+                   Variant="Variant.Text"
+                   Size="Size.Small"
+                   Class="ml-0">Cancel</MudButton>
+        <MudButton OnClick="SubmitForm" Color="Color.Primary" Variant="Variant.Filled"
+                   Size="Size.Small">Save</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter]
+    private IMudDialogInstance Dialog { get; set; }
+    [Parameter] public RegistrationDistrictCCViewModel Model { get; set; }
+    [Parameter] public int RegistrationDistrictId { get; set; }
+    [Parameter] public int TotalHHsToTarget { get; set; }
+    [Parameter] public int DistrictId { get; set; }
+    private int TotalProjectedHHsEntry;
+    private bool IsProjectedHHsInvalid = false;
+    private List<int> ExcludeCCs = new();
+
+    private MudForm form;
+    private void Cancel() => Dialog.Cancel();
+
+    protected override async Task OnInitializedAsync()
+    {
+        TotalProjectedHHsEntry = await _context.RegistrationDistrictCCs
+        .Where(p => p.RegistrationDistrictId == RegistrationDistrictId).SumAsync(h => h.ProjectedHHs);
+        if(Model.Id > 0)
+        {
+            TotalProjectedHHsEntry -= Model.ProjectedHHs.Value;
+        }
+        ExcludeCCs = await _context.RegistrationDistrictCCs.AsNoTracking()
+        .Where(p => p.RegistrationDistrictId == RegistrationDistrictId).Select(v => v.CCId).ToListAsync();
+    }
+
+    private void ValidateTotalHHs(FocusEventArgs args)
+    {
+        IsProjectedHHsInvalid = TotalProjectedHHsEntry + Model.ProjectedHHs > TotalHHsToTarget;
+        StateHasChanged();
+    }
+
+    private async Task SubmitForm()
+    {
+        await form.Validate();
+
+        if (form.IsValid && !IsProjectedHHsInvalid)
+        {
+            if (Model.Id > 0)
+            {
+                try
+                {
+                    LoadingService.Show();
+                    var dataToUpdate = _mapper.Map<RegistrationDistrictCC>(Model);
+                    await _genericService.Update(dataToUpdate);
+
+                    LoadingService.Hide();
+                    Dialog.Close(DialogResult.Ok(true));
+                    Snackbar.Add("Council population data updated successfully", Severity.Success);
+                }
+                catch (Exception ex)
+                {
+                    LoadingService.Hide();
+                    Snackbar.Add($"An unexpected error occurred: {(ex.InnerException is null ? ex.Message : ex.InnerException.Message)}", Severity.Error, config => { config.RequireInteraction = true; });
+                    return;
+                }
+            }
+            else
+            {
+                try
+                {
+                    LoadingService.Show();
+                    Model.RegistrationDistrictId = RegistrationDistrictId;
+                    var addData = _mapper.Map<RegistrationDistrictCC>(Model);
+                    await _genericService.Add(addData);
+
+                    LoadingService.Hide();
+                    Dialog.Close(DialogResult.Ok(true));
+                    Snackbar.Add("Council population data saved successfully", Severity.Success);
+                }
+                catch (Exception ex)
+                {
+                    LoadingService.Hide();
+                    Snackbar.Add(
+                        $"An unexpected error occurred: {(ex.InnerException is null ? ex.Message : ex.InnerException.Message)}",
+                        Severity.Error,
+                        config => { config.RequireInteraction = true; }
+                    );
+                    return;
+                }
+
+            }
+        }
+        else
+        {
+            Snackbar.Add("Please fill in all required fields correctly.", Severity.Error);
+        }
+    }
+}

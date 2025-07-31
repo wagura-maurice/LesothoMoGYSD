@@ -1,0 +1,245 @@
+﻿@using MoGYSD.Business.Models.Nissa.HouseHoldEnumerations
+@using MoGYSD.Business.Views.Nissa.Admin
+@using MoGYSD.Business.Views.Nissa.HHEnumerations
+@using MoGYSD.ViewModels.Nissa.HouseholdEnumerations
+
+<MudDialog>
+    <DialogContent>
+        <MudForm @ref="_form">
+            <MudGrid>
+                <MudItem xs="12" sm="6" md="3">
+                    <DistrictAutocomplete Variant="Variant.Outlined"
+                                                         Label="Community Council"
+                                                         For="@(() => CommunityCouncilId)"
+                                                         @bind-Value="DistrictId"
+                                                         Disabled="true" />
+                </MudItem>
+                <MudItem xs="12" sm="6" md="3">
+                    <CommunityCouncilAutocompleteExclude Variant="Variant.Outlined"
+                                                         Label="Community Council"
+                                                         For="@(() => CommunityCouncilId)"
+                                                         Value="CommunityCouncilId"
+                                                         ValueChanged="OnSelectedValuesChanged"
+                                                         DistrictId="@DistrictId"/>
+                </MudItem>
+                
+            </MudGrid>
+
+            <MudDivider Class="my-2" />
+
+            <MudText Typo="Typo.subtitle1">Select Collection Team</MudText>
+            <MudTable Items="_EnumerationTeam">
+                <HeaderContent>
+                    <MudTh>Select</MudTh>
+                    <MudTh>Name</MudTh>
+                    <MudTh>Role</MudTh>
+                    <MudTh>Supervisor</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd>
+                        <MudCheckBox T="bool"
+                                     Value="@_SelectedTeamIds.Contains(context.EnumeratorId)"
+                                     ValueChanged="@(e => OnTeamMemberToggled(context.EnumeratorId, e))" />
+                    </MudTd>
+                    <MudTd>@context.EnumeratorNames</MudTd>
+                    <MudTd>
+                        <MudCheckBox T="bool"
+                                     Value="@(_SelectedSupervisorId == context.EnumeratorId)"
+                                     ValueChanged="e => OnSupervisorCheckedChanged(context.EnumeratorId, e)"
+                                     Disabled="@(!_SelectedTeamIds.Contains(context.EnumeratorId) || (string.IsNullOrEmpty(_SelectedSupervisorId) && isSelected))"
+                                     Color="Color.Primary"
+                                     Style="border-radius: 50%; width: 20px; height: 20px;" />
+                    </MudTd>
+                </RowTemplate>
+            </MudTable>
+
+            <MudText Typo="Typo.body2" Class="mt-2">
+                Selected Enumerators: <strong>@_SelectedTeamIds.Count</strong>
+            </MudText>
+        </MudForm>
+    </DialogContent>
+
+    <DialogActions>
+        @if (isBusy == false)
+        {
+            <MudButton OnClick="Cancel"
+                       Variant="Variant.Text"
+                       Size="Size.Small"
+                       Class="ml-0">Cancel</MudButton>
+            <MudButton OnClick="SubmitForm" Color="Color.Primary" Variant="Variant.Filled"
+                       Size="Size.Small">Save</MudButton>
+        }
+        else
+        {
+            <div class="w-100 d-flex justify-content-center align-items-center" style="min-height: 40px;">
+                <MudProgressCircular Color="Color.Primary" Size="Size.Small" Indeterminate="true" />
+            </div>
+        }
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance Dialog { get; set; }
+    [Parameter] public EnumerationTeamViewModel Model { get; set; }
+    [Parameter] public int? CommunityCouncilId { get; set; }
+    [Parameter] public int? DistrictId { get; set; }
+    [Parameter] public int EditTeamByCCId { get; set; }
+
+    private List<TeamSelection> _EnumerationTeam { get; set; } = new();
+    private HashSet<string> _SelectedTeamIds = new(); // Only store EnumeratorId values
+    private string? _SelectedSupervisorId = null;     // Only one supervisor allowed
+
+
+    private bool isBusy;
+    private bool isSelected;
+    private MudForm _form;
+
+    private void Cancel() => Dialog.Cancel();
+
+    private void OnTeamMemberToggled(string enumeratorId, bool isChecked)
+    {
+        if (isChecked)
+            _SelectedTeamIds.Add(enumeratorId);
+        else
+        {
+            _SelectedTeamIds.Remove(enumeratorId);
+            if (_SelectedSupervisorId == enumeratorId)
+                _SelectedSupervisorId = null;
+        }
+    }
+
+    private void OnSupervisorCheckedChanged(string enumeratorId, bool isChecked)
+    {
+        if(isChecked)
+        {
+            if (string.IsNullOrEmpty(_SelectedSupervisorId))
+            {
+                if (_SelectedTeamIds.Contains(enumeratorId))
+                    _SelectedSupervisorId = enumeratorId;
+                isSelected = true;
+            }            
+        }
+        else
+        {
+            isSelected = false;
+            _SelectedSupervisorId = string.Empty;
+        }
+    }
+
+    private async Task SubmitForm()
+    {
+        if (_form.IsValid)
+        {
+            isBusy = true;
+            try
+            {
+                if (EditTeamByCCId > 0)
+                {
+                    var existingTeam = await _context.EnumerationTeams
+                        .Where(et => et.EnumerationAreaId == Model.EnumerationAreaId)
+                        .ToListAsync();
+
+                    if (existingTeam.Any())
+                    {
+                        _context.EnumerationTeams.RemoveRange(existingTeam);
+
+                    }
+
+                    if (_SelectedTeamIds.Any())
+                    {
+                        var updatedTeam = _SelectedTeamIds.Select(id => new EnumerationTeam
+                        {
+                            EnumeratorId = id,
+                            EnumerationAreaId = Model.EnumerationAreaId,
+                            IsSupervisor = _SelectedSupervisorId == id,
+                            CreatedById = existingTeam?.FirstOrDefault().CreatedById,
+                            CreatedOn = existingTeam.FirstOrDefault().CreatedOn,
+                            ModifiedById = UserProfileService.UserId, // Assuming you have a way to get the current user ID
+                            ModifiedOn = DateTime.Now
+                        }).ToList();
+
+                        await _context.EnumerationTeams.AddRangeAsync(updatedTeam);
+                    }
+
+                    await _context.SaveChangesAsync();
+                    Dialog.Close(DialogResult.Ok(true));
+                }
+                else
+                {
+                    if(_SelectedTeamIds.Any())
+                    {
+                        var team = _SelectedTeamIds.Select(id => new EnumerationTeam
+                        {
+                            EnumeratorId = id,
+                            EnumerationAreaId = Model.EnumerationAreaId,
+                            IsSupervisor = _SelectedSupervisorId == id
+                        }).ToList();
+
+                        _genericService.AddRange(team);
+                        Dialog.Close(DialogResult.Ok(true));
+                    }                    
+                }
+            }
+            finally
+            {
+                isBusy = false;
+            }
+        }
+        else
+        {
+            await _form.Validate();
+        }
+    }
+   
+    protected override async Task OnInitializedAsync()
+    {
+        if (EditTeamByCCId > 0)
+        {
+            var existingTeam = await _context.EnumerationTeamView
+                .Where(et => et.EnumerationAreaId == Model.EnumerationAreaId && et.CommunityCouncilId == EditTeamByCCId)
+                .ToListAsync();
+
+            // Load enumeration team for the selected village
+            _EnumerationTeam = await _context.EnumeratorsCCView.Where(v => v.CCId == EditTeamByCCId)
+                .Select(v => new TeamSelection
+                {
+                    EnumeratorId = v.Id,
+                    EnumeratorNames = v.EnumeratorNames,
+                    EnumeratorRole = v.RoleName,
+                    IsSupervisor = false // Default to false, can be set later
+                }).ToListAsync();
+
+            _SelectedTeamIds = existingTeam?.Select(a => a.EnumeratorId)?.ToHashSet();
+            _SelectedSupervisorId = existingTeam?.Where(a => a.IsSupervisor == true).Select(a => a.EnumeratorId)?.FirstOrDefault() ?? string.Empty;
+        }
+    }
+
+    private async Task OnSelectedValuesChanged(int? id)
+    {
+        CommunityCouncilId = id;
+
+        if (id.HasValue)
+        {
+            _EnumerationTeam = await _context.EnumeratorsCCView.Where(v => v.CCId == id)
+                .DistinctBy(v => v.Id)
+                .Select(v => new TeamSelection
+                {
+                    EnumeratorId = v.Id,
+                    EnumeratorNames = v.EnumeratorNames,
+                    EnumeratorRole = v.RoleName,
+                    IsSupervisor = false // Default to false, can be set later
+                }).ToListAsync();
+
+            _SelectedTeamIds.Clear(); // Reset selected team ids
+            _SelectedSupervisorId = null; // Reset supervisor selection
+        }
+    }   
+
+    private class TeamSelection
+    {
+        public string EnumeratorId { get; set; }
+        public string EnumeratorNames { get; set; }
+        public string EnumeratorRole { get; set; }
+        public bool IsSupervisor { get; set; }
+    }
+}

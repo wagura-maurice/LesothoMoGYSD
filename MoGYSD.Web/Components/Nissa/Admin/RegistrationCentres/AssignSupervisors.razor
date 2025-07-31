@@ -1,0 +1,54 @@
+﻿@using Microsoft.AspNetCore.Identity
+@using MoGYSD.Business.Persistence
+@using MoGYSD.ViewModels.Nissa.Administration
+@using MoGYSD.Web.Components.Autocompletes
+
+<MudDialog Class="blur dialog-background" TitleClass="blur dialog-background-title" ContentClass="dialog-background-surface" ActionsClass="dialog-background-surface">
+    <DialogContent>
+        <MudPaper Class="pa-8 ma-2" Elevation="2">
+            <MudForm @ref="form">
+                <MudGrid>
+                    <MudItem xs="12" sm="6">
+                        <MudTextField Variant="Variant.Outlined" @bind-Value="Model.CentreName" Label="Centre Name" ReadOnly="true" />
+                    </MudItem>
+                    <MudItem xs="12" sm="6">
+                        <MudTextField Variant="Variant.Outlined" @bind-Value="Model.CentreCode" Label="Centre Code" ReadOnly="true" />
+                    </MudItem>
+                    <MudItem xs="12" sm="6">
+                        <UserAutocomplete Label="Search Supervisor"
+                            For="@(() => Model.SupervisorId)"
+                            @bind-Value="Model.SupervisorId">
+                        </UserAutocomplete>
+                    </MudItem>
+                </MudGrid>
+            </MudForm>
+        </MudPaper>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel" Variant="Variant.Filled">Cancel</MudButton>
+        <MudButton OnClick="SubmitForm" Color="Color.Primary" Variant="Variant.Filled">Assign</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter]
+    private IMudDialogInstance Dialog { get; set; }
+    [Parameter] public RegistrationCentreViewModel Model { get; set; }
+    ValuePresenter _valuePresenter = ValuePresenter.Text;
+    private MudForm form;
+    private void Cancel() => Dialog.Cancel();
+
+    private async Task SubmitForm()
+    {
+        await form.Validate();
+        if (form.IsValid)
+        {
+            Dialog.Close(Model);
+        }
+        else
+        {
+            Snackbar.Add("Please fill in all required fields.", Severity.Error);
+        }
+    }
+
+}

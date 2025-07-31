@@ -1,0 +1,122 @@
+﻿@using MoGYSD.Business.Persistence
+@using MoGYSD.ViewModels.Nissa.Administration
+@using MoGYSD.Web.Components.Autocompletes
+
+<MudDialog Class="blur dialog-background" TitleClass="blur dialog-background-title" ContentClass="dialog-background-surface" ActionsClass="dialog-background-surface">
+    <DialogContent>
+        <MudForm @ref="form">
+            <MudGrid>
+                <MudItem xs="12" sm="6" md="4">
+                    <SystemCodeAutocomplete Variant="Variant.Outlined" Label="Organisation Type"
+                    For="@(() => Model.OrgTypeId)"
+                    @bind-Value="Model.OrgTypeId" 
+                    ParentCode="OrganisationType"
+                    Required="true">
+                    </SystemCodeAutocomplete>
+                </MudItem>
+                <MudItem xs="12" sm="6" md="4">
+                    <MudTextField Variant="Variant.Outlined" @bind-Value="Model.PartnerName" Label="Partner Name" Required="true" />
+                </MudItem>
+                <MudItem xs="12" sm="6" md="4">
+                    <MudTextField Variant="Variant.Outlined" @bind-Value="Model.PhysicalAddress" Label="Physical Address" Required="true" />
+                </MudItem>
+                <MudItem xs="12" sm="6" md="4">
+                    <MudTextField Variant="Variant.Outlined" @bind-Value="Model.PostalAddress" Label="Postal Address" Required="true" />
+                </MudItem>
+                <MudItem xs="12" sm="6" md="4">
+                    <MudTextField Variant="Variant.Outlined" @bind-Value="Model.TelephoneNumber" Label="Telephone Number" />
+                </MudItem>
+                <MudItem xs="12" sm="6" md="4">
+                    <MudTextField Variant="Variant.Outlined" @bind-Value="Model.MobileNumberPrefix" Label="Mobile Number Prefix" />
+                </MudItem>
+                <MudItem xs="12" sm="6" md="4">
+                    <MudTextField Variant="Variant.Outlined" @bind-Value="Model.MobileNumber" Label="Mobile Number" />
+                </MudItem>
+                <MudItem xs="12" sm="6" md="4">
+                    <MudTextField Variant="Variant.Outlined" @bind-Value="Model.EmailAddress" Label="Email Address" Required="true" />
+                </MudItem>
+                <MudItem xs="12" sm="6" md="4">
+                    <LocalDistrictAutocomplete Label="District"
+                                                For="@(() => Model.DistrictId)"
+                                                Value="Model.DistrictId"
+                                               Variant="Variant.Outlined"
+                                                ValueChanged="OnDistrictChanged"
+                                                Required="true" />
+                </MudItem>
+                @if (Model.DistrictId == -1)
+                {
+                    <MudItem xs="12" sm="6" md="4">
+                        <MudTextField Variant="Variant.Outlined" Label="Specify Other Location"
+                                        @bind-Value="Model.AreaOfOperation"
+                                        Required="true" />
+                    </MudItem>
+                }
+                <MudItem xs="12" sm="6" md="4">
+                    <SystemCodeAutocomplete Variant="Variant.Outlined" Label="Registration Purpose"
+                    For="@(() => Model.RegistrationPurposeId)"
+                    @bind-Value="Model.RegistrationPurposeId"
+                    ParentCode="RegistrationPurpose"
+                    Required="true">
+                    </SystemCodeAutocomplete>
+                </MudItem>
+                <MudItem xs="12" sm="6" md="4">
+                    <MudTextField Variant="Variant.Outlined" @bind-Value="Model.OtherPurpose" Label="Other Purpose" />
+                </MudItem>
+                <MudItem xs="12" sm="6" md="4">
+                    <MudTextField Variant="Variant.Outlined" @bind-Value="Model.DetailedRemarks" Label="Detailed Remarks"  />
+                </MudItem>
+                <MudItem xs="12" sm="6" md="4">
+                    <MudSwitch @bind-Value="Model.PrivacyProtocolsAccepted" Color="Color.Primary" Label="Privacy Protocols Accepted" Class="mr-n2 mb-6" />
+                </MudItem>
+            </MudGrid>
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel" Variant="Variant.Filled">Cancel</MudButton>
+        <MudButton OnClick="SubmitForm" Color="Color.Primary" Variant="Variant.Filled">Submit</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter]
+    private IMudDialogInstance Dialog { get; set; }
+    [Parameter] public PartnerViewModel Model { get; set; }
+    private int statusId;
+    private string _selectedOption = "local";
+    private MudForm form;
+    private void Cancel() => Dialog.Cancel();
+
+    private async Task SubmitForm()
+    {
+        await form.Validate();
+        if(form.IsValid)
+        {
+            Model.DistrictId = Model.DistrictId > 0 ? Model.DistrictId : null;
+            Model.StatusId = Model.Id < 1 ? statusId : Model.StatusId;
+            Dialog.Close(Model);
+        }
+        else
+        {
+            
+        }
+    }
+    protected override async Task OnInitializedAsync()
+    {
+        if (Model.Id < 1)
+        {
+            statusId = await _context.SystemCodeDetailsView.AsNoTracking()
+                 .Where(x => x.ParentCode == "Status" && x.Code == "Open")
+                 .Select(x => x.Id)
+                 .FirstOrDefaultAsync();
+        }
+    }
+    private void OnDistrictChanged(int? value)
+    {
+        if (value != -1)
+        {
+            Model.AreaOfOperation = null; // Reset if not "Others"
+        }
+        Model.DistrictId = value;
+        StateHasChanged();
+    }
+}

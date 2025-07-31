@@ -1,0 +1,400 @@
+﻿@page "/programcommunityvalidation/view/{Id:int}"
+@using Microsoft.EntityFrameworkCore
+@using MoGYSD.Business.Models.Nissa.Admin
+@using MoGYSD.Business.Models.Nissa.HouseHoldEnumerations
+@using MoGYSD.Business.Models.Missa.Validation
+@using MoGYSD.ViewModels.Missa.Programmes
+@using MoGYSD.Business.Persistence
+@using MoGYSD.Services
+
+@inject NavigationManager Navigation
+@inject ISnackbar Snackbar
+
+
+@if (_isLoading)
+{
+    <div class="d-flex justify-center pa-10">
+        <MudProgressCircular Color="Color.Primary" Indeterminate="true" />
+    </div>
+}
+else if (HeaderModel.Id > 0)
+{
+    <MudGrid Class="mb-3" AlignItems="Align.Center" Justify="Justify.SpaceBetween">
+        <MudItem xs="12" md="6">
+            <MudText Typo="Typo.h4" Class="font-weight-bold"><b>@HeaderText</b></MudText>
+        </MudItem>
+        <MudItem xs="12" md="6" Class="d-flex justify-start justify-sm-end">
+            <MudBreadcrumbs Items="_breadcrumbItems" Class="custom-breadcrumb" />
+        </MudItem>
+    </MudGrid>
+
+    <MudPaper Class="pa-4 pa-md-6 mb-6" Elevation="3">
+        <MudCard>
+            <MudCardHeader>
+                <CardHeaderContent>
+                    <MudText Typo="Typo.h5"><b>Validation List Details</b></MudText>
+                </CardHeaderContent>
+            </MudCardHeader>
+            <MudCardContent>
+                <MudGrid Spacing="3">
+                    <MudItem xs="12" sm="6" md="3">
+                  <MudText><b>Start Date:</b> @HeaderModel.StartDate?.ToString("dd/MM/yyyy")</MudText>
+                </MudItem>
+                <MudItem xs="12" sm="6" md="3">
+                    <MudText><b>End Date:</b> @HeaderModel.EndDate?.ToString("dd/MM/yyyy")</MudText>
+                </MudItem>
+
+                    <MudItem xs="12" sm="6" md="3">
+                        <MudText><b>District:</b> @_districtName</MudText>
+                    </MudItem>
+                    <MudItem xs="12" sm="6" md="3">
+                        <MudText><b>Community Council:</b> @_communityCouncilName</MudText>
+                    </MudItem>
+                </MudGrid>
+            </MudCardContent>
+        </MudCard>
+    </MudPaper>
+
+    <!-- 1. SEARCH PANEL -->
+    <MudPaper Class="pa-4 mb-4" Elevation="2">
+        <MudText Typo="Typo.h6" GutterBottom="true"><b>Search Filters</b></MudText>
+        <MudGrid>
+            <MudItem xs="12" sm="6" md="5">
+                <MudAutocomplete T="Village" Label="Filter by Village" @bind-Value="_searchVillage"
+                                 SearchFunc="@SearchVillages" ToStringFunc="@(v => v?.Name)"
+                                 Variant="Variant.Outlined" Dense="true" Clearable="true" />
+            </MudItem>
+            <MudItem xs="12" sm="6" md="5">
+                <MudTextField T="string" Label="Search by Head's Name or National ID" Variant="Variant.Outlined"
+                              @bind-Value="_householdSearchText" Adornment="Adornment.End" AdornmentIcon="@Icons.Material.Filled.Search"
+                              Immediate="true" Dense="true" Clearable="true" />
+            </MudItem>
+            <MudItem xs="12" md="2" Class="d-flex align-center">
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="ApplyFilters" Class="flex-grow-1">Filter</MudButton>
+            </MudItem>
+        </MudGrid>
+    </MudPaper>
+    <MudPaper Class="pa-4 pa-md-6" Elevation="3">
+        <MudGrid Spacing="4">
+            <MudItem xs="12" md="7">
+                <MudText Typo="Typo.h5" Class="mb-4"><b>Households in @(_communityCouncilName)</b></MudText>
+                <MudDataGrid T="Household" @ref="_householdGrid" ServerData="LoadHouseholdData" Bordered="true" Striped="true" Hover="true" Dense="true" RowsPerPage="20">
+                    <Columns>
+                        <TemplateColumn Title="Household Head" HeaderStyle="background-color: lightgray; color: black;">
+                            <CellTemplate>@($"{context.Item.HHListing?.HHHeadFirstName} {context.Item.HHListing?.HHHeadSurname}")</CellTemplate>
+                        </TemplateColumn>
+                        <PropertyColumn Property="x => x.Village.Name" Title="Village" HeaderStyle="background-color: lightgray; color: black;" />
+                        <PropertyColumn Property="x => x.HHListing.HHSize" Title="Household Size" HeaderStyle="background-color: lightgray; color: black;" />
+                        <TemplateColumn Title="Validation Progress" HeaderStyle="background-color: lightgray; color: black;">
+                            <CellTemplate>
+                                @{
+                                    var progress = GetHouseholdValidationProgress(context.Item.Id);
+                                }
+                                <MudProgressLinear Color="@progress.Color" Value="progress.Percentage" Class="my-1">
+                                    <MudText Typo="Typo.caption" Class="ms-2">@progress.Text</MudText>
+                                </MudProgressLinear>
+                            </CellTemplate>
+                        </TemplateColumn>
+                        <TemplateColumn Title="View Details" StickyRight="true" HeaderStyle="background-color: lightgray; color: black;">
+                            <CellTemplate>
+                                <MudIconButton Icon="@Icons.Material.Filled.Visibility" Color="Color.Primary" Size="Size.Small" OnClick="@(() => SelectHouseholdForDetails(context.Item))" />
+                            </CellTemplate>
+                        </TemplateColumn>
+                    </Columns>
+                    <PagerContent>
+                        <MudDataGridPager T="Household" />
+                    </PagerContent>
+                </MudDataGrid>
+            </MudItem>
+
+            <!-- RIGHT COLUMN: HOUSEHOLD & MEMBER DETAILS -->
+            <!-- RIGHT COLUMN: HOUSEHOLD & MEMBER DETAILS -->
+            <MudItem xs="12" md="5">
+                <MudText Typo="Typo.h5" Class="mb-2">
+                    <b>Details for Household:</b>
+                </MudText>
+                <MudText Typo="Typo.h6" Class="mb-4">
+                    <b>@(_selectedHousehold?.HHListing?.HHHeadFirstName) @(_selectedHousehold?.HHListing?.HHHeadSurname)</b>
+                </MudText>
+
+                @if (_isLoadingMembers)
+                {
+                    <MudPaper Outlined="true" Class="d-flex align-center justify-center pa-10">
+                        <MudProgressCircular Color="Color.Primary" Indeterminate="true" />
+                        <MudText Class="ms-4">Loading Members...</MudText>
+                    </MudPaper>
+                }
+                else
+                {
+                    <MudPaper Class="pa-4" Outlined="true" Color="Color.Surface" Style="max-height: 600px; overflow-y: auto;">
+                        <MudSimpleTable Dense="true">
+                            <thead>
+                                <tr style="background-color: lightgray; color: black;">
+                                    <th>Member Name</th>
+                                    <th>National ID</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var vm in _selectedHouseholdMemberVMs)
+                                {
+                                    <tr>
+                                        <td>@vm.Member.FirstName @vm.Member.Surname</td>
+                                        <td>@vm.Member.NationalId</td>
+                                        <td>
+                                            @if (vm.Detail.ValidationStatusId == _validatedStatusId)
+                                            {
+                                                <MudChip T="string" Icon="@Icons.Material.Filled.CheckCircle" Color="Color.Success" Size="Size.Small" Variant="Variant.Text">Validated</MudChip>
+                                            }
+                                            else
+                                            {
+                                                <MudChip T="string" Icon="@Icons.Material.Filled.Pending" Color="Color.Warning" Size="Size.Small" Variant="Variant.Text">Pending</MudChip>
+                                            }
+                                        </td>
+                                    </tr>
+                                }
+                                @if (!_selectedHouseholdMemberVMs.Any())
+                                {
+                                    <tr>
+                                        <td colspan="3" class="text-center">
+                                            No records found
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </MudSimpleTable>
+                    </MudPaper>
+                }
+            </MudItem>
+
+        </MudGrid>
+    </MudPaper>
+
+    <MudPaper Class="pa-4 mt-6" Elevation="0">
+        <MudButton Variant="Variant.Filled"
+                   Color="Color.Secondary"
+                   OnClick="BackToList"
+                   StartIcon="@Icons.Material.Filled.ArrowBack">
+            Back
+        </MudButton>
+    </MudPaper>
+}
+else
+{
+    <MudAlert Severity="Severity.Error">The requested Validation List could not be found.</MudAlert>
+}
+
+
+@code {
+    [Parameter] public int Id { get; set; }
+
+    // No longer injecting IDbContextFactory, using _context directly
+
+    public class MemberValidationViewModel
+    {
+        public HouseholdMember Member { get; set; }
+        public ValidationDetail Detail { get; set; }
+    }
+
+    // --- State Variables ---
+    private ValidationListViewModel HeaderModel { get; set; } = new();
+    private bool _isLoading = true;
+    private string HeaderText = "Programme Community Validation";
+    private List<BreadcrumbItem> _breadcrumbItems = new();
+    private MudDataGrid<Household> _householdGrid = default!;
+
+    // Search and Filter State
+    private List<Village> _allCouncilVillages = new();
+    private Village _searchVillage; // This will hold the default selected village
+    private string _householdSearchText = string.Empty;
+
+    // Details Panel State
+    private Household _selectedHousehold;
+    private List<MemberValidationViewModel> _selectedHouseholdMemberVMs = new();
+    private bool _isLoadingMembers = false;
+    private Dictionary<int, (int validated, int total)> _householdProgressCache = new();
+
+    // Common data
+    private List<SystemCodeDetail> _validationStatuses = new();
+    private List<int> _councilVillageIds = new();
+    private int _validatedStatusId;
+    private int _pendingStatusId;
+    private string _programmeName = "N/A"; // This variable is declared but not used/set. Can be removed if not needed.
+    private string _districtName = "N/A";
+    private string _communityCouncilName = "N/A";
+
+    protected override async Task OnInitializedAsync()
+    {
+        _isLoading = true;
+        // Using the injected _context directly
+        var validationList = await _context.ValidationLists.AsNoTracking().FirstOrDefaultAsync(x => x.Id == Id);
+
+        if (validationList == null)
+        {
+            _isLoading = false;
+            return;
+        }
+
+        HeaderModel = _mapper.Map<ValidationListViewModel>(validationList);
+        await LoadDisplayNames();
+        await LoadRequiredData();
+
+        // Set the default village filter after villages are loaded
+        if (_allCouncilVillages.Any())
+        {
+            _searchVillage = _allCouncilVillages.FirstOrDefault();
+        }
+
+        UpdateBreadcrumbs();
+        _isLoading = false;
+    }
+
+    // Methods now use the injected _context directly
+    private async Task LoadDisplayNames()
+    {
+        if (HeaderModel.DistrictId > 0)
+        {
+            _districtName = await _context.Districts.Where(d => d.Id == HeaderModel.DistrictId).Select(d => d.Name).FirstOrDefaultAsync() ?? "Not Found";
+        }
+        if (HeaderModel.CommunityCouncilId > 0)
+        {
+            _communityCouncilName = await _context.CommunityCouncils.Where(cc => cc.Id == HeaderModel.CommunityCouncilId).Select(cc => cc.CommunityCouncilName).FirstOrDefaultAsync() ?? "Not Found";
+        }
+    }
+
+    // Methods now use the injected _context directly
+    private async Task LoadRequiredData()
+    {
+        // Load validation statuses
+        var validationSystemCode = await _context.SystemCodes.AsNoTracking().FirstOrDefaultAsync(sc => sc.Code == "ValidationStatus");
+        if (validationSystemCode != null)
+        {
+            _validationStatuses = await _context.SystemCodeDetails.AsNoTracking().Where(scd => scd.SystemCodeId == validationSystemCode.Id).ToListAsync();
+            _validatedStatusId = _validationStatuses.FirstOrDefault(s => s.Code == "Validated")?.Id ?? 0;
+            _pendingStatusId = _validationStatuses.FirstOrDefault(s => s.Code == "Pending")?.Id ?? 0;
+        }
+
+        // Load villages and their IDs for filtering households
+        if (HeaderModel.CommunityCouncilId > 0)
+        {
+            _allCouncilVillages = await _context.Villages.AsNoTracking()
+                .Where(v => v.CommunityCouncilId == HeaderModel.CommunityCouncilId)
+                .OrderBy(v => v.Name)
+                .ToListAsync();
+            _councilVillageIds = _allCouncilVillages.Select(v => v.Id).ToList();
+        }
+    }
+
+    private async Task<GridData<Household>> LoadHouseholdData(GridState<Household> state)
+    {
+        // Directly using the injected _context
+        if (!_councilVillageIds.Any()) return new GridData<Household> { Items = Enumerable.Empty<Household>(), TotalItems = 0 };
+
+        IQueryable<Household> query = _context.Households
+            .Include(h => h.Status)
+            .Include(h => h.HHListing)
+            .Include(h => h.Village)
+            .Where(h => _councilVillageIds.Contains(h.VillageId));
+
+        // Apply filters from the search panel
+        if (_searchVillage != null)
+        {
+            query = query.Where(h => h.VillageId == _searchVillage.Id);
+        }
+        if (!string.IsNullOrWhiteSpace(_householdSearchText))
+        {
+            query = query.Where(h => (h.HHListing.HHHeadFirstName + " " + h.HHListing.HHHeadSurname).Contains(_householdSearchText) || h.HHListing.NationalId.Contains(_householdSearchText));
+        }
+
+        var totalItems = await query.CountAsync();
+        var items = await query.Skip(state.Page * state.PageSize).Take(state.PageSize).ToListAsync();
+
+        // Cache progress data for the current page
+        var householdIdsOnPage = items.Select(i => i.Id).ToList();
+        var memberDetails = await _context.ValidationDetails.AsNoTracking()
+            .Where(d => d.ValidationListId == Id && householdIdsOnPage.Contains(d.HouseholdMember.HouseholdId))
+            .GroupBy(d => d.HouseholdMember.HouseholdId)
+            .Select(g => new { HouseholdId = g.Key, Validated = g.Count(d => d.ValidationStatusId == _validatedStatusId), Total = g.Count() })
+            .ToListAsync();
+        _householdProgressCache = memberDetails.ToDictionary(x => x.HouseholdId, x => (x.Validated, x.Total));
+
+        return new GridData<Household> { Items = items, TotalItems = totalItems };
+    }
+
+    private async Task SelectHouseholdForDetails(Household household)
+    {
+        if (_selectedHousehold?.Id == household.Id) return; // Avoid reloading if the same household is clicked
+
+        _selectedHousehold = household;
+        _isLoadingMembers = true;
+        _selectedHouseholdMemberVMs.Clear();
+        StateHasChanged(); // Update UI to show loading spinner
+
+        // Directly using the injected _context
+        var members = await _context.HouseholdMembers.AsNoTracking()
+            .Where(m => m.HouseholdId == household.Id)
+            .OrderBy(m => m.Surname).ThenBy(m => m.FirstName)
+            .ToListAsync();
+
+        if (members.Any())
+        {
+            var memberIds = members.Select(m => m.Id).ToList();
+            var details = await _context.ValidationDetails
+                .Where(d => d.ValidationListId == Id && memberIds.Contains(d.HouseholdMemberId))
+                .ToDictionaryAsync(d => d.HouseholdMemberId);
+
+            _selectedHouseholdMemberVMs = members.Select(m => new MemberValidationViewModel
+            {
+                Member = m,
+                Detail = details.GetValueOrDefault(m.Id) ?? new ValidationDetail { ValidationListId = this.Id, HouseholdMemberId = m.Id, ValidationStatusId = _pendingStatusId }
+            }).ToList();
+        }
+
+        _isLoadingMembers = false;
+        StateHasChanged(); // Update UI with member data
+    }
+
+    private (double Percentage, string Text, Color Color) GetHouseholdValidationProgress(int householdId)
+    {
+        if (!_householdProgressCache.TryGetValue(householdId, out var progress) || progress.total == 0)
+        {
+            return (0, "0/0", Color.Default);
+        }
+
+        var (validated, total) = progress;
+        var percentage = (double)validated / total * 100;
+        var color = percentage < 50 ? Color.Error : percentage < 100 ? Color.Warning : Color.Success;
+        return (percentage, $"{validated}/{total}", color);
+    }
+
+    private Task<IEnumerable<Village>> SearchVillages(string value, CancellationToken token)
+    {
+        // In-memory search is synchronous, so we wrap the result in a completed task.
+        if (string.IsNullOrEmpty(value))
+            return Task.FromResult<IEnumerable<Village>>(_allCouncilVillages);
+
+        var result = _allCouncilVillages
+            .Where(v => v.Name.Contains(value, StringComparison.InvariantCultureIgnoreCase));
+
+        return Task.FromResult(result);
+    }
+
+    private async Task ApplyFilters()
+    {
+        _selectedHousehold = null;
+        await _householdGrid.ReloadServerData();
+    }
+
+    private void UpdateBreadcrumbs()
+    {
+        var pageTitle = "View Programme Community Validation";
+        _breadcrumbItems = new List<BreadcrumbItem>
+        {
+            new BreadcrumbItem("Home", href: "/", icon: Icons.Material.Filled.Home),
+            new BreadcrumbItem("Programme Community Validation", href: "/programcommunityvalidation", icon: Icons.Material.Filled.People),
+            new BreadcrumbItem(pageTitle, href: null, disabled: true)
+        };
+    }
+
+    private void BackToList() => Navigation.NavigateTo("/programcommunityvalidation");
+}

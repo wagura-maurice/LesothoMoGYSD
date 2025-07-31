@@ -1,0 +1,314 @@
+﻿@page "/security/roles"
+@using Microsoft.AspNetCore.Identity
+@using MoGYSD.Business.Models.Nissa.UserManagement
+@using MoGYSD.Business.Persistence
+@using MoGYSD.Business.Views.Nissa.Admin
+@inject RoleManager<ApplicationRole> RoleManager
+<MudGrid Class="mb-3" AlignItems="Center" Justify="Justify.SpaceBetween">
+    <MudItem xs="12" md="6">
+        <MudText Typo="Typo.h2" Class="font-weight-bold"><b>Roles</b></MudText>
+        <MudText>
+            Supports defining and managing different user roles within NISSA & MISSA.
+        </MudText>
+    </MudItem>
+    <MudItem xs="12" md="6" Class="d-flex justify-end">
+        <MudBreadcrumbs Items="_breadcrumbItems" Class="custom-breadcrumb" />
+    </MudItem>
+</MudGrid>
+
+<MudExpansionPanels Elevation="1" Class="mt-2 mb-2">
+    <MudExpansionPanel Text="Expand to apply search filter">
+        <MudGrid>
+            <MudItem xs="12" md="4">
+                <MudTextField Variant="Variant.Outlined" @bind-Value="_quickFilter"
+                              Placeholder="Search by Role Name"
+                              Immediate="true"
+                              Clearable="true">
+                </MudTextField>
+            </MudItem>
+            <MudItem xs="12" md="4">
+                <MudSelect Variant="Variant.Outlined" T="bool?" Label="Is Active" @bind-Value="_quickFilterActive">
+                    <MudSelectItem T="bool?" Value="@((bool?)null)">None</MudSelectItem>
+                    <MudSelectItem T="bool?" Value="true">Yes</MudSelectItem>
+                    <MudSelectItem T="bool?" Value="false">No</MudSelectItem>
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="12" md="4">
+                <MudSelect Variant="Variant.Outlined" T="bool?" Label="Self Registration" @bind-Value="_quickFilterSelfRegister">
+                    <MudSelectItem T="bool?" Value="@((bool?)null)">None</MudSelectItem>
+                    <MudSelectItem T="bool?" Value="true">Yes</MudSelectItem>
+                    <MudSelectItem T="bool?" Value="false">No</MudSelectItem>
+                </MudSelect>
+            </MudItem>
+        </MudGrid>
+        
+        <div class="d-flex justify-content-between">
+            <MudButton Variant="Variant.Filled" Color="Color.Secondary" OnClick="OnClearClicked" Size="Size.Small">
+                Clear
+            </MudButton>
+
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="OnSearchClicked" Size="Size.Small">
+                Search
+            </MudButton>
+        </div>
+    </MudExpansionPanel>
+</MudExpansionPanels>
+
+<MudPaper Class="pa-4">
+    @if (UserProfileService.UserProfile.Contains("ROLES:CREATE"))
+    {
+        <MudButton EndIcon="@Icons.Material.Filled.Add" Class="pull-right top-add-button mb-2 mt-2" Variant="Variant.Filled"
+                    OnClick="AddNew" DropShadow="true" Color="Color.Primary">Add New</MudButton>       
+    
+    }
+    <MudDataGrid T="ApplicationRole" Items="roles" Bordered="true" Dense="true" RowsPerPage="20">
+        <NoRecordsContent>
+            <MudText Typo="Typo.subtitle1" Class="my-4 text-muted text-center">
+                No Role found. Try adjusting your filters.
+            </MudText>
+        </NoRecordsContent>
+        <ToolBarContent>
+            <MudText><b>Total Role(s): @roles.Count</b></MudText>
+            <MudSpacer />
+
+        </ToolBarContent>
+        <Columns>
+            <PropertyColumn Property="x => x.Name" Title="Role Name" />
+            <PropertyColumn Property="x => x.SystemCodeDetail.Code" Title="Access Level" />
+            <TemplateColumn Title="Active" HeaderClass="fit">
+                <CellTemplate>
+                    <MudText Style="@($"{GetStatusStyle(context.Item.IsActive)} display:block; padding:4px; border-radius:6px; width:100%; text-align: center;")">
+                        @(context.Item.IsActive ? "Yes" : "No")
+                    </MudText>
+                </CellTemplate>
+            </TemplateColumn>
+            <TemplateColumn Title="Self Registration" HeaderClass="fit">
+                <CellTemplate>
+                    <MudText Style="@($"{GetStatusStyle(context.Item.IsSelfRegister)} display:block; padding:4px; border-radius:6px; width:100%; text-align: center;")">
+                        @(context.Item.IsSelfRegister ? "Yes" : "No")
+                    </MudText>
+                </CellTemplate>
+            </TemplateColumn>
+           
+            <TemplateColumn Title="Actions">
+                <CellTemplate>
+                    <MudMenu Icon="@Icons.Material.Filled.MoreVert" Color="Color.Primary" Dense="true">
+                        @if (UserProfileService.UserProfile.Contains("ROLES:MODIFY"))
+                        {
+                            <MudMenuItem OnClick="@(() => Edit(context.Item))">
+                                <MudIcon Icon="@Icons.Material.Filled.Edit" Class="me-2" /> Edit
+                            </MudMenuItem>                            
+                        }
+                        @if (context.Item.IsActive)
+                        {
+                            @if (UserProfileService.UserProfile.Contains("ROLES:ACTION"))
+                            {
+                                <MudMenuItem OnClick="@(() => DeactivateUser(context.Item, context.Item.Name))">
+                                    <MudIcon Icon="@Icons.Material.Filled.Block" Class="me-2 text-warning" /> Deactivate
+                                </MudMenuItem>                                
+                            }
+                        }
+                        else
+                        {
+                            @if (UserProfileService.UserProfile.Contains("ROLES:ACTION"))
+                            {
+                                <MudMenuItem OnClick="@(() => ActivateUser(context.Item, context.Item.Name))">
+                                    <MudIcon Icon="@Icons.Material.Filled.Check" Class="me-2 text-success" /> Activate
+                                </MudMenuItem>
+                            }
+                        }
+                    </MudMenu>
+                </CellTemplate>
+            </TemplateColumn>
+        </Columns>
+        
+        <PagerContent>
+            <MudDataGridPager T="ApplicationRole" />
+        </PagerContent>
+    </MudDataGrid>
+</MudPaper>
+
+@code {
+    private List<ApplicationRole> roles = new();
+    private string _quickFilter;
+    private bool? _quickFilterActive;
+    private bool? _quickFilterSelfRegister;
+
+    private List<BreadcrumbItem> _breadcrumbItems =
+    [
+        new("Home", href: "/", icon: Icons.Material.Filled.Home),
+        new("Security", href: null, icon: Icons.Material.Filled.Security),
+        new("Roles", href: null, disabled: true, icon: Icons.Material.Filled.VerifiedUser)
+    ];
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            LoadingService.Show();
+            await Init();
+            LoadingService.Hide();
+        }
+
+        catch (Exception ex)
+        {
+            LoadingService.Hide();
+            Snackbar.Add($"An unexpected error occurred: {ex.ToString()}", Severity.Error, config =>
+            {
+                config.RequireInteraction = true; 
+            });
+            return;
+
+        }
+    }
+
+    private async Task AddNew()
+    {
+        var model = new ApplicationRole();
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.ExtraSmall, FullWidth = true };
+        var parameters = new DialogParameters
+        {
+            { "Model", model }
+        };
+        var dialogRef = await DialogService.ShowAsync<Create>("Add Role", parameters, options);
+        var state = await dialogRef.Result;
+        if (state is not null && !state.Canceled)
+        {
+            await Init();
+        }
+    }
+
+    private async Task Edit(ApplicationRole model)
+    {
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.ExtraSmall, FullWidth = true };
+        var parameters = new DialogParameters
+        {
+            { "Model", model }
+        };
+        var dialogRef = await DialogService.ShowAsync<Create>("Edit Role", parameters, options);
+        var state = await dialogRef.Result;
+        if (state is not null && !state.Canceled)
+        {
+            await Init();
+        }
+    }
+
+    private async Task Init(string filter = null, bool? isActive = null, bool? isSelfregister = null)
+    {
+        IQueryable<ApplicationRole> query = _context.Roles.Include(a => a.SystemCodeDetail);
+
+        if (!string.IsNullOrEmpty(filter))
+        {
+            var normalizedFilter = filter.Trim().ToLower();
+
+            query = query.Where(r =>
+                EF.Functions.Like(r.Name.ToLower(), $"%{normalizedFilter}%") ||
+                (r.SystemCodeDetail != null && EF.Functions.Like(r.SystemCodeDetail.Name.ToLower(), $"%{normalizedFilter}%"))
+            );
+        }
+
+        if (isActive.HasValue)
+        {
+            query = query.Where(r => r.IsActive == isActive.Value);
+        }
+
+        if (isSelfregister.HasValue)
+        {
+            query = query.Where(r => r.IsSelfRegister == isSelfregister.Value);
+        }
+
+        roles = await query.ToListAsync();
+    }
+
+    private string GetStatusStyle(bool isActive)
+    {
+        return isActive
+            ? "background-color:#e6f4ea; color:#2e7d32; border: 1px solid #c8e6c9;"
+            : "background-color:#fcebea; color:#c62828; border: 1px solid #f5c6cb;";
+    }
+
+    private async Task DeactivateUser(ApplicationRole role, string name)
+    {
+        var result = await DialogServiceHelper.ShowRejectDialogAsync(DialogService, $"Are you sure you want to deactivate {name} role?");
+
+        if (!string.IsNullOrEmpty(result))
+        {
+            try
+            {
+                LoadingService.Show();
+
+                role.IsActive = false;
+
+                var response = await RoleManager.UpdateAsync(role);
+                if (response.Succeeded)
+                {
+                    Snackbar.Add("Role deactivated successfully", Severity.Success);
+                    LoadingService.Hide();
+
+                }
+                else
+                {
+                    LoadingService.Hide();
+                    // Handle errors
+                    var errorMessage = string.Join(",", response.Errors.Select(e => e.Description));
+                    Snackbar.Add($"{errorMessage}", Severity.Error);
+                }
+            }
+            catch (Exception ex)
+            {
+                LoadingService.Hide();
+                Snackbar.Add($"An unexpected error occurred: {ex.Message}", Severity.Error, config => { config.RequireInteraction = true; });
+                return;
+            }
+        }
+    }
+
+    private async Task ActivateUser(ApplicationRole role, string name)
+    {
+        var result = await DialogServiceHelper.ShowConfirmationDialogAsync(DialogService, $"Are you sure you want to activate {name}?");
+
+        if (result)
+        {
+            try
+            {
+                LoadingService.Show();
+
+                role.IsActive = true;
+
+                var response = await RoleManager.UpdateAsync(role);
+                if (response.Succeeded)
+                {
+                    Snackbar.Add("Role activated successfully", Severity.Success);
+                    LoadingService.Hide();
+
+                }
+                else
+                {
+                    LoadingService.Hide();
+                    // Handle errors
+                    var errorMessage = string.Join(",", response.Errors.Select(e => e.Description));
+                    Snackbar.Add($"{errorMessage}", Severity.Error);
+                }
+            }
+            catch (Exception ex)
+            {
+                LoadingService.Hide();
+                Snackbar.Add($"An unexpected error occurred: {ex.Message}", Severity.Error, config => { config.RequireInteraction = true; });
+                return;
+            }
+        }
+    }
+
+    private async Task OnSearchClicked()
+    {
+        await Init(_quickFilter, _quickFilterActive, _quickFilterSelfRegister);
+    }
+
+    private async Task OnClearClicked()
+    {
+        _quickFilter = null;
+        _quickFilterActive = null;
+        _quickFilterSelfRegister = null;
+        await Init();
+    }
+}

@@ -1,0 +1,186 @@
+﻿@page "/programme/eligibilitycriteria/view/{Id:int}"
+
+@using AutoMapper
+@using Microsoft.EntityFrameworkCore
+@using MoGYSD.Business.Models.Missa.ProgrammeConfiguration
+@using MoGYSD.Business.Persistence
+@using MoGYSD.Services
+@using MoGYSD.ViewModels.Missa.Programmes
+@using MoGYSD.Business.Models.Nissa.Admin
+@using MoGYSD.Business.Views.Nissa.Admin
+
+@inject NavigationManager Navigation
+@inject ISnackbar Snackbar
+
+
+@if (_isLoading)
+{
+    <div class="d-flex justify-center pa-10">
+        <MudProgressCircular Color="Color.Primary" Indeterminate="true" />
+    </div>
+}
+else if (Model != null)
+{
+    <MudGrid Class="mb-3" AlignItems="Align.Center" Justify="Justify.SpaceBetween">
+        <MudItem xs="12" md="6">
+            <MudText Typo="Typo.h4" Class="font-weight-bold"><b>Programme Eligibility Criteria</b></MudText>
+        </MudItem>
+        <MudItem xs="12" md="6" Class="d-flex justify-start justify-sm-end">
+            <MudBreadcrumbs Items="_breadcrumbItems" Class="custom-breadcrumb" />
+        </MudItem>
+    </MudGrid>
+
+    <MudPaper Class="pa-4 pa-md-6" Elevation="3">
+        <MudGrid Spacing="3">
+            <MudItem xs="12" sm="6" md="4"><MudText><b>Programme:</b> @_programmeName</MudText></MudItem>
+            <MudItem xs="12" sm="6" md="4"><MudText><b>Assistance Unit:</b> @_assistanceUnitName</MudText></MudItem>
+            <MudItem xs="12" sm="6" md="4"><MudText><b>Vulnerability Type:</b> @_vulnerabilityTypeName</MudText></MudItem>
+            <MudItem xs="12" sm="6" md="4"><MudText><b>Minimum Age:</b> @(Model.StartAge?.ToString() ?? "N/A")</MudText></MudItem>
+            <MudItem xs="12" sm="6" md="4"><MudText><b>Maximum Age:</b> @(Model.EndAge?.ToString() ?? "N/A")</MudText></MudItem>
+            <MudItem xs="12" sm="6" md="4"><MudText><b>Poverty Status:</b> @_povertyStatusName</MudText></MudItem>
+            <MudItem xs="12" sm="6" md="4"><MudText><b>Community Based Categorisation:</b> @_cbcName</MudText></MudItem>
+            <MudItem xs="12" sm="6" md="4"><MudText><b>Community Validation Status:</b> @_communityValidationStatusName</MudText></MudItem>
+            <MudItem xs="12" sm="12"><MudText><b>Districts:</b> @_locationNames</MudText></MudItem>
+            <MudItem xs="12" sm="6" md="4"><MudText><b>MoD Clearance Required:</b> @DisplayBool(Model.HasMoDClearance)</MudText></MudItem>
+            <MudItem xs="12" sm="6" md="4"><MudText><b>Disability Registry Registration:</b> @DisplayBool(Model.HasDisabilityRegistryRegistration)</MudText></MudItem>
+            <MudItem xs="12" sm="6" md="4"><MudText><b>School Enrolment Required:</b> @DisplayBool(Model.HasSchoolEnrolment)</MudText></MudItem>
+            <MudItem xs="12" sm="6" md="4"><MudText><b>Must Not Be Enrolled In Other Programmes:</b> @_otherProgrammeNames</MudText></MudItem>
+            <MudItem xs="12" sm="6" md="4">
+                <div class="d-flex align-center">
+                    <MudText Class="me-2"><b>Status:</b></MudText>
+                    @if (Model.IsActive)
+                    {
+                        <MudChip T="string" Icon="@Icons.Material.Filled.CheckCircle" Color="Color.Success" Variant="Variant.Text">Active</MudChip>
+                    }
+                    else
+                    {
+                        <MudChip T="string" Icon="@Icons.Material.Filled.Cancel" Color="Color.Error" Variant="Variant.Text">Inactive</MudChip>
+                    }
+                </div>
+            </MudItem>
+        </MudGrid>
+    </MudPaper>
+
+    <MudPaper Class="pa-4 mt-6" Elevation="0">
+        <MudButton Variant="Variant.Filled"
+                   Color="Color.Secondary"
+                   OnClick="BackToList"
+                   StartIcon="@Icons.Material.Filled.ArrowBack">
+            Back
+        </MudButton>
+    </MudPaper>
+}
+else
+{
+    <MudAlert Severity="Severity.Error" Class="mt-4">The requested Programme Eligibility Criteria could not be found.</MudAlert>
+    <MudButton Variant="Variant.Filled" Color="Color.Secondary" OnClick="BackToList" StartIcon="@Icons.Material.Filled.ArrowBack" Class="mt-4">Back</MudButton>
+}
+
+
+@code {
+    [Parameter]
+    public int Id { get; set; }
+
+    private EligibilityCriteriaViewModel Model { get; set; }
+    private bool _isLoading = true;
+    private List<BreadcrumbItem> _breadcrumbItems = new();
+
+    private string _programmeName;
+    private string _assistanceUnitName;
+    private string _vulnerabilityTypeName;
+    private string _povertyStatusName;
+    private string _cbcName;
+    private string _communityValidationStatusName;
+    private string _locationNames;
+    private string _otherProgrammeNames;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        await LoadCriteriaData();
+    }
+
+    private async Task LoadCriteriaData()
+    {
+        _isLoading = true;
+        try
+        {
+            var entity = await _context.EligibilityCriterias
+                .AsNoTracking()
+                .Include(ec => ec.Programme)
+                .Include(ec => ec.AssistanceUnit)
+                .Include(ec => ec.EligibilityCriteriaVulnerabilityTypes).ThenInclude(ecvt => ecvt.VulnerabilityType)
+                .Include(ec => ec.EligibilityCriteriaPovertyStatuses).ThenInclude(ecps => ecps.PovertyStatus)               
+                .Include(ec => ec.EligibilityCriteriaCBCs).ThenInclude(eccbc => eccbc.CBC) 
+                .Include(ec => ec.CommunityValidationStatus)
+                .Include(ec => ec.EligibilityCriteriaLocations).ThenInclude(ecl => ecl.District)
+                .Include(ec => ec.EnrolledInOtherProgrammes).ThenInclude(eop => eop.Programme)
+                .FirstOrDefaultAsync(p => p.Id == Id);
+
+            if (entity != null)
+            {
+                Model = _mapper.Map<EligibilityCriteriaViewModel>(entity);
+
+                _programmeName = entity.Programme?.Name ?? "N/A";
+                _assistanceUnitName = entity.AssistanceUnit?.Name ?? "N/A";
+
+                _vulnerabilityTypeName = entity.EligibilityCriteriaVulnerabilityTypes.Any()
+                    ? string.Join(", ", entity.EligibilityCriteriaVulnerabilityTypes.Select(vt => vt.VulnerabilityType?.Name ?? "N/A"))
+                    : "N/A";
+
+                _povertyStatusName = entity.EligibilityCriteriaPovertyStatuses.Any()
+                    ? string.Join(", ", entity.EligibilityCriteriaPovertyStatuses.Select(ps => ps.PovertyStatus?.Name ?? "N/A"))
+                    : "N/A";
+
+                // ⭐ UPDATED TO USE THE NAV PROPERTY ⭐
+                _cbcName = entity.EligibilityCriteriaCBCs.Any()
+                    ? string.Join(", ", entity.EligibilityCriteriaCBCs.Select(cbc => cbc.CBC?.Name ?? "N/A"))
+                    : "N/A";
+
+                _communityValidationStatusName = entity.CommunityValidationStatus?.Name ?? "N/A";
+
+                var locations = entity.EligibilityCriteriaLocations.Select(l => l.District.Name).ToList();
+                _locationNames = locations.Any() ? string.Join(", ", locations) : "All Locations";
+
+                var otherProgrammes = entity.EnrolledInOtherProgrammes.Select(p => p.Programme.Name).ToList();
+                _otherProgrammeNames = otherProgrammes.Any() ? string.Join(", ", otherProgrammes) : "None Specified";
+
+                BuildBreadcrumbs();
+            }
+            else
+            {
+                Snackbar.Add("Programme Eligibility Criteria not found.", Severity.Error);
+                Model = null;
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"An error occurred while loading the data: {ex.Message}", Severity.Error);
+            Model = null;
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private string DisplayBool(bool? value)
+    {
+        return value.HasValue ? (value.Value ? "Yes" : "No") : "Not Applicable";
+    }
+
+    private void BuildBreadcrumbs()
+    {
+        _breadcrumbItems = new List<BreadcrumbItem>
+        {
+            new("Home", href: "/"),
+            new("Settings", href: "/", icon: Icons.Material.Filled.Settings),
+            new("Programme Eligibility Criteria", href: "/programme/eligibilitycriteria"),
+            new("View Details", href: null, disabled: true)
+        };
+    }
+
+    private void BackToList()
+    {
+        Navigation.NavigateTo("/programme/eligibilitycriteria");
+    }
+}

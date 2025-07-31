@@ -1,0 +1,78 @@
+﻿@using MoGYSD.Business.Persistence
+@inherits LayoutComponentBase
+@* Required *@
+<MudThemeProvider />
+<MudPopoverProvider />
+@* Needed for dialogs *@
+<MudDialogProvider />
+
+@* Needed for snackbars *@
+<MudSnackbarProvider />
+
+@* Required *@
+
+<div class="main ">
+<!-- Sing in  Form -->
+    <section class="sign-in">
+        <div class="container">
+            <div class="signin-content">
+               
+                <div class="signin-image">
+                    <figure><img src="/assets/img/logo.png" alt="sign up image"></figure>
+                    <p>
+                        @if (IsLoginPage)
+                        {
+                            <NavLink href="/Account/Register">
+                                Sign Up
+                            </NavLink>
+                        }
+                        else
+                        {
+                            <MudButton Variant="Variant.Text" OnClick="ReloadToLogin" Color="MudBlazor.Color.Secondary">Back to Login</MudButton>
+                        }
+                    </p>
+                </div>
+                <div class="signin-form">
+                    @Body
+                </div>
+            </div>
+        </div>
+    </section>
+</div>
+
+@* <MudContainer MaxWidth="MaxWidth.Large" Class="my-6">
+    <MudPaper Elevation="1" Class="p-6">
+        
+        <MudGrid Justify="Justify.Center" Spacing="0" Class="p-4">
+            <!-- Image and Sign Up Link -->
+            <MudItem xs="12" sm="4" md="6">
+                <MudImage Src="/assets/img/logo.png" Alt="sign up image" />
+                <MudText Class="mt-2" >
+                    <MudLink Href="/Account/Register" Target="_self"><b>Sign Up</b></MudLink>
+                </MudText>
+            </MudItem>
+
+            <MudItem xs="12" sm="4" md="6">
+                @Body
+            </MudItem>
+
+        </MudGrid>
+
+    </MudPaper>
+</MudContainer> *@
+
+@code {
+    private bool IsLoginPage => Navigation.Uri.EndsWith("/account/login", StringComparison.OrdinalIgnoreCase);
+
+    private async Task ReloadToLogin()
+    {
+        await JSRuntime.InvokeVoidAsync("location.replace", "/Account/Login");
+    }
+
+    private void NavigateToRegister()
+    {
+        Navigation.NavigateTo("/Account/Register");
+    }
+}
+
+

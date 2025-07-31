@@ -1,0 +1,166 @@
+﻿@using MoGYSD.Business.Models.Nissa.Admin
+@using MoGYSD.Business.Persistence
+@using MoGYSD.ViewModels.Nissa.Administration
+@using MoGYSD.Web.Components.Autocompletes
+
+<MudDialog Class="blur dialog-background" TitleClass="blur dialog-background-title" ContentClass="dialog-background-surface py-10" ActionsClass="dialog-background-surface">
+    <DialogContent>
+        <MudForm @ref="form">
+            <DistrictAutocomplete Variant="Variant.Outlined" Label="District Name"
+                                  For="@(() => Model.DistrictId)"
+                                  Value="Model.DistrictId"
+                                  ValueChanged="OnDistrictChanged"
+                                  Class="mb-2">
+            </DistrictAutocomplete>
+            <MudTextField Variant="Variant.Outlined"  @bind-Value="Model.Name" For="@(() => Model.Name)" Label="Constituency Name" Class="mb-2" />
+            <!-- Show full code, read-only -->
+            <MudTextField Variant="Variant.Outlined" Label="Unique Code"
+                          Value="@Model.Code"
+                          ReadOnly="true"
+                          Class="mb-2" />
+            <MudTextField Variant="Variant.Outlined" Label="Constituency code"
+                          For="@(() => Model.UserCodeSuffix)"
+                          Value="Model.UserCodeSuffix"
+                          MaxLength="2"
+                          ValueChanged="@(EventCallback.Factory.Create<string>(this, OnUserCodeChanged))"
+                          Class="mb-2"
+                          Immediate="true"ReadOnly="_hasChildren" />
+            @if(Model.Id > 0)
+            {
+                <MudSwitch Style="@(Model.Status ? "color: green" : "color: red")" @bind-Value="Model.Status" ThumbIcon="@(Model.Status == true ? Icons.Material.Filled.Done : Icons.Material.Filled.Close)" ThumbIconColor="@(Model.Status == true ? Color.Success : Color.Error)" Label="Is Active" Class="mb-3" />
+            }
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel"
+                   Variant="Variant.Filled"
+                   Size="Size.Small"
+                   Class="ml-0">Cancel</MudButton>
+        <MudButton OnClick="SubmitForm" Color="Color.Primary" Variant="Variant.Filled"
+                   Size="Size.Small">Submit</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter]
+    private IMudDialogInstance Dialog { get; set; }
+    [Parameter] public ConstituencyViewModel Model { get; set; }
+
+    private MudForm form;
+    private SystemTask? SelectedParent;
+    private void Cancel() => Dialog.Cancel();
+    private string districtCode = string.Empty;
+    private bool _hasChildren = false;
+
+
+    private async Task SubmitForm()
+    {
+        await form.Validate();
+        if (form.IsValid)
+        {
+            try
+            {
+                if (Model.Id > 0)
+                {
+                    LoadingService.Show();
+                    var code = await _context.Constituencies.Where(a => (a.Code == Model.Code || a.Name == Model.Name) && a.Id != Model.Id).FirstOrDefaultAsync();
+                    if (code != null)
+                    {
+                        var message = code.Code == Model.Code ? "Code" : "Name";
+                        LoadingService.Hide();
+                        Snackbar.Add($"{message} already exist!!", Severity.Error);
+                    }
+                    else
+                    {
+                        var dataToUpdate = _mapper.Map<Constituency>(Model);
+                        await _genericService.Update(dataToUpdate, false);
+
+                        LoadingService.Hide();
+                        Dialog.Close(DialogResult.Ok(true));
+                        Snackbar.Add("Constituency updated successfully", Severity.Success);                        
+                    }
+
+                }
+                else
+                {
+                    LoadingService.Show();
+                    var code = await _context.Constituencies.Where(a => a.Code == Model.Code || a.Name == Model.Name).FirstOrDefaultAsync();
+                    if (code != null)
+                    {
+                        var message = code.Code == Model.Code ? "Code" : "Name";
+                        LoadingService.Hide();
+                        Snackbar.Add($"{message} already exist!!", Severity.Error);
+                    }
+                    else
+                    {
+                        Model.Status = true; // Set default status to true for new constituencies
+                        var addData = _mapper.Map<Constituency>(Model);
+                        addData.Code = addData.Code.Trim();
+                        await _genericService.Add(addData, false);
+
+                        LoadingService.Hide();
+                        Dialog.Close(DialogResult.Ok(true));
+                        Snackbar.Add("Constituency saved successfully", Severity.Success);                        
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                LoadingService.Hide();
+                Snackbar.Add(
+                    $"An unexpected error occurred: {(ex.InnerException is null ? ex.Message : ex.InnerException.Message)}",
+                    Severity.Error,
+                    config => { config.RequireInteraction = true; }
+                );
+                Model = new ConstituencyViewModel();
+                StateHasChanged();
+                return;
+            }
+        }
+        else
+        {
+            Snackbar.Add("Please fill in all required fields.", Severity.Error);
+        }
+    }
+
+    private async Task OnDistrictChanged(int? districtId)
+    {
+        Model.DistrictId = districtId;
+
+        if (districtId.HasValue)
+        {
+            var district = await _context.Districts.Where(i => i.Id == districtId).Select(c => c.Code).FirstOrDefaultAsync();
+            if (district != null)
+            {
+                districtCode = district;
+                UpdateFullCode();
+            }
+        }
+    }
+
+    private void UpdateFullCode()
+    {
+        Model.Code = $"{districtCode}-{Model.UserCodeSuffix}";
+    }
+
+    private async Task OnUserCodeChanged(string newValue)
+    {
+        Model.UserCodeSuffix = newValue;
+        UpdateFullCode();
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (Model.Id > 0)
+        {
+            var district = await _context.Districts.Where(d => d.Id == Model.DistrictId).Select(d => d.Code).FirstOrDefaultAsync();
+            if (district != null)
+            {
+                districtCode = district;
+                Model.UserCodeSuffix = Model.Code.Split("-")[1];
+                UpdateFullCode();
+            }
+            _hasChildren = await _context.CommunityCouncilView.AnyAsync(c => c.ConstituencyId == Model.DistrictId);
+        }
+    }
+}

@@ -1,0 +1,43 @@
+﻿@using MoGYSD.Business.Models.Missa.ProgrammeConfiguration
+@using System.Linq.Expressions
+<MudAutocomplete  Variant="Variant.Outlined" T="int"
+                 Label="@Label"
+                 Value="Value"
+                 ValueChanged="EventCallback.Factory.Create<int>(this, OnValueChanged)"
+                 For="For"
+                 Required="true"
+                 ToStringFunc="GetNameById"
+                 SearchFunc="Search"
+                 CoerceText="true"
+                 ResetValueOnEmptyText="true"
+                 Dense="true" />
+
+@code {
+    [Parameter] public string Label { get; set; }
+
+    [Parameter] public List<LookupItemViewModel> Items { get; set; } = new();
+
+    [Parameter] public int Value { get; set; }   
+
+    [Parameter] public EventCallback<int> ValueChanged { get; set; }
+
+    [Parameter] public Expression<Func<int>> For { get; set; }
+
+    private string GetNameById(int id) =>
+        Items.FirstOrDefault(x => x.Id == id)?.Name ?? string.Empty;
+
+    private Task<IEnumerable<int>> Search(string value, CancellationToken cancellationToken)
+    {
+        var results = string.IsNullOrWhiteSpace(value)
+            ? Items
+            : Items.Where(x => x.Name.Contains(value, StringComparison.OrdinalIgnoreCase));
+
+        return Task.FromResult(results.Select(x => x.Id));
+    }
+
+    private async Task OnValueChanged(int newValue)
+    {
+        Value = newValue;
+        await ValueChanged.InvokeAsync(newValue);
+    }
+}

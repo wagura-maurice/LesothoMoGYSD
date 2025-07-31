@@ -1,0 +1,186 @@
+﻿@page "/admin/villages"
+@using MoGYSD.Business.Models.Nissa.Admin
+@using MoGYSD.Business.Persistence
+@using MoGYSD.Business.Views.Nissa.Admin
+@using MoGYSD.ViewModels.Nissa.Administration
+@using MoGYSD.Web.Components.Autocompletes
+
+<PageTitle>Villages</PageTitle>
+
+<MudGrid Class="mb-3" AlignItems="Center" Justify="Justify.SpaceBetween">
+    <MudItem xs="12" md="6">
+        <MudText Typo="Typo.h2" Class="font-weight-bold"><b>Villages</b></MudText>
+        <MudText>            
+            Enables the creation, updating, and referencing of villages to respective community councils.
+        </MudText>
+    </MudItem>
+    <MudItem xs="12" md="6" Class="d-flex justify-end">
+        <MudBreadcrumbs Items="_breadcrumbItems" Class="custom-breadcrumb" />
+    </MudItem>
+</MudGrid>
+
+<MudExpansionPanels>
+    <SearchPanel Filter="@filterModel"
+                    OnFilterApplied="@ReloadTable" />
+</MudExpansionPanels>
+
+<MudPaper Class="pa-4">
+    @if (UserProfileService.UserProfile.Contains("VILLAGES:CREATE"))
+    {
+        <MudButton EndIcon="@Icons.Material.Filled.Add" Class="pull-right top-add-button mb-2 mt-2" Variant="Variant.Filled"
+                    OnClick="AddNew" DropShadow="true" Color="Color.Primary" >Add New</MudButton>        
+    }
+    <MudDataGrid T="VillageView" Items="data" Bordered="true" Dense="true" RowsPerPage="20">
+        <NoRecordsContent>
+            <MudText Typo="Typo.subtitle1" Class="my-4 text-muted text-center">
+                No Village found. Try adjusting your filters.
+            </MudText>
+        </NoRecordsContent>
+        <ToolBarContent>
+            <MudText><b>Total Village(s): @data.Count</b></MudText>
+        </ToolBarContent>
+        <Columns>
+            <PropertyColumn Property="x => x.DistrictName" Title="District Name" />
+            <PropertyColumn Property="x => x.ConstituencyName" Title="Constituency Name" />
+            <PropertyColumn Property="x => x.CommunityCouncilName" Title="Community Council Name" />
+            <PropertyColumn Property="x => x.Name" Title="Village Name" />
+            <PropertyColumn Property="x => x.Code" Title="Unique Code" />
+            <TemplateColumn Title="Active" HeaderClass="fit">
+                <CellTemplate>
+                    <MudText Style="@($"{GetStatusStyle(context.Item.IsActive)} display:block; padding:4px; border-radius:6px; width:100%; text-align: center;")">
+                        @(context.Item.IsActive ? "Yes" : "No")
+                    </MudText>
+                </CellTemplate>
+            </TemplateColumn>
+            <TemplateColumn Title="Edit">
+                <CellTemplate>
+                    @if (UserProfileService.UserProfile.Contains("VILLAGES:MODIFY"))
+                    {
+                        <MudStack Row="true" Spacing="1" AlignItems="AlignItems.Center">
+                            <MudIconButton Class="table-action-item" Icon="@Icons.Material.Filled.Edit" Color="Color.Secondary" OnClick="@(() => Edit(context.Item))" />
+                        </MudStack>                        
+                    }
+                </CellTemplate>
+            </TemplateColumn>
+
+        </Columns>
+
+        <PagerContent>
+            <MudDataGridPager T="VillageView" />
+        </PagerContent>
+    </MudDataGrid>
+</MudPaper>
+
+@code {
+    private List<VillageView> data = new();
+    private GeoLocationSearchFilter filterModel = new();
+
+
+    private List<BreadcrumbItem> _breadcrumbItems =
+    [
+        new("Home", href: "/", icon: Icons.Material.Filled.Home),
+        new("Settings", href: null, icon: Icons.Material.Filled.Settings),
+        new("Geographical Settings", href: null, icon: Icons.Material.Filled.AdminPanelSettings),
+        new("Villages", href: null, disabled: true, icon: Icons.Material.Filled.LocationCity)
+    ];
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!UserProfileService.UserProfile.Contains("VILLAGES:VIEW"))
+        {
+            Navigation.NavigateTo("/AccessDenied");
+        }
+        await Init();
+    }
+
+
+    private async Task ReloadTable()
+    {
+        await Init();
+    }
+
+    private async Task Init()
+    {
+        try
+        {
+            LoadingService.Show();
+            var query = _context.VillageView.AsNoTracking();
+
+            if (!string.IsNullOrWhiteSpace(filterModel.Name))
+            {
+                query = query.Where(n => n.DistrictName.ToLower().Contains(filterModel.Name.ToLower()) ||
+                n.ConstituencyName.ToLower().Contains(filterModel.Name.ToLower()) ||
+                n.CommunityCouncilName.ToLower().Contains(filterModel.Name.ToLower()) ||
+                n.Name.ToLower().Contains(filterModel.Name.ToLower()));
+            }
+
+            if (filterModel.DistrictId != null && filterModel.DistrictId > 0)
+            {
+                query = query.Where(d => d.DistrictId == filterModel.DistrictId);
+            }
+
+            if (filterModel.CommunityCouncilId != null && filterModel.CommunityCouncilId > 0)
+            {
+                query = query.Where(d => d.CommunityCouncilId == filterModel.CommunityCouncilId);
+            }
+
+            if (filterModel.VillageId != null && filterModel.VillageId > 0)
+            {
+                query = query.Where(d => d.Id == filterModel.VillageId);
+            }
+
+            if (filterModel.ConstituencyId != null && filterModel.ConstituencyId > 0)
+            {
+                query = query.Where(d => d.ConstituencyId == filterModel.ConstituencyId);
+            }
+
+            data = await query.ToListAsync();
+            LoadingService.Hide();
+        }
+        catch (Exception ex)
+        {
+            LoadingService.Hide();
+            Snackbar.Add($"An unexpected error occurred: {(ex.InnerException is null ? ex.Message : ex.InnerException.Message)}", Severity.Error, config => { config.RequireInteraction = true; });
+        }
+    }
+
+    private string GetStatusStyle(bool isActive)
+    {
+        return isActive
+            ? "background-color:#e6f4ea; color:#2e7d32; border: 1px solid #c8e6c9;"
+            : "background-color:#fcebea; color:#c62828; border: 1px solid #f5c6cb;";
+    }
+
+    private async Task AddNew()
+    {
+        var model = new VillageViewModel();
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Small, FullWidth = true };
+        var parameters = new DialogParameters
+        {
+            { "Model", model }
+        };
+        var dialogRef = await DialogService.ShowAsync<CreateEdit>("Add Village", parameters, options);
+        var state = await dialogRef.Result;
+        if (state is not null && !state.Canceled)
+        {
+            await Init();
+        }
+    }
+
+    private async Task Edit(VillageView villages)
+    {
+        var model = _mapper.Map<VillageViewModel>(villages);
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Small, FullWidth = true };
+        var parameters = new DialogParameters
+        {
+            { "Model", model }
+        };
+        var dialogRef = await DialogService.ShowAsync<CreateEdit>("Edit Village", parameters, options);
+        var state = await dialogRef.Result;
+        if (state is not null && !state.Canceled)
+        {
+            await Init();
+        }
+    }
+
+}

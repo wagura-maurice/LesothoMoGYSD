@@ -1,0 +1,229 @@
+﻿
+@using MoGYSD.Business.Views.HouseHoldListings
+@using MoGYSD.ViewModels.Email
+@using MoGYSD.Web.Components.Account.Pages
+@using MoGYSD.Web.Components.Shared.JsInterop
+
+<MudDialog Class="blur dialog-background" TitleClass="blur dialog-background-title" ContentClass="dialog-background-surface py-10" ActionsClass="dialog-background-surface">
+    <DialogContent>
+        <MudCard Class="mb-3">
+            <MudCardContent>
+                <MudGrid>
+                    <MudItem xs="12" sm="6" md="4">
+                        <MudText><b>HH Listing Plan Name:</b> @Model.HHListingActivityName</MudText>
+                    </MudItem>
+
+                    <MudItem xs="12" sm="6" md="4">
+                        <MudText><b>District Name:</b> @Model.DistrictName</MudText>
+                    </MudItem>
+
+                    <MudItem xs="12" sm="6" md="4">
+                        <MudText><b>Community Council Name:</b> @Model.CommunityCouncilName</MudText>
+                    </MudItem>
+
+                    <MudItem xs="12" sm="6" md="4">
+                        <MudText><b>Village Name:</b> @Model.VillageName</MudText>
+                    </MudItem>
+
+                    <MudItem xs="12" sm="6" md="4">
+                        <MudText><b>HH Head FullName:</b> @Model.HHHeadFullName</MudText>
+                    </MudItem>
+
+                    <MudItem xs="12" sm="6" md="4">
+                        <MudText><b>National ID Number:</b> @Model.NationalId</MudText>
+                    </MudItem>
+
+                    <MudItem xs="12" sm="6" md="4">
+                        <MudText><b>HH Size:</b> @Model.HHSize.ToString("N0")</MudText>
+                    </MudItem>
+
+                    <MudItem xs="12" sm="6" md="4">
+                        <MudText><b>Geo Coordinates:</b> @Model.GeoCoordinates</MudText>
+                    </MudItem>
+
+                    <MudItem xs="12" sm="6" md="4">
+                        <MudText><b>Physical Address:</b> @Model.PhysicalAddress</MudText>
+                    </MudItem>
+
+                    <MudItem xs="12" sm="6" md="4">
+                        <MudText><b>Village Name:</b> @Model.VillageName</MudText>
+                    </MudItem>
+
+                    <MudItem xs="12">
+                        @if (Model.NationalIDPhoto is not null)
+                        {
+                            <MudSimpleTable Dense>
+                                <tbody>
+                                    <tr @onclick="() => OnDownloadFile(Model.NationalIDPhoto)" style="cursor:pointer">
+                                        <td>
+                                            <Thumbnail FileName="Click to view national Id image" FileUrl="@Model.NationalIDPhoto" />
+                                        </td>
+                                        <td>
+                                            <FileSizeFormatter FileSizeInBytes="125" />
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </MudSimpleTable>
+                        }
+                    </MudItem>
+                </MudGrid>
+            </MudCardContent>
+        </MudCard>
+    </DialogContent>
+    <DialogActions>
+        <MudItem xs="6" Class="d-flex justify-start">
+            <MudButton OnClick="Cancel"
+                       Variant="Variant.Filled"
+                       Color="Color.Secondary"
+                       Size="Size.Small"
+                       Class="ml-0">Back</MudButton>
+        </MudItem>
+        <MudItem xs="6" Class="d-flex justify-end">
+            @if(!IsView)
+            {
+                @if (Model.StatusName == "Under Review")
+                {
+                    @if (UserProfileService.UserProfile.Contains("HOUSEHOLD LISTING REVIEWS:APPROVE"))
+                    {
+                        <MudItem xs="6" Class="d-flex justify-end">
+                            <MudButton Variant="Variant.Filled" Color="Color.Error" OnClick="SendBackToOpen">
+                                Reject
+                            </MudButton>
+
+                            <MudButton Variant="Variant.Filled" Color="Color.Success" OnClick="ApproveRegistration" Class="ml-2">
+                                Approve
+                            </MudButton>
+                        </MudItem>
+                    }
+                }
+                else if (Model.StatusName.Trim().ToLower() == "approved")
+                {
+                    @if (UserProfileService.UserProfile.Contains("HOUSEHOLD LISTING REVIEWS:APPROVE"))
+                    {
+                        <MudButton Variant="Variant.Filled" Color="Color.Success" OnClick="CloseRegistration">
+                            Close Registration
+                        </MudButton>
+                    }
+                }
+                else if (Model.StatusName.Trim().ToLower() == "open")
+                {
+                    @* <MudButton Variant="Variant.Filled" Color="Color.Success" OnClick="SendToReview">
+                        Send To Review
+                    </MudButton> *@
+                }                
+            }
+        </MudItem>
+    </DialogActions>
+</MudDialog>
+<style>
+    @@import url("https://cdn.jsdelivr.net/npm/@@fancyapps/ui@@5.0.36/dist/fancybox/fancybox.css");
+
+    .fancybox__container {
+        --fancybox-bg: rgba(24, 24, 27, 0.85);
+        z-index: 9999;
+    }
+</style>
+@code {
+    [CascadingParameter]
+    private IMudDialogInstance Dialog { get; set; }
+    [Parameter] public HHListingView Model { get; set; } = new();
+    [Parameter] public bool IsView { get; set; }
+
+    private void Cancel() => Dialog.Cancel();
+
+    private async Task CloseRegistration()
+    {
+        var confirmed = await DialogServiceHelper.ShowConfirmationDialogAsync(DialogService, "Are you sure you want to close this plan?");
+        if (confirmed)
+        {
+            await UpdateStatusAndNotify("Closed", "closed", "Closed", "listing closed successfully");
+        }
+    }
+
+    private async Task SendBackToOpen()
+    {
+        var result = await DialogServiceHelper.ShowRejectDialogAsync(DialogService, "Are you sure you want to reject this household listing and send it back for amendments?");
+        if (result != null)
+        {
+            await UpdateStatusAndNotify("Open", "rejected", "Rejected", "reject successfully", result);
+        }
+    }
+
+    private async Task ApproveRegistration()
+    {
+        var confirmed = await DialogServiceHelper.ShowConfirmationDialogAsync(DialogService, "Are you sure you want to approve this household listing?");
+        if (confirmed)
+        {
+            await UpdateStatusAndNotify("Approved", "approved", "Approved", "listing approved successfully");
+        }
+    }
+
+    private async Task SendToReview()
+    {
+        var confirmed = await DialogServiceHelper.ShowConfirmationDialogAsync(DialogService, "Are you sure you want to send this plan for review?");
+        if (confirmed)
+        {
+            await UpdateStatusAndNotify("Under Review", "send back for review", "SendBack", "listing sent back for review");
+        }
+    }
+
+    private async Task UpdateStatusAndNotify(string code, string subjectSuffix, string action, string successMessage, string resultMessage = null)
+    {
+        try
+        {
+            LoadingService.Show();
+
+            var statusId = await _context.SystemCodeDetailsView
+                .Where(p => p.Code == code)
+                .Select(p => p.Id)
+                .FirstOrDefaultAsync();
+
+            if (statusId == 0)
+            {
+                Snackbar.Add("Status not found", Severity.Error, cfg => cfg.RequireInteraction = true);
+                return;
+            }
+            var update = await _context.HHListings.Where(h => h.Id == Model.Id).FirstOrDefaultAsync();
+            update.StatusId = statusId;
+            await _genericService.Update(update);
+
+            // await InvokeAsync(async () =>
+            // {
+            //     // var emailData = new EmailViewModel<ActionHHListingReviewEmail>
+            //     // {
+            //     //     To = Model.CreatedByEmail,
+            //     //     IsHtml = true,
+            //     //     Subject = $"{Model.HHListingActivityName} {subjectSuffix}",
+            //     //     Email = new ActionHHListingReviewEmail
+            //     //     {
+            //     //         FirstName = Model.CreatedByName,
+            //     //         Action = action
+            //     //     }
+            //     // };
+
+            //     // await EmailService.SendEmailAsync(emailData).ConfigureAwait(false);
+
+            // });
+            Snackbar.Add($"{Model.HHListingActivityName} {successMessage}", Severity.Success);
+            LoadingService.Hide();
+            Dialog.Close(DialogResult.Ok(true));
+
+        }
+        catch (Exception ex)
+        {
+            LoadingService.Hide();
+            Snackbar.Add($"Unexpected error: {ex.Message}", Severity.Error, cfg => cfg.RequireInteraction = true);
+            return;
+        }
+        finally
+        {
+            LoadingService.Hide();
+        }
+    }
+
+    private async Task OnDownloadFile(string? str)
+    {
+        var fileURL = str;
+        await new Fancybox(JSRuntime).Preview(str ?? string.Empty, []);
+    }
+}

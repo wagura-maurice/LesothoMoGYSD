@@ -1,0 +1,462 @@
+﻿@using MudBlazor
+@using System.Linq.Expressions
+@using System.Reflection
+@using Microsoft.EntityFrameworkCore
+
+
+
+
+<MudDialog>
+    <TitleContent>
+        <MudText Typo="Typo.h6">@DialogTitle</MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudCard Elevation="0" Class="pa-4 mb-4">
+            <MudGrid>
+                <MudItem xs="12" sm="6" md="3">
+                    <MudSelect T="int?" Label="District" @bind-Value="SelectedDistrictId" Clearable="true"
+                               Variant="Variant.Outlined" Dense="true">
+                        @foreach (var district in _districts)
+                        {
+                            <MudSelectItem T="int?" Value="district.Id">@district.Name</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12" sm="6" md="3">
+                    <MudSelect T="int?" Label="Community Council" @bind-Value="SelectedCommunityCouncilId" Clearable="true"
+                               Variant="Variant.Outlined" Dense="true">
+                        @foreach (var cc in _filteredCommunityCouncils)
+                        {
+                            <MudSelectItem T="int?" Value="cc.Id">@cc.Name</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12" sm="6" md="3">
+                    <MudSelect T="int?" Label="Village" @bind-Value="SelectedVillageId" Clearable="true"
+                               Variant="Variant.Outlined" Dense="true">
+                        @foreach (var village in _filteredVillages)
+                        {
+                            <MudSelectItem T="int?" Value="village.Id">@village.Name</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12" sm="6" md="3">
+                    <MudSelect T="string?" Label="Status" @bind-Value="SelectedStatus" Clearable="true"
+                               Variant="Variant.Outlined" Dense="true"
+                               Disabled="@(DialogTitle == "Eligible Households" || DialogTitle == "Processed Households")">
+                        @foreach (var status in _allStatuses)
+                        {
+                            <MudSelectItem T="string?" Value="status">@status</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12">
+                    <MudTextField @bind-Value="SearchString"
+                                  Placeholder="Search Head of Household, ID, etc."
+                                  Adornment="Adornment.Start"
+                                  AdornmentIcon="@Icons.Material.Filled.Search"
+                                  IconSize="Size.Medium"
+                                  Class="mt-0"
+                                  Immediate="true"
+                                  Clearable="true"></MudTextField>
+                </MudItem>
+            </MudGrid>
+        </MudCard>
+
+        <MudTable T="EligibilityDetailViewModel" Dense="true" Striped="true"
+                  Class="rounded-lg" Style="height: 70vh; overflow-y: auto;"
+                  ServerData="LoadServerData" @ref="_mudTable"
+                  LoadingProgressColor="Color.Info"
+                  Hover="true">
+            <ToolBarContent>
+                <MudText Typo="Typo.h6">Households</MudText>
+                <MudSpacer />
+            </ToolBarContent>
+            <HeaderContent>
+                <MudTh><MudTableSortLabel SortBy="new Func<EligibilityDetailViewModel, object>(x => x.HeadOfHouseholdName)">Head of Household</MudTableSortLabel></MudTh>
+                <MudTh><MudTableSortLabel SortBy="new Func<EligibilityDetailViewModel, object>(x => x.DistrictName)">District</MudTableSortLabel></MudTh>
+                <MudTh><MudTableSortLabel SortBy="new Func<EligibilityDetailViewModel, object>(x => x.CommunityCouncilName)">Community Council</MudTableSortLabel></MudTh>
+                <MudTh><MudTableSortLabel SortBy="new Func<EligibilityDetailViewModel, object>(x => x.VillageName)">Village</MudTableSortLabel></MudTh>
+                <MudTh><MudTableSortLabel SortBy="new Func<EligibilityDetailViewModel, object>(x => x.Status)">Status</MudTableSortLabel></MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd DataLabel="Head of Household">@context.HeadOfHouseholdName</MudTd>
+                <MudTd DataLabel="District">@context.DistrictName</MudTd>
+                <MudTd DataLabel="Community Council">@context.CommunityCouncilName</MudTd>
+                <MudTd DataLabel="Village">@context.VillageName</MudTd>
+                <MudTd DataLabel="Status">
+                    @if (DialogTitle == "Eligible Households")
+                    {
+                        <MudChip T="string" Color="Color.Primary" Size="Size.Small">Eligible</MudChip>
+                    }
+                    else if (DialogTitle == "Processed Households")
+                    {
+                        <MudChip T="string" Color="Color.Info" Size="Size.Small">Processed</MudChip>
+                    }
+                    else
+                    {
+                        <MudChip T="string" Color="@GetStatusColor(context.Status)" Size="Size.Small">@context.Status</MudChip>
+                    }
+                </MudTd>
+            </RowTemplate>
+            <PagerContent>
+                <MudTablePager />
+            </PagerContent>
+            <NoRecordsContent>
+                <MudText>No matching records found.</MudText>
+            </NoRecordsContent>
+        </MudTable>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="() => MudDialog.Close()" Color="Color.Secondary" Variant="Variant.Filled">Close</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+
+
+    public class EligibilityDetailViewModel
+    {
+        public int HouseholdId { get; set; }
+        public string HeadOfHouseholdName { get; set; } = string.Empty;
+        public int DistrictId { get; set; }
+        public string DistrictName { get; set; } = string.Empty;
+        public int CommunityCouncilId { get; set; }
+        public string CommunityCouncilName { get; set; } = string.Empty;
+        public int VillageId { get; set; }
+        public string VillageName { get; set; } = string.Empty;
+        public string Status { get; set; } = string.Empty;
+    }
+
+    public class DistrictViewModel
+    {
+        public int Id { get; set; }
+        public string Name { get; set; } = string.Empty;
+    }
+
+    public class CommunityCouncilViewModel
+    {
+        public int Id { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public int DistrictId { get; set; }
+    }
+
+    public class VillageViewModel
+    {
+        public int Id { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public int CommunityCouncilId { get; set; }
+    }
+
+    [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = default!;
+
+    [Parameter] public string DialogTitle { get; set; } = "Details";
+    [Parameter] public int EligibilityTestId { get; set; }
+    [Parameter] public string? InitialStatusFilter { get; set; }
+
+    private MudTable<EligibilityDetailViewModel> _mudTable = default!;
+
+    private string _searchString = "";
+    public string SearchString
+    {
+        get => _searchString;
+        set
+        {
+            if (_searchString != value)
+            {
+                _searchString = value;
+                _mudTable?.ReloadServerData();
+            }
+        }
+    }
+
+    private int? _selectedDistrictId;
+    public int? SelectedDistrictId
+    {
+        get => _selectedDistrictId;
+        set
+        {
+            if (_selectedDistrictId != value)
+            {
+                _selectedDistrictId = value;
+                SelectedCommunityCouncilId = null;
+                SelectedVillageId = null;
+
+                _filteredCommunityCouncils = _selectedDistrictId.HasValue
+                    ? _communityCouncils.Where(cc => cc.DistrictId == _selectedDistrictId.Value).ToList()
+                    : _communityCouncils;
+
+                _filteredVillages = _villages;
+
+                _mudTable?.ReloadServerData();
+            }
+        }
+    }
+
+    private int? _selectedCommunityCouncilId;
+    public int? SelectedCommunityCouncilId
+    {
+        get => _selectedCommunityCouncilId;
+        set
+        {
+            if (_selectedCommunityCouncilId != value)
+            {
+                _selectedCommunityCouncilId = value;
+                SelectedVillageId = null;
+
+                _filteredVillages = _selectedCommunityCouncilId.HasValue
+                    ? _villages.Where(v => v.CommunityCouncilId == _selectedCommunityCouncilId.Value).ToList()
+                    : (
+                        _selectedDistrictId.HasValue
+                            ? _villages.Where(v => _communityCouncils.Any(cc => cc.Id == v.CommunityCouncilId && cc.DistrictId == _selectedDistrictId.Value)).ToList()
+                            : _villages
+                      );
+
+                _mudTable?.ReloadServerData();
+            }
+        }
+    }
+
+    private int? _selectedVillageId;
+    public int? SelectedVillageId
+    {
+        get => _selectedVillageId;
+        set
+        {
+            if (_selectedVillageId != value)
+            {
+                _selectedVillageId = value;
+                _mudTable?.ReloadServerData();
+            }
+        }
+    }
+
+    private string? _selectedStatus;
+    public string? SelectedStatus
+    {
+        get => _selectedStatus;
+        set
+        {
+            if (_selectedStatus != value)
+            {
+                _selectedStatus = value;
+                _mudTable?.ReloadServerData();
+            }
+        }
+    }
+
+    private List<DistrictViewModel> _districts = new();
+    private List<CommunityCouncilViewModel> _communityCouncils = new();
+    private List<VillageViewModel> _villages = new();
+
+    private List<CommunityCouncilViewModel> _filteredCommunityCouncils = new();
+    private List<VillageViewModel> _filteredVillages = new();
+    private List<string> _allStatuses = new() { "Selected", "Eligible", "WaitListed", "Not Eligible", "Processed" };
+
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadDropdownDataAsync();
+
+        if (!string.IsNullOrEmpty(InitialStatusFilter))
+        {
+            _selectedStatus = InitialStatusFilter;
+        }
+        else if (DialogTitle == "Eligible Households")
+        {
+            _selectedStatus = "Eligible";
+        }
+        else if (DialogTitle == "Processed Households")
+        {
+            _selectedStatus = "Processed";
+        }
+    }
+
+    private async Task LoadDropdownDataAsync()
+    {
+        
+        var householdsInTestQuery = _context.EligibilityTestDetails
+            .AsNoTracking()
+            .Where(d => d.EligibilityTestId == EligibilityTestId)
+            .Include(d => d.Household) 
+                .ThenInclude(h => h.Village) 
+                    .ThenInclude(v => v.CommunityCouncil) 
+                        .ThenInclude(cc => cc.District) 
+            .Select(d => d.Household); 
+        var householdsInTest = await householdsInTestQuery.ToListAsync();
+
+        _districts = householdsInTest
+            .Where(h => h.Village?.CommunityCouncil?.District != null)
+            .Select(h => new DistrictViewModel { Id = h.Village.CommunityCouncil.District.Id, Name = h.Village.CommunityCouncil.District.Name })
+            .DistinctBy(d => d.Id)
+            .OrderBy(d => d.Name)
+            .ToList();
+
+        _communityCouncils = householdsInTest
+            .Where(h => h.Village?.CommunityCouncil != null)
+            .Select(h => new CommunityCouncilViewModel { Id = h.Village.CommunityCouncil.Id, Name = h.Village.CommunityCouncil.CommunityCouncilName, DistrictId = h.Village.CommunityCouncil.District.Id })
+            .DistinctBy(d => d.Id)
+            .OrderBy(d => d.Name)
+            .ToList();
+
+        _villages = householdsInTest
+            .Where(h => h.Village != null)
+            .Select(h => new VillageViewModel { Id = h.Village.Id, Name = h.Village.Name, CommunityCouncilId = h.Village.CommunityCouncil.Id })
+            .DistinctBy(d => d.Id)
+            .OrderBy(d => d.Name)
+            .ToList();
+
+        _filteredCommunityCouncils = _communityCouncils;
+        _filteredVillages = _villages;
+    }
+
+
+    private async Task<TableData<EligibilityDetailViewModel>> LoadServerData(TableState state, CancellationToken cancellationToken)
+    {
+        if (EligibilityTestId == 0)
+        {
+            return new TableData<EligibilityDetailViewModel>() { TotalItems = 0, Items = new List<EligibilityDetailViewModel>() };
+        }
+
+        IQueryable<MoGYSD.Business.Models.Missa.EligibilityTests.EligibilityTestDetail> query = _context.EligibilityTestDetails
+            .AsNoTracking()
+            .Where(d => d.EligibilityTestId == EligibilityTestId)
+            .Include(d => d.Household.Village.CommunityCouncil.District)
+            .Include(d => d.Household.HouseholdMembers)
+                .ThenInclude(hm => hm.HHMemberType)
+            .Include(d => d.EligibilityStatus);
+
+        if (SelectedDistrictId.HasValue)
+        {
+            query = query.Where(d => d.Household.Village.CommunityCouncil.DistrictId == SelectedDistrictId.Value);
+        }
+        if (SelectedCommunityCouncilId.HasValue)
+        {
+            query = query.Where(d => d.Household.Village.CommunityCouncilId == SelectedCommunityCouncilId.Value);
+        }
+        if (SelectedVillageId.HasValue)
+        {
+            query = query.Where(d => d.Household.VillageId == SelectedVillageId.Value);
+        }
+
+        string? effectiveStatusFilter = SelectedStatus;
+        if (DialogTitle == "Eligible Households")
+        {
+            effectiveStatusFilter = "Eligible";
+        }
+        else if (DialogTitle == "Processed Households")
+        {
+            effectiveStatusFilter = "Processed";
+        }
+
+        if (!string.IsNullOrWhiteSpace(effectiveStatusFilter))
+        {
+            if (effectiveStatusFilter == "Eligible")
+            {
+                var eligibleTierStatuses = new[] { "Eligible", "Selected", "WaitListed" };
+                query = query.Where(d => eligibleTierStatuses.Contains(d.EligibilityStatus.Code));
+            }
+            else if (effectiveStatusFilter == "Processed")
+            {
+                var processedStatuses = new[] { "Selected", "WaitListed", "Not Eligible" };
+                query = query.Where(d => processedStatuses.Contains(d.EligibilityStatus.Code));
+            }
+            else
+            {
+                query = query.Where(d => d.EligibilityStatus.Code == effectiveStatusFilter);
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(SearchString))
+        {
+            string searchLower = SearchString.ToLowerInvariant();
+            query = query.Where(d =>
+                d.Household.HouseholdMembers.Any(hm => (hm.FirstName + " " + hm.Surname).ToLower().Contains(searchLower)) ||
+                d.Household.Village.Name.ToLower().Contains(searchLower) ||
+                d.Household.Village.CommunityCouncil.CommunityCouncilName.ToLower().Contains(searchLower) ||
+                d.Household.Village.CommunityCouncil.District.Name.ToLower().Contains(searchLower) ||
+                d.Household.Id.ToString().ToLower().Contains(searchLower) ||
+                d.EligibilityStatus.Code.ToLower().Contains(searchLower)
+            );
+        }
+
+        int totalItems = await query.CountAsync(cancellationToken);
+
+        if (!string.IsNullOrWhiteSpace(state.SortLabel))
+        {
+            if (state.SortLabel == "HeadOfHouseholdName")
+            {
+                query = state.SortDirection == SortDirection.Ascending ?
+                    query.OrderBy(d => d.Household.HouseholdMembers.FirstOrDefault(hm => hm.HHMemberType.Code == "HEAD").FirstName) :
+                    query.OrderByDescending(d => d.Household.HouseholdMembers.FirstOrDefault(hm => hm.HHMemberType.Code == "HEAD").FirstName);
+            }
+            else if (state.SortLabel == "DistrictName")
+            {
+                query = state.SortDirection == SortDirection.Ascending ?
+                   query.OrderBy(d => d.Household.Village.CommunityCouncil.District.Name) :
+                   query.OrderByDescending(d => d.Household.Village.CommunityCouncil.District.Name);
+            }
+            else if (state.SortLabel == "CommunityCouncilName")
+            {
+                query = state.SortDirection == SortDirection.Ascending ?
+                   query.OrderBy(d => d.Household.Village.CommunityCouncil.CommunityCouncilName) :
+                   query.OrderByDescending(d => d.Household.Village.CommunityCouncil.CommunityCouncilName);
+            }
+            else if (state.SortLabel == "VillageName")
+            {
+                query = state.SortDirection == SortDirection.Ascending ?
+                   query.OrderBy(d => d.Household.Village.Name) :
+                   query.OrderByDescending(d => d.Household.Village.Name);
+            }
+            else if (state.SortLabel == "Status")
+            {
+                query = state.SortDirection == SortDirection.Ascending ?
+                   query.OrderBy(d => d.EligibilityStatus.Code) :
+                   query.OrderByDescending(d => d.EligibilityStatus.Code);
+            }
+            else
+            {
+                query = state.SortDirection == SortDirection.Ascending ?
+                    query.OrderBy(d => EF.Property<object>(d, state.SortLabel)) :
+                    query.OrderByDescending(d => EF.Property<object>(d, state.SortLabel));
+            }
+        }
+        else
+        {
+            query = query.OrderBy(d => d.Household.Id);
+        }
+
+        var pagedResults = await query
+            .Skip(state.Page * state.PageSize)
+            .Take(state.PageSize)
+            .Select(d => new EligibilityDetailViewModel
+            {
+                HouseholdId = d.Household.Id,
+                HeadOfHouseholdName = d.Household.HouseholdMembers
+                                       .FirstOrDefault(hm => hm.HHMemberType.Code == "HEAD") != null
+                                       ? d.Household.HouseholdMembers.First(hm => hm.HHMemberType.Code == "HEAD").FirstName + " " + d.Household.HouseholdMembers.First(hm => hm.HHMemberType.Code == "HEAD").Surname
+                                       : "",
+                VillageName = d.Household.Village.Name,
+                CommunityCouncilName = d.Household.Village.CommunityCouncil.CommunityCouncilName,
+                DistrictName = d.Household.Village.CommunityCouncil.District.Name,
+                Status = d.EligibilityStatus.Code
+            })
+            .ToListAsync(cancellationToken);
+
+        return new TableData<EligibilityDetailViewModel>()
+        {
+            TotalItems = totalItems,
+            Items = pagedResults
+        };
+    }
+
+    private Color GetStatusColor(string status) => status switch
+    {
+        "Selected" => Color.Success,
+        "Eligible" => Color.Primary,
+        "WaitListed" => Color.Warning,
+        "Not Eligible" => Color.Error,
+        "Processed" => Color.Info,
+        _ => Color.Default
+    };
+}

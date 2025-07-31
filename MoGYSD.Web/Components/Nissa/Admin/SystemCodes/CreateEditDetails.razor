@@ -1,0 +1,189 @@
+﻿@using MoGYSD.Business.Models.Nissa.Admin
+@using MoGYSD.ViewModels.Nissa.Administration
+@using MoGYSD.Web.Components.Autocompletes
+
+<MudDialog Class="blur dialog-background" TitleClass="blur dialog-background-title" ContentClass="dialog-background-surface py-10" ActionsClass="dialog-background-surface">
+    <DialogContent>
+        <MudForm @ref="form" Class="d-flex flex-column gap-2">
+            <MudTextField Variant="Variant.Outlined" @bind-Value="@Name" Label="System Code" Class="mb-2" ReadOnly="true"/>
+            <MudTextField Variant="Variant.Outlined" @bind-Value="Model.Code" For="@(() => Model.Code)" Label="System Code Detail" Class="mb-2" />
+            <MudTextField Variant="Variant.Outlined" @bind-Value="Model.Description" For="@(() => Model.Description)" Lines="2" Label="Description" Class="mb-2" />
+            <MudTextField Variant="Variant.Outlined" @bind-Value="Model.OrderNo" For="@(() => Model.OrderNo)" Label="Sequence No" Class="mb-2" />
+            @if (Model.Id > 0)
+            {
+                <MudTextField Variant="Variant.Outlined" @bind-Value="ReOrder" For="@(() => ReOrder)" Label="Position To Sequence No" Class="mb-2" />
+                
+            }
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel"
+                   Variant="Variant.Filled"
+                   Size="Size.Small"
+                   Class="ml-0">Cancel</MudButton>
+        <MudButton OnClick="SubmitForm" Color="Color.Primary" Variant="Variant.Filled"
+                   Size="Size.Small">Submit</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter]
+    private IMudDialogInstance Dialog { get; set; }
+    [Parameter] public SystemCodeDetailViewModel Model { get; set; }
+    [Parameter] public string Name { get; set; } = string.Empty;
+    private int ReOrder { get; set; } = 0;
+    private MudForm form;
+    private void Cancel() => Dialog.Cancel();
+
+    private async Task SubmitForm()
+    {
+        await form.Validate();
+
+        if (form.IsValid)
+        {
+            try
+            {
+                LoadingService.Show();
+
+                // If user requested reorder
+                if (Model.Id > 0 && ReOrder > 0 && ReOrder != Model.OrderNo)
+                {
+                    // Shift existing rows for the same SystemCodeId
+                    var affectedRows = await _context.SystemCodeDetails
+                        .Where(p => p.SystemCodeId == Model.SystemCodeId && p.OrderNo == ReOrder && p.Id != Model.Id)
+                        .ToListAsync();
+
+                    if (affectedRows.Any())
+                    {
+                        // Reordering: shift all >= ReOrder down by 1 to make room
+                        var toShift = await _context.SystemCodeDetails
+                            .Where(p => p.SystemCodeId == Model.SystemCodeId && p.OrderNo >= ReOrder && p.Id != Model.Id)
+                            .OrderByDescending(p => p.OrderNo)
+                            .ToListAsync();
+
+                        foreach (var row in toShift)
+                            row.OrderNo++;
+
+                        await _context.SaveChangesAsync();
+                    }
+
+                    Model.OrderNo = ReOrder; // Assign new order
+                }
+                else
+                {
+                    // If creating new, ensure no duplicate order
+                    var orderExists = await _context.SystemCodeDetails
+                        .AnyAsync(p => p.SystemCodeId == Model.SystemCodeId && p.OrderNo == Model.OrderNo && p.Id != Model.Id);
+
+                    if (orderExists)
+                    {
+                        LoadingService.Hide();
+                        Snackbar.Add("Order number already exists for this system code.", Severity.Error);
+                        return;
+                    }
+                }
+
+                // Update or Insert
+                if (Model.Id > 0)
+                {
+                    var dataToUpdate = _mapper.Map<SystemCodeDetail>(Model);
+                    SentenceCaseService.ProcessEntityStrings(dataToUpdate);
+                    await _genericService.Update(dataToUpdate);
+
+                    Snackbar.Add("System code detail updated successfully", Severity.Success);
+                }
+                else
+                {
+                    var addData = _mapper.Map<SystemCodeDetail>(Model);
+                    SentenceCaseService.ProcessEntityStrings(addData);
+                    await _genericService.Add(addData);
+
+                    Snackbar.Add("System code detail saved successfully", Severity.Success);
+                }
+
+                LoadingService.Hide();
+                Dialog.Close(DialogResult.Ok(true));
+            }
+            catch (Exception ex)
+            {
+                LoadingService.Hide();
+                Snackbar.Add(
+                    $"An unexpected error occurred: {(ex.InnerException is null ? ex.Message : ex.InnerException.Message)}",
+                    Severity.Error,
+                    config => { config.RequireInteraction = true; }
+                );
+            }
+        }
+        else
+        {
+            Snackbar.Add("Please fill in all required fields.", Severity.Error);
+        }
+    }
+
+    // private async Task SubmitForm()
+    // {
+    //     await form.Validate();
+
+    //     if (form.IsValid)
+    //     {
+    //         try
+    //         {
+    //             if (Model.Id > 0)
+    //             {
+    //                 LoadingService.Show();
+    //                 var order = await _context.SystemCodeDetails.Where(p => p.SystemCodeId == Model.SystemCodeId && p.OrderNo == Model.OrderNo).FirstOrDefaultAsync();
+    //                 if (order is not null)
+    //                 {
+    //                     LoadingService.Hide();
+    //                     Snackbar.Add("Order number already exists for this system code.", Severity.Error);
+    //                 }
+    //                 else
+    //                 {
+    //                     var dataToUpdate = _mapper.Map<SystemCodeDetail>(Model);
+    //                     SentenceCaseService.ProcessEntityStrings(dataToUpdate);
+    //                     await _genericService.Update(dataToUpdate);
+
+    //                     LoadingService.Hide();
+    //                     Dialog.Close(DialogResult.Ok(true));
+    //                     Snackbar.Add("System code detail updated successfully", Severity.Success);                        
+    //                 }
+    //             }
+    //             else
+    //             {
+    //                 LoadingService.Show();
+    //                 var order = await _context.SystemCodeDetails.Where(p => p.SystemCodeId == Model.SystemCodeId && p.OrderNo == Model.OrderNo).FirstOrDefaultAsync();
+    //                 if (order is not null)
+    //                 {
+    //                     LoadingService.Hide();
+    //                     Snackbar.Add("Order number already exists for this system code.", Severity.Error);
+    //                 }
+    //                 else
+    //                 {
+    //                     var addData = _mapper.Map<SystemCodeDetail>(Model);
+    //                     SentenceCaseService.ProcessEntityStrings(addData);
+    //                     await _genericService.Add(addData);
+
+    //                     LoadingService.Hide();
+    //                     Dialog.Close(DialogResult.Ok(true));
+    //                     Snackbar.Add("System code detail saved successfully", Severity.Success);                        
+    //                 }
+
+    //             }
+    //         }
+    //         catch (Exception ex)
+    //         {
+    //             LoadingService.Hide();
+    //             Snackbar.Add(
+    //                 $"An unexpected error occurred: {(ex.InnerException is null ? ex.Message : ex.InnerException.Message)}",
+    //                 Severity.Error,
+    //                 config => { config.RequireInteraction = true; }
+    //             );
+    //             return;
+    //         }
+    //     }
+    //     else
+    //     {
+    //         Snackbar.Add("Please fill in all required fields.", Severity.Error);
+    //     }
+    // }
+}

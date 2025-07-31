@@ -1,0 +1,136 @@
+﻿@using MoGYSD.Business.Views.Nissa.HHEnumerations
+
+<MudDialog>
+    <DialogContent>
+        <!-- Header with Summary -->
+        <div class="d-flex align-center mb-4">
+            <div>
+                <MudText Typo="Typo.h5" Class="text-primary mb-0">
+                    <b>Village Enumeration Coverage</b>
+                </MudText>
+                <MudText Typo="Typo.caption">Showing all villages in enumeration area</MudText>
+            </div>
+        </div>
+
+        @if (GroupedData?.Any() == true)
+        {
+            var first = GroupedData.First().Value.First().Value.First();
+
+            <!-- District Summary Card -->
+            <MudPaper Class="pa-4 mb-4" Elevation="0" Style="border-left: 4px solid var(--mud-palette-primary);">
+                <MudGrid>
+                    <MudItem xs="12" md="4">
+                        <div class="d-flex align-center mb-2 mb-md-0">
+                            <div>
+                                <MudText Typo="Typo.h3" Color="Color.Secondary"><b>District</b></MudText>
+                                <MudText Typo="Typo.h6">@first.DistrictName</MudText>
+                            </div>
+                        </div>
+                    </MudItem>
+                    <MudItem xs="12" md="4">
+                        <div class="d-flex align-center mb-2 mb-md-0">
+                            <div>
+                                <MudText Typo="Typo.h3" Color="Color.Secondary">Enumeration Plan</MudText>
+                                <MudText Typo="Typo.h6">@first.HHEnumerationPlanName</MudText>
+                            </div>
+                        </div>
+                    </MudItem>
+                    <MudItem xs="12" md="4">
+                        <div class="d-flex align-center">
+                            <div>
+                                <MudText Typo="Typo.h3" Color="Color.Secondary">Villages Covered</MudText>
+                                <MudText Typo="Typo.h6">@GroupedData.Sum(g => g.Value.Count)</MudText>
+                            </div>
+                        </div>
+                    </MudItem>
+                </MudGrid>
+            </MudPaper>
+
+            <!-- Village List -->
+            <MudPaper Elevation="0" Class="pa-0" Style="border: 1px solid #e0e0e0; border-radius: 8px;">
+                @foreach (var ccGroup in GroupedData)
+                {
+                    <div class="pa-4" style="border-bottom: 1px solid #eeeeee;">
+                        <div class="d-flex align-center mb-3">
+                            <MudIcon Icon="@Icons.Material.Filled.AccountTree" Color="Color.Primary" Class="mr-2" />
+                            <MudText Typo="Typo.subtitle1" Color="Color.Primary">@ccGroup.Key</MudText>
+                        </div>
+
+                        <MudGrid Class="ml-4">
+                            @foreach (var villageGroup in ccGroup.Value)
+                            {
+                                var village = villageGroup.Value.First();
+                                
+                                <MudItem xs="12" sm="6" md="4" Class="mb-3">
+                                    <div class="d-flex align-center village-item">
+                                        <MudIcon Icon="@Icons.Material.Filled.LocationOn" Color="Color.Primary" Class="mr-2" />
+                                        <MudText Typo="Typo.body1" Class="text-truncate" Style="max-width: 200px;">
+                                            @village.VillageName
+                                        </MudText>
+                                    </div>
+                                </MudItem>
+                            }
+                        </MudGrid>
+                    </div>
+                }
+            </MudPaper>
+        }
+        else
+        {
+            <MudPaper Class="pa-4 text-center" Elevation="0">
+                <MudIcon Icon="@Icons.Material.Filled.ExploreOff" Size="Size.Large" Color="Color.Secondary" Class="mb-2" />
+                <MudText Typo="Typo.body1" Color="Color.Secondary">No villages found in this enumeration area</MudText>
+            </MudPaper>
+        }
+    </DialogContent>
+
+    <DialogActions>
+        <MudButton 
+            OnClick="Close" 
+            Color="Color.Primary" 
+            Variant="Variant.Outlined"
+            EndIcon="@Icons.Material.Filled.Close"
+            Class="px-4">
+            Close
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+<style>
+    .village-item {
+        padding: 8px 12px;
+        border-radius: 4px;
+        transition: background-color 0.2s ease;
+    }
+    
+    .village-item:hover {
+        background-color: #f5f5f5;
+    }
+</style>
+
+@code {
+    [CascadingParameter] public IMudDialogInstance MudDialog { get; set; }
+
+    [Parameter] public List<EnumerationAreaView> Data { get; set; } = new();
+
+    // Structure: CommunityCouncilName → VillageId → List of EnumerationAreaView
+    private Dictionary<string, Dictionary<int, List<EnumerationAreaView>>> GroupedData = new();
+
+    protected override void OnInitialized()
+    {
+        GroupedData = Data
+            .GroupBy(d => d.CommunityCouncilName)
+            .ToDictionary(
+                ccGroup => ccGroup.Key,
+                ccGroup => ccGroup
+                    .GroupBy(v => v.VillageId)
+                    .ToDictionary(
+                        vGroup => vGroup.Key,
+                        vGroup => vGroup.ToList()
+                    )
+            );
+    }
+
+    private void Close() => MudDialog?.Close();
+}
+

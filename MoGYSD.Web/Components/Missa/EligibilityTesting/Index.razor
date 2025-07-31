@@ -1,0 +1,188 @@
+﻿@page "/eligibility/eligibilitytesting"
+@using MoGYSD.Business.Persistence
+@using MoGYSD.Business.Views.Missa.EligibilityTests
+@using MoGYSD.ViewModels.Missa.Eligibility
+
+<MudGrid Class="mb-3" AlignItems="Center" Justify="Justify.SpaceBetween">
+    <MudItem xs="12" md="6">
+        <MudText Typo="Typo.h2" Class="font-weight-bold"><b>Eligibility Testing & Selection </b></MudText>
+        <MudText>
+            Creates an eligibility test to verify household and member qualification for assistance programmes
+        </MudText>
+    </MudItem>
+    <MudItem xs="12" md="6" Class="d-flex justify-end">
+        <MudBreadcrumbs Items="_breadcrumbItems" Class="custom-breadcrumb" />
+    </MudItem>
+</MudGrid>
+
+<MudExpansionPanels Elevation="0">
+    <SearchPanel Filter="@filterModel" OnFilterApplied="@ReloadTable" />
+</MudExpansionPanels>
+
+<MudPaper Class="p-4 mt-4">  
+    <MudGrid Justify="Justify.FlexEnd" Class="mb-2">
+        <MudItem>
+            @if (UserProfileService.UserProfile.Contains("ELIGIBILITY TESTING & SELECTION:CREATE"))
+            {
+            <MudButton StartIcon="@Icons.Material.Filled.Add"
+                       Variant="Variant.Filled"
+                       OnClick="AddNewEligibilityTesting"
+                       DropShadow="true"
+                       Color="Color.Primary">
+                Add New Eligibility Testing
+            </MudButton>
+            }
+        </MudItem>
+    </MudGrid>
+
+    <MudDataGrid @ref="table" ServerData="@(LoadEligibilityTesting)" T="EligibilityTestsView" Bordered="true" Striped="true" Hover="true" Dense="true" RowsPerPage="20">
+
+        <ToolBarContent>
+            <MudText><b>Total Eligibility Testing & Selection: @totalItems</b></MudText>            
+        </ToolBarContent>
+
+        <NoRecordsContent>
+            <MudText Typo="Typo.subtitle1" Class="my-4 text-muted text-center">
+                No Eligibility Testing found. Try adjusting your filters.
+            </MudText>
+        </NoRecordsContent>
+
+        <Columns>
+            <PropertyColumn Property="x => x.ProgrammeName" Title="Programme"  />
+            <PropertyColumn Property="x => x.DistrictNames" Title="District"  />           
+            <PropertyColumn Property="x => x.TotalProcessed" Title="Processed"  CellStyle="text-align: right" />            
+            <PropertyColumn Property="x => x.TotalSelected" Title="Selected"  CellStyle="text-align: right" />
+            <PropertyColumn Property="x => x.TotalWaitlisted" Title="Waiting List"  CellStyle="text-align: right" />
+            <PropertyColumn Property="x => x.TotalNotEligible" Title="Not Eligible"  CellStyle="text-align: right" />
+
+            <TemplateColumn Title="Actions" StickyRight="true">
+                <CellTemplate>
+                    @if (UserProfileService.UserProfile.Contains("ELIGIBILITY TESTING & SELECTION:VIEW"))
+                    {
+                    <MudMenu Icon="@Icons.Material.Filled.MoreVert" Color="Color.Primary" Dense="true" AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.TopRight">
+                        <MudMenuItem OnClick="@(() => ViewEligibilityTestDetails(context.Item.Id))">
+                            <MudIcon Icon="@Icons.Material.Filled.Info" Class="me-2 text-primary" /> Details
+                        </MudMenuItem>
+                        <MudMenuItem OnClick="@(() => EditEligibilityTests(context.Item.Id))">
+                            <MudIcon Icon="@Icons.Material.Filled.Edit" Class="me-2" /> Edit
+                        </MudMenuItem>
+                    </MudMenu>
+                    }
+                   
+                </CellTemplate>
+            </TemplateColumn>
+        </Columns>
+
+        <PagerContent>
+            <MudDataGridPager T="EligibilityTestsView" PageSizes="@(new int[] { 5, 10, 20, 50 })" />
+        </PagerContent>
+    </MudDataGrid>
+</MudPaper>
+
+@code {
+    private MudDataGrid<EligibilityTestsView> table = default!;
+    private EligibilityTestingCriteria filterModel = new();
+    private bool isLoading = false;
+    private List<BreadcrumbItem> _breadcrumbItems =
+     [
+        new("Home", href: "/", icon: Icons.Material.Filled.Home),     
+        new("Eligibility Testing & Selection", href: null, disabled: true)
+     ];
+    private int totalItems;
+
+    private async Task<GridData<EligibilityTestsView>> LoadEligibilityTesting(GridState<EligibilityTestsView> state)
+    {
+        isLoading = true;
+        try
+        {
+            if (_context == null)
+            {
+                Snackbar.Add("Database context is not available.", Severity.Error);
+                return new GridData<EligibilityTestsView> { Items = Enumerable.Empty<EligibilityTestsView>(), TotalItems = 0 };
+            }
+
+            IQueryable<EligibilityTestsView> query = _context.EligibilityTestsView.AsNoTracking();
+
+            if (filterModel.ProgrammeId.HasValue)
+                query = query.Where(x => x.ProgrammeId == filterModel.ProgrammeId);
+          
+            if (!string.IsNullOrWhiteSpace(filterModel.Name))
+                query = query.Where(x => x.ProgrammeName.Contains(filterModel.Name) || x.CommunityCouncilName.Contains(filterModel.Name)
+                || x.DistrictNames.Contains(filterModel.Name) || x.Village.Contains(filterModel.Name));
+
+            if (filterModel.CommunityCouncilId.HasValue)
+                query = query.Where(x => x.CommunityCouncilId == filterModel.CommunityCouncilId);
+
+            if (filterModel.VillageId.HasValue)
+                query = query.Where(x => x.VillageId == filterModel.VillageId);
+           
+
+           
+            bool sortApplied = false;
+            if (state.SortDefinitions.Any())
+            {
+                var sortDefinition = state.SortDefinitions.First();
+                if (!string.IsNullOrEmpty(sortDefinition.SortBy))
+                {
+
+                    if (!sortApplied)
+                    {
+                    }
+                }
+            }
+
+            if (!sortApplied)
+            {
+                query = query.OrderByDescending(p => p.Id);
+            }
+            totalItems = await query.CountAsync();
+
+            var items = await query
+                .Skip(state.Page * state.PageSize)
+                .Take(state.PageSize)
+                .ToListAsync();
+          
+            return new GridData<EligibilityTestsView>
+            {
+                Items = items,
+                TotalItems = totalItems
+            };
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine(ex.ToString());
+            Snackbar.Add($"Error loading Eligibility Testing: {ex.Message}", Severity.Error);
+            return new GridData<EligibilityTestsView> { Items = Enumerable.Empty<EligibilityTestsView>(), TotalItems = 0 };
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task ReloadTable()
+    {
+        if (table != null)
+        {
+            await table.ReloadServerData();
+        }
+    }
+
+    private void ViewEligibilityTestDetails(int id)
+    {
+        Navigation.NavigateTo($"/eligibility/view/{id}");
+    }
+
+    private void EditEligibilityTests(int id)
+    {
+        Navigation.NavigateTo($"/eligibility/edit/{id}");
+    }
+
+    private async Task AddNewEligibilityTesting()
+    {
+        Navigation.NavigateTo("/eligibility/add");
+        await Task.CompletedTask;
+    }
+
+    
+}

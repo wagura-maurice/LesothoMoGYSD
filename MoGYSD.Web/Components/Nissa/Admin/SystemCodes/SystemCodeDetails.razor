@@ -1,0 +1,202 @@
+﻿@page "/admin/SystemCodeDetails"
+@using MoGYSD.Business.Persistence
+@using MoGYSD.Business.Views.Nissa.Admin
+@using MoGYSD.ViewModels.Nissa.Administration
+
+<PageTitle>System Code Details</PageTitle>
+
+<MudGrid Class="mb-3" AlignItems="Center" Justify="Justify.SpaceBetween">
+    <MudItem xs="12" md="6">
+        <MudText Typo="Typo.h2" Class="font-weight-bold"><b>System Code Details</b></MudText>
+        <MudText>
+            Enables the creation, updating, and referencing of system code details
+        </MudText>
+    </MudItem>
+    <MudItem xs="12" md="6" Class="d-flex justify-end">
+        <MudBreadcrumbs Items="_breadcrumbItems" Class="custom-breadcrumb" />
+    </MudItem>
+</MudGrid>
+
+<MudExpansionPanels Elevation="1" Class="mt-2 mb-2">
+    <MudExpansionPanel Text="Expand to apply search filter">
+        <SystemParentCodeAutocomplete Label="Search by Registration Name" @bind-Value="_filterParentId"
+                                        ResetValueOnEmptyText="true"
+                                        Class="mb-3" />
+        <MudTextField Variant="Variant.Outlined" @bind-Value="_filterDetailName" Label="Search by Detail Name" Class="mb-2" />
+
+        <div class="d-flex justify-content-between">
+            <MudButton Variant="Variant.Filled" Color="Color.Secondary" OnClick="OnClearClicked" Size="Size.Small">
+                Clear
+            </MudButton>
+
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="OnSearchClicked" Size="Size.Small">
+                Search
+            </MudButton>
+        </div>
+    </MudExpansionPanel>
+</MudExpansionPanels>
+<MudPaper Class="pa-4">
+    @if (UserProfileService.UserProfile.Contains("SYSTEM CODE DETAIL:CREATE"))
+    {
+        <MudButton StartIcon="@Icons.Material.Filled.Add" Class="pull-right top-add-button mb-2 mt-2" Variant="Variant.Filled"
+                   OnClick="AddNew" DropShadow="true" Color="Color.Primary">Add system details</MudButton>        
+    }
+
+    <MudDataGrid T="SystemCodeDetailsView" Items="Elements" Bordered="true" Dense="true" RowsPerPage="20">
+        <NoRecordsContent>
+            <MudText Typo="Typo.subtitle1" Class="my-4 text-muted text-center">
+                No System Code Details found. Try adjusting your filters.
+            </MudText>
+        </NoRecordsContent>
+        <ToolBarContent>
+            <MudText><b>Total record(s): @Elements.Count()</b></MudText>
+        </ToolBarContent>
+        <Columns>
+            <PropertyColumn Property="x => x.Code" Title="Name"/>
+            <PropertyColumn Property="x => x.Description" Title="Description" />
+            <PropertyColumn Property="x => x.OrderNo" Title="Sequence No." />
+            <PropertyColumn Property="x => x.ParentCode" Title="Parent Name" />
+            <TemplateColumn Title="Edit">
+                <CellTemplate>
+                    @if (UserProfileService.UserProfile.Contains("SYSTEM CODE DETAIL:MODIFY"))
+                    {
+                        <MudMenuItem OnClick="@(() => Edit(context.Item))">
+                            <MudIcon Icon="@Icons.Material.Filled.Edit" Class="me-2" />
+                        </MudMenuItem>
+                    }
+                </CellTemplate>
+            </TemplateColumn>
+        </Columns>
+        <PagerContent>
+            <MudDataGridPager T="SystemCodeDetailsView" />
+        </PagerContent>
+    </MudDataGrid>
+</MudPaper>
+
+@code {
+    private IEnumerable<SystemCodeDetailsView> Elements = new List<SystemCodeDetailsView>();
+    private int? _filterParentId;
+    private string? _filterDetailName = string.Empty;
+
+    private List<BreadcrumbItem> _breadcrumbItems =
+    [
+        new("Home", href: "/", icon: Icons.Material.Filled.Home),
+        new("Settings", href: "/", icon: Icons.Material.Filled.Settings),
+        new("System Code Details", href: null, disabled: true, icon: Icons.Material.Filled.BusinessCenter)
+    ];
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Init();
+        var uri = Navigation.ToAbsoluteUri(Navigation.Uri);
+        var query = Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(uri.Query);
+
+        if (query.TryGetValue("openAdd", out var openAddValue) && openAddValue == "true" &&
+            query.TryGetValue("id", out var idValue) && int.TryParse(idValue, out int id))
+        {
+            await OpenAddDialog(id);
+        }
+    }
+
+    private async Task OnSearchClicked()
+    {
+        await Init(_filterParentId, _filterDetailName);
+    }
+
+    private async Task OnClearClicked()
+    {
+        _filterParentId = null;
+        _filterDetailName = string.Empty;
+        await Init();
+    }
+
+    private async Task OpenAddDialog(int id)
+    {
+        var model = new SystemCodeDetailViewModel { SystemCodeId = id };
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.ExtraSmall, FullWidth = true };
+        var parameters = new DialogParameters
+        {
+            { "Model", model }
+        };
+
+        var dialogRef = await DialogService.ShowAsync<CreateEditDetails>("Add system code details", parameters, options);
+        var state = await dialogRef.Result;
+        if (state is not null && !state.Canceled)
+        {
+            await Init();
+        }
+    }
+
+    private async Task AddNew()
+    {
+        var model = new SystemCodeDetailViewModel ();
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.ExtraSmall, FullWidth = true };
+        var parameters = new DialogParameters
+        {
+            { "Model", model }
+        };
+        var dialogRef = await DialogService.ShowAsync<CreateEditDetails>("Add system code details", parameters, options);
+        var state = await dialogRef.Result;
+        if (state is not null && !state.Canceled)
+        {
+            await Init();
+        }
+    }
+
+    private async Task Init(int? parentId = null, string detailName = null)
+    {
+        try
+        {
+            var query = _context.SystemCodeDetailsView.AsNoTracking();
+
+            if (!string.IsNullOrEmpty(detailName))
+            {
+                query = query.Where(d => d.Code.Contains(detailName));
+            }
+
+            if( parentId.HasValue)
+            {
+                query = query.Where(d => d.SystemCodeId == parentId.Value);
+            }
+
+            Elements = await query.ToListAsync();
+        }
+        catch (Exception ex)
+        {
+            LoadingService.Hide();
+            Snackbar.Add($"An unexpected error occurred: {(ex.InnerException is null ? ex.Message : ex.InnerException.Message)}", Severity.Error, config => { config.RequireInteraction = true; });
+            return;
+        }
+    }
+
+    private async Task Edit(SystemCodeDetailsView detail)
+    {
+        var model = _mapper.Map<SystemCodeDetailViewModel>(detail);
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.ExtraSmall, FullWidth = true };
+        var parameters = new DialogParameters
+        {
+            { "Model", model }
+        };
+        var dialogRef = await DialogService.ShowAsync<CreateEditDetails>("Edit system code details", parameters, options);
+        var state = await dialogRef.Result;
+        if (state is not null && !state.Canceled)
+        {
+            await Init();
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            var uri = Navigation.ToAbsoluteUri(Navigation.Uri);
+            var query = Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(uri.Query);
+
+            if (query.TryGetValue("openAdd", out var openAddValue) && openAddValue == "true" &&
+                query.TryGetValue("id", out var idValue) && int.TryParse(idValue, out int id))
+            {
+                await OpenAddDialog(id);
+            }
+        }
+    }
+}

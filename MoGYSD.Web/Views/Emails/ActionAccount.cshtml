@@ -1,0 +1,46 @@
+﻿@model MoGYSD.ViewModels.Email.ActionAccountEmail
+@{
+    Layout = "_Layout";
+}
+
+
+<p>
+    Dear @Model.FirstName,
+</p>
+@if (Model.Action.Equals("Approved"))
+{
+    <p>
+        Your NISSA MIS account has been approved. Your temporary password is <strong>@Model.Password</strong>.
+        Please log in to NISSA MIS using the following link: <a href="@Model.PortalLink">@Model.PortalLink</a>.
+        For your security, we recommend changing your password after your first login.
+    </p>
+
+}
+else if (Model.Action.Equals("Activate"))
+{
+    <p>
+        Your NISSA MIS account has been ACTIVATED. Login to NISSA MIS to continue using the service.
+    </p>
+
+}
+else if (Model.Action.Equals("Deactivate"))
+{
+    <p>
+        Your NISSA MIS account has been DEACTIVATED by your supervisor/system admin.
+    </p>
+
+}
+else if (Model.Action.Equals("Rejected"))
+{
+    <p>
+        Your NISSA MIS account has been REJECTED by your supervisor/system admin.
+    </p>
+
+}
+else if (Model.Action.Equals("Password"))
+{
+    <p>
+        Your account password has been set to <strong>@Model.Password</strong>
+    </p>
+
+}

@@ -1,0 +1,39 @@
+﻿@model MoGYSD.ViewModels.Email.ActionDistrictRegistrationEmail
+
+@{
+    Layout = "_Layout";
+}
+
+<p>Dear @Model.FirstName,</p>
+
+@if (Model.Action.Equals("Approved", StringComparison.OrdinalIgnoreCase))
+{
+    <p>
+        The <strong>District Registration Plan</strong> has been <strong>approved</strong>. You can now proceed with the implementation steps on the NISSA MIS platform.
+    </p>
+}
+else if (Model.Action.Equals("Closed", StringComparison.OrdinalIgnoreCase))
+{
+    <p>
+        The <strong>District Registration Plan</strong> has been <strong>closed</strong>. No further actions are required unless otherwise notified.
+    </p>
+}
+else if (Model.Action.Equals("SendBack", StringComparison.OrdinalIgnoreCase))
+{
+    <p>
+        The <strong>District Registration Plan</strong> has been <strong>sent back</strong> for revisions by your supervisor. Please review the feedback and make the necessary changes in NISSA MIS.
+    </p>
+}
+else if (Model.Action.Equals("InProgress", StringComparison.OrdinalIgnoreCase))
+{
+    <p>
+        The <strong>District Registration Plan</strong> is currently <strong>in progress</strong>. Please continue working on it and ensure all required information is updated in the NISSA MIS.
+    </p>
+}
+else if (Model.Action.Equals("Rejected", StringComparison.OrdinalIgnoreCase))
+{
+    <p>
+        The <strong>District Registration Plan</strong> has been <strong>sent back</strong> for revisions by your supervisor. Please review the feedback and make the necessary changes in NISSA MIS.
+    </p>
+    <p>@Model.Message</p>
+}

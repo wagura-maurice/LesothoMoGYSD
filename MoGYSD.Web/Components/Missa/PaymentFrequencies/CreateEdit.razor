@@ -1,0 +1,112 @@
+﻿@page "/payment-frequencies/add"
+@page "/payment-frequencies/edit/{Id:int}"
+
+@using MoGYSD.ViewModels.Missa.Programmes
+@using MoGYSD.Business.Models.Missa.ProgrammeConfiguration
+@inject ApplicationDbContext _context
+@inject NavigationManager Navigation
+@inject ISnackbar Snackbar
+@inject IMapper _mapper
+
+<PageTitle>@(Id.HasValue ? "Edit Payment Frequency" : "Add Payment Frequency")</PageTitle>
+
+<MudPaper Class="pa-4 mt-4" Elevation="3">
+    <MudForm @ref="form" Model="@Model">
+        <MudGrid>
+            <MudItem xs="12" sm="6">
+                <MudTextField Variant="Variant.Outlined" Label="Name" @bind-Value="Model.Name" Required="true" />
+            </MudItem>
+
+            <MudItem xs="12" sm="6">
+               <MudSelect  Variant="Variant.Outlined" T="int" Label="Frequency" @bind-Value="Model.FrequencyId" Required="true">
+                    @foreach (var freq in Frequencies)
+                    {
+                       <MudSelectItem Value="@freq.Id">@freq.Name</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+
+            <MudItem xs="12" sm="6">
+                <MudSwitch T="bool" @bind-Checked="Model.IsActive" Color="Color.Primary" Label="Is Active" />
+            </MudItem>
+
+
+            <MudItem xs="12" Class="d-flex justify-space-between mt-4">
+                <MudButton Variant="Variant.Text" OnClick="GoBack">Cancel</MudButton>
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Save">
+                    @(Model.Id == 0 ? "Save" : "Update")
+                </MudButton>
+            </MudItem>
+        </MudGrid>
+    </MudForm>
+</MudPaper>
+
+@code {
+    [Parameter] public int? Id { get; set; }
+
+    private MudForm form;
+    private PaymentFrequencyViewModels Model { get; set; } = new();
+    private List<LookupItemViewModel> Frequencies = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        Frequencies = await _context.SystemCodeDetailsView
+            .Where(s => s.ParentCode == "PaymentFrequency")
+            .Select(s => new LookupItemViewModel
+            {
+                Id = s.Id,
+                Name = s.Description
+            }).ToListAsync();
+
+        if (Id.HasValue)
+        {
+            var entity = await _context.PaymentFrequencies
+                // .Include(f => f.Frequency)
+                // .Include(f => f.CreatedBy)
+               // .Include(f => f.ModifiedBy)
+                .FirstOrDefaultAsync(x => x.Id == Id);
+
+            if (entity != null)
+            {
+                Model = _mapper.Map<PaymentFrequencyViewModels>(entity);
+                Model.FrequencyName = entity.Frequency?.Description;               
+            }
+        }
+    }
+
+    private async Task Save()
+    {
+        await form.Validate();
+
+        if (!form.IsValid)
+        {
+            Snackbar.Add("Please correct validation errors.", Severity.Warning);
+            return;
+        }
+
+        if (Model.Id == 0)
+        {
+            var entity = _mapper.Map<PaymentFrequencies>(Model);           
+            _context.PaymentFrequencies.Add(entity);
+            await _context.SaveChangesAsync();
+            Snackbar.Add("Payment Frequency created.", Severity.Success);
+        }
+        else
+        {
+            var existing = await _context.PaymentFrequencies.FindAsync(Model.Id);
+            if (existing != null)
+            {
+                _mapper.Map(Model, existing);               
+                _context.PaymentFrequencies.Update(existing);
+                await _context.SaveChangesAsync();
+                Snackbar.Add("Payment Frequency updated.", Severity.Success);
+            }
+        }
+
+        Navigation.NavigateTo("/payment-frequencies");
+    }
+
+    private void GoBack() => Navigation.NavigateTo("/payment-frequencies");
+
+    
+}

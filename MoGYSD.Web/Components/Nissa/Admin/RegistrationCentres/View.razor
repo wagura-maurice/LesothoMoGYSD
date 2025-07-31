@@ -1,0 +1,74 @@
+﻿@using MoGYSD.Business.Views.Nissa.Admin
+<MudDialog Class="blur dialog-background" TitleClass="blur dialog-background-title" ContentClass="dialog-background-surface py-10" ActionsClass="dialog-background-surface">
+    <DialogContent>
+        <MudForm Class="d-flex flex-column gap-2">
+            <MudPaper Class="pa-4">
+                <MudGrid>
+                    <MudItem xs="12" sm="6">
+                        <MudTextField Variant="Variant.Outlined" Label="District Name"
+                                      ReadOnly="true"
+                                      Value="@Model.DistrictName" />
+                    </MudItem>
+
+                    <MudItem xs="12" sm="6">
+                        <MudTextField Variant="Variant.Outlined" Label="Community Council Name"
+                                      ReadOnly="true"
+                                      Value="@Model.CommunityCouncilName" />
+                    </MudItem>
+                    <MudItem xs="12" sm="6">
+                        <MudTextField Variant="Variant.Outlined" Label="Registration Centre Name"
+                                      ReadOnly="true"
+                                      Value="@Model.RegistrationCentreName" />
+                    </MudItem>
+                    <MudItem xs="12" sm="6">
+                        <MudTextField Variant="Variant.Outlined" Label="RegistrationCentre Code"
+                                      ReadOnly="true"
+                                      Value="@Model.RegistrationCentreCode" />
+                    </MudItem>
+                    <MudItem xs="12" sm="6">
+                        <MudTextField Variant="Variant.Outlined" Label="Supervisor Name"
+                                      ReadOnly="true"
+                                      Value="@Model.SupervisorName" />
+                    </MudItem>
+                </MudGrid>
+            </MudPaper>
+            <MudPaper Class="pa-4">
+                <MudText Typo="Typo.h3" Class="mb-4"><b>Villages</b></MudText>
+                <MudGrid>
+                    @foreach (var village in VillageName)
+                    {
+                        <MudItem xs="12" sm="6" md="4">
+                            <MudCard Class="pa-2">
+                                <MudText Typo="Typo.body1">@village</MudText>
+                            </MudCard>
+                        </MudItem>
+                    }
+                </MudGrid>
+            </MudPaper>
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel"
+                   Variant="Variant.Text"
+                   Size="Size.Small"
+                   Class="ml-0">Cancel</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter]
+    private IMudDialogInstance Dialog { get; set; }
+    [Parameter] public RegistrationCentreVillageView Model { get; set; }
+    public List<string> VillageName = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        VillageName = await _context.RegistrationCentreVillageView
+        .Where(a => a.RegistrationCentreId == Model.RegistrationCentreId)
+        .Select(a => a.VillageName)
+        .ToListAsync();
+    }
+
+    private void Cancel() => Dialog.Cancel();
+
+}

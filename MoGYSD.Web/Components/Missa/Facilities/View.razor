@@ -1,0 +1,174 @@
+﻿@page "/facility/view/{Id:int}"
+
+@using MoGYSD.Business.Views.Missa.Setups
+@using MoGYSD.ViewModels.Missa.Setups
+@using System.Text.Json
+
+@inject IDbContextFactory<ApplicationDbContext> DbFactory
+@inject NavigationManager Navigation
+@inject ISnackbar Snackbar
+@inject IMapper _mapper
+
+@if (_isLoading)
+{
+    <div class="d-flex justify-center pa-10">
+        <MudProgressCircular Color="Color.Primary" Indeterminate="true" />
+    </div>
+}
+else if (Model != null)
+{
+    <MudGrid Class="mb-3" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween">
+        <MudItem xs="12" md="8">
+            <MudText Typo="Typo.h4" Class="font-weight-bold"><b>@HeaderText</b></MudText>
+        </MudItem>
+        <MudItem xs="12" md="4" Class="d-flex justify-start justify-md-end">
+            <MudBreadcrumbs Items="_breadcrumbItems" Class="custom-breadcrumb" />
+        </MudItem>
+    </MudGrid>
+
+    <MudPaper Class="pa-4 pa-md-6 mb-6" Elevation="3">
+        <MudCard Elevation="0">
+            <MudCardHeader>
+                <CardHeaderContent>
+                    <MudText Typo="Typo.h5"><b>Facility Details</b></MudText>
+                </CardHeaderContent>
+            </MudCardHeader>
+            <MudCardContent>
+                <MudGrid Spacing="3">
+                    <MudItem xs="12" sm="6" md="4">
+                        <MudText><b>Facility Code:</b> @Model.Code</MudText>
+                    </MudItem>
+                    <MudItem xs="12" sm="6" md="4">
+                        <MudText><b>Facility Name:</b> @Model.FacilityName</MudText>
+                    </MudItem>
+                    <MudItem xs="12" sm="6" md="4">
+                        <MudText><b>Facility Type:</b> @Model.FacilityTypeName</MudText>
+                    </MudItem>
+                    <MudItem xs="12" sm="6" md="4">
+                        <MudText><b>Category:</b> @Model.CategoryName</MudText>
+                    </MudItem>
+                    <MudItem xs="12" sm="6" md="4">
+                        <MudText><b>Identification Number:</b> @Model.IdentificationNumber</MudText>
+                    </MudItem>
+
+                    <MudItem xs="12" sm="6" md="4">
+                        <MudText><b>Class/ Grades:</b> @(Model.FacilityGrades != null && Model.FacilityGrades.Any() ? string.Join(", ", Model.FacilityGrades.Select(g => g.Code)) : "N/A")</MudText>
+                    </MudItem>
+
+                    <MudItem xs="12" sm="6" md="4">
+                        <MudText><b>Bank:</b> @Model.BankName</MudText>
+                    </MudItem>
+                    <MudItem xs="12" sm="6" md="4">
+                        <MudText><b>Account No:</b> @Model.AccountNo</MudText>
+                    </MudItem>
+                    <MudItem xs="12" sm="6" md="4">
+                        <MudText><b>Branch Code:</b> @Model.BranchCode</MudText>
+                    </MudItem>
+
+                    <MudItem xs="12" sm="6" md="4">
+                        <MudText><b>Head's Name:</b> @Model.HeadName</MudText>
+                    </MudItem>
+                    <MudItem xs="12" sm="6" md="4">
+                        <MudText><b>Head's Surname:</b> @Model.HeadSurname</MudText>
+                    </MudItem>
+                    <MudItem xs="12" sm="6" md="4">
+                        <MudText><b>Head's Phone Number:</b> +266 @Model.HeadPhoneNumber</MudText>
+                    </MudItem>
+                    <MudItem xs="12" sm="6" md="4">
+                        <MudText><b>Head's Email:</b> @(string.IsNullOrWhiteSpace(Model.HeadEmail) ? "N/A" : Model.HeadEmail)</MudText>
+                    </MudItem>
+                </MudGrid>
+            </MudCardContent>
+        </MudCard>
+    </MudPaper>
+
+    <MudPaper Class="pa-4 mt-6" Elevation="0">
+        <MudButton Variant="Variant.Filled"
+                   Color="Color.Secondary"
+                   OnClick="BackToList"
+                   StartIcon="@Icons.Material.Filled.ArrowBack">
+            Back to List
+        </MudButton>
+    </MudPaper>
+}
+else
+{
+    <MudAlert Severity="Severity.Error" Class="mt-4">The requested Facility could not be found.</MudAlert>
+    <MudButton Variant="Variant.Filled"
+               Color="Color.Secondary"
+               OnClick="BackToList"
+               StartIcon="@Icons.Material.Filled.ArrowBack"
+               Class="mt-4">
+        Back to List
+    </MudButton>
+}
+
+
+@code {
+    [Parameter]
+    public int Id { get; set; }
+
+    private FacilityView Model { get; set; }
+    private bool _isLoading = true;
+    private string HeaderText = "Facility Details";
+    private List<BreadcrumbItem> _breadcrumbItems = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        _isLoading = true;
+
+        await using var _context = await DbFactory.CreateDbContextAsync();
+
+        Model = await _context.Set<FacilityView>().AsNoTracking().FirstOrDefaultAsync(f => f.Id == Id);
+
+        if (Model == null)
+        {
+            _isLoading = false;
+            return;
+        }
+
+        if (!string.IsNullOrWhiteSpace(Model.FacilityGradesJson))
+        {
+            try
+            {
+                var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+                Model.FacilityGrades = JsonSerializer.Deserialize<List<GradeView>>(Model.FacilityGradesJson, options);
+            }
+            catch (JsonException ex)
+            {
+                Console.WriteLine($"Error deserializing grades for Facility ID {Id}: {ex.Message}");
+                Snackbar.Add($"Error loading grades for Facility ID {Id}.", Severity.Warning);
+                Model.FacilityGrades = new List<GradeView>();
+            }
+        }
+        else
+        {
+            Model.FacilityGrades = new List<GradeView>();
+        }
+
+
+        HeaderText = $"Details for {Model.FacilityName}";
+        UpdateBreadcrumbs();
+
+        _isLoading = false;
+        StateHasChanged();
+    }
+
+    private void UpdateBreadcrumbs()
+    {
+        _breadcrumbItems =
+        [
+            new("Home", href: "/", icon: Icons.Material.Filled.Home),
+            new("Settings", href: "/facility", icon: Icons.Material.Filled.Settings),
+            new("Facilities", href: "/facility"),
+            new(HeaderText, href: null, disabled: true)
+        ];
+    }
+
+    private void BackToList() => Navigation.NavigateTo("/facility");
+}

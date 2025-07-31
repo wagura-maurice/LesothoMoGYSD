@@ -1,0 +1,213 @@
+﻿@page "/admin/censusdata"
+@using MoGYSD.Business.Models.Nissa.Admin
+@using MoGYSD.Business.Views.Nissa.Admin
+@using MoGYSD.ViewModels.Nissa.Administration
+
+<PageTitle>Census Data</PageTitle>
+
+<MudGrid Class="mb-3" Justify="Justify.SpaceBetween">
+    <MudItem xs="12" md="6">
+        <MudText Typo="Typo.h2" Class="font-weight-bold"><b>Census Data</b></MudText>
+        <MudText>
+            Enables the creation, updating, and referencing of census data.
+        </MudText>
+    </MudItem>
+    <MudItem xs="12" md="6" Class="d-flex justify-end">
+        <MudBreadcrumbs Items="_breadcrumbItems" Class="custom-breadcrumb" />
+    </MudItem>
+</MudGrid>
+
+<MudExpansionPanels Elevation="1" Class="mt-2 mb-2">
+    <MudExpansionPanel Text="Expand to apply search filter">
+        <MudGrid>
+            <MudItem xs="12" md="6">
+                <DistrictAutocomplete Variant="Variant.Outlined" Label="Search by District Name" ResetValueOnEmptyText="true"
+                                      @bind-Value="_selectedDistrictCensusHHData"
+                                      Class="mb-3" />
+            </MudItem>
+            <MudItem xs="12" md="6">
+                <MudTextField Variant="Variant.Outlined" T="int?" @bind-Value="_year" For="@(() => _year)" Label="Census Year" Class="mb-2" />
+            </MudItem>
+        </MudGrid>
+        <div class="d-flex justify-content-between">
+            <MudButton Variant="Variant.Filled" Color="Color.Secondary" OnClick="OnClearClicked" Size="Size.Small">
+                Clear
+            </MudButton>
+
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="OnSearchClicked" Size="Size.Small">
+                Search
+            </MudButton>
+        </div>
+    </MudExpansionPanel>
+</MudExpansionPanels>
+
+
+<MudPaper Class="pa-4">
+    @if (UserProfileService.UserProfile.Contains("DISTRICT CENSUS DATA:CREATE"))
+    {
+        <MudButton EndIcon="@Icons.Material.Filled.Add" Class="pull-right top-add-button mb-2 mt-2" Variant="Variant.Filled"
+                   OnClick="AddNew" DropShadow="true" Color="Color.Primary">Add New</MudButton>        
+    }
+
+    <MudDataGrid T="DistrictCensusHHDataView" Items="data" Bordered="true" Dense="true" RowsPerPage="20">
+        <NoRecordsContent>
+            <MudText Typo="Typo.subtitle1" Class="my-4 text-muted text-center">
+                No Census data found. Try adjusting your filters.
+            </MudText>
+        </NoRecordsContent>
+        <ToolBarContent>
+            <MudText><b>Total District(s) in Census Data: @data.Count()</b></MudText>
+        </ToolBarContent>
+        <Columns>
+            <PropertyColumn Property="x => x.DistrictName" Title="District Name" />
+            <PropertyColumn Property="x => x.Year" Title="Census Year" />
+            <PropertyColumn Property="x => x.HouseholdData" Title="No. of Households" Format="N2" CellStyle="text-align: right;">
+                <FooterTemplate>
+                    <div style="text-align: right;">
+                        <MudText><b>Total: @data.Sum(x => x.HouseholdData).ToString("N2")</b></MudText>
+                    </div>
+                </FooterTemplate>
+            </PropertyColumn>
+            <PropertyColumn Property="x => x.PopulationData" Title="Population" CellStyle="text-align: right;" Format="N2">
+                <FooterTemplate>
+                    <div style="text-align: right;">
+                        <MudText><b>Total: @data.Sum(x => x.PopulationData).ToString("N2")</b></MudText>
+                    </div>
+                </FooterTemplate>
+            </PropertyColumn>
+        
+            <TemplateColumn Title="Edit">
+                <CellTemplate>
+                    @if (UserProfileService.UserProfile.Contains("DISTRICT CENSUS DATA:MODIFY"))
+                    {
+                        <MudStack Row="true" Spacing="1" AlignItems="AlignItems.Center">
+                            <MudIconButton Class="table-action-item" Icon="@Icons.Material.Filled.Edit" Color="Color.Secondary" OnClick="@(() => Edit(context.Item))" />
+                        </MudStack>                        
+                    }
+                </CellTemplate>
+            </TemplateColumn>
+        </Columns>
+
+        <PagerContent>
+            <MudDataGridPager T="DistrictCensusHHDataView" />
+        </PagerContent>
+    </MudDataGrid>
+</MudPaper>
+
+@code {
+    private IEnumerable<DistrictCensusHHDataView> data = new List<DistrictCensusHHDataView>();
+    private List<DistrictCensusHHData> _allDistrictCensusHHDatas = new();
+    private int? _selectedDistrictCensusHHData;
+    private int? _year;
+    private bool _isLoading = false;
+
+    private List<BreadcrumbItem> _breadcrumbItems =
+    [
+        new("Home", href: "/", icon: Icons.Material.Filled.Home),
+        new("Settings", href: null, icon: Icons.Material.Filled.Settings),
+        new("CensusData", href: null, disabled: true, icon: Icons.Material.Filled.Flag)
+    ];
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Init();
+    }
+
+    private async Task OnSearchClicked()
+    {
+        await Init(_selectedDistrictCensusHHData, _year);
+    }
+
+    private async Task OnClearClicked()
+    {
+        _selectedDistrictCensusHHData = null;
+        _year = null;
+        await Init();
+    }
+
+    private async Task ApplyFilter(int? id)
+    {
+        if (_isLoading) return;
+        if (id == null)
+        {
+            _isLoading = true;
+            _selectedDistrictCensusHHData = null;
+            // Reload all data or reset filter
+            await Init(); // no filter
+        }
+        else
+        {
+            _isLoading = true;
+
+            // Apply filter
+            await Init(id);
+        }
+
+    }
+
+    private async Task Init(int? districtid = null, int? year = null)
+    {
+        try
+        {
+            var query = _context.DistrictCensusHHDataView.AsNoTracking();
+
+            if (districtid != null)
+            {
+                query = query.Where(d => d.DistrictId == districtid);
+            }
+
+            if (_year != null)
+            {
+                query = query.Where(d => d.Year == year);
+            }
+
+            data = await query.OrderBy(d => d.Id).ToListAsync();
+
+        }
+        catch (Exception ex)
+        {
+            LoadingService.Hide();
+            Snackbar.Add($"An unexpected error occurred: {(ex.InnerException is null ? ex.Message : ex.InnerException.Message)}", Severity.Error, config => { config.RequireInteraction = true; });
+            return;
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+        // StateHasChanged();
+    }
+
+    private async Task AddNew()
+    {
+        var model = new DistrictCensusHHDataViewModel();
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Small, FullWidth = true };
+        var parameters = new DialogParameters
+        {
+            { "Model", model }
+        };
+        var dialogRef = await DialogService.ShowAsync<CreateEdit>("Add Census Data", parameters, options);
+        var state = await dialogRef.Result;
+        if (state is not null && !state.Canceled)
+        {
+            await Init();
+        }
+
+    }
+
+    private async Task Edit(DistrictCensusHHDataView modelDistrictCensusHHData)
+    {
+        var model = _mapper.Map<DistrictCensusHHDataViewModel>(modelDistrictCensusHHData);
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Small, FullWidth = true };
+        var parameters = new DialogParameters
+        {
+            { "Model", model }
+        };
+        var dialogRef = await DialogService.ShowAsync<CreateEdit>("Edit Census Data", parameters, options);
+        var state = await dialogRef.Result;
+        if (state is not null && !state.Canceled)
+        {
+            await Init();
+        }
+    }
+
+}
