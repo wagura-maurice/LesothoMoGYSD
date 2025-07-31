@@ -16,9 +16,11 @@ namespace MoGYSD.Selenium.Utils
         protected IWebDriver Driver { get; private set; } = null!;
         protected IConfiguration Configuration { get; } = null!;
         protected string BaseUrl => Configuration["AppSettings:BaseUrl"] ?? throw new InvalidOperationException("BaseUrl is not configured in appsettings.json");
+        protected TestContext TestContext { get; set; } = null!;
 
-        public TestBase()
+        public TestBase(TestContext testContext = null)
         {
+            TestContext = testContext ?? TestContext.CurrentContext;
             // Setup configuration
             Configuration = new ConfigurationBuilder()
                 .AddJsonFile("appsettings.json")
@@ -86,7 +88,7 @@ namespace MoGYSD.Selenium.Utils
             var service = ChromeDriverService.CreateDefaultService();
             service.HideCommandPromptWindow = true;
             service.EnableVerboseLogging = true;
-            service.LogPath = "chromedriver.log";
+            service.LogPath = Path.Combine(TestContext.TestRunResultsDirectory, "chromedriver.log");
             service.EnableAppendLog = true;
             
             // Add environment variables if needed
@@ -102,25 +104,40 @@ namespace MoGYSD.Selenium.Utils
                 int maxRetries = 3;
                 int retryCount = 0;
                 bool success = false;
+                Exception lastException = null;
 
                 while (!success && retryCount < maxRetries)
                 {
                     try
                     {
+                        Console.WriteLine($"Initializing ChromeDriver (attempt {retryCount + 1}/{maxRetries})...");
                         Driver = new ChromeDriver(service, options);
+                        
+                        // Verify the driver is working
+                        Driver.Manage().Timeouts().ImplicitWait = TimeSpan.FromSeconds(5);
+                        Driver.Navigate().GoToUrl("about:blank");
+                        
                         success = true;
+                        Console.WriteLine("ChromeDriver initialized successfully");
                     }
-                    catch (WebDriverException ex) when (ex.Message.Contains("session not created") && retryCount < maxRetries - 1)
+                    catch (Exception ex) when (retryCount < maxRetries - 1)
                     {
+                        lastException = ex;
                         retryCount++;
-                        Console.WriteLine($"WebDriver initialization failed, retry {retryCount}/{maxRetries}");
-                        Thread.Sleep(1000); // Wait before retry
+                        Console.WriteLine($"WebDriver initialization failed: {ex.Message}");
+                        Console.WriteLine($"Retrying in 2 seconds... (attempt {retryCount + 1}/{maxRetries})");
+                        Thread.Sleep(2000); // Wait before retry
+                        
+                        // Clean up any remaining Chrome processes
+                        try { Driver?.Quit(); } catch { }
+                        try { Driver?.Dispose(); } catch { }
+                        Driver = null;
                     }
                 }
 
                 if (!success)
                 {
-                    throw new InvalidOperationException("Failed to initialize ChromeDriver after multiple attempts");
+                    throw new InvalidOperationException("Failed to initialize ChromeDriver after multiple attempts", lastException);
                 }
 
                 // Configure timeouts
