@@ -33,32 +33,30 @@ jobs:
       
     - name: Install Chrome and ChromeDriver
       run: |
-        # Install Chrome from official Google repository
-        wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | sudo apt-key add -
-        echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" | sudo tee /etc/apt/sources.list.d/google-chrome.list
+        # Install dependencies
         sudo apt-get update
-        sudo apt-get install -y google-chrome-stable
+        sudo apt-get install -y wget unzip
         
-        # Get installed Chrome version
-        CHROME_VERSION=$(google-chrome --version | grep -oP '\d+\.\d+\.\d+(\.\d+)?' | head -1)
-        echo "Installed Chrome version: $CHROME_VERSION"
+        # Install Chrome for Testing (CfT)
+        echo "Installing Chrome for Testing..."
+        CHROME_VERSION=$(curl -s "https://googlechromelabs.github.io/chrome-for-testing/last-known-good-versions.json" | jq -r '.channels.Stable.version')
+        echo "Latest stable Chrome for Testing version: $CHROME_VERSION"
         
-        # Install ChromeDriver that matches the Chrome version
-        CHROME_MAJOR_VERSION=$(echo $CHROME_VERSION | cut -d. -f1)
-        echo "Chrome major version: $CHROME_MAJOR_VERSION"
+        # Download and install Chrome
+        wget -q "https://edgedl.me.gvt1.com/edgedl/chrome/chrome-for-testing/$CHROME_VERSION/linux64/chrome-linux64.zip"
+        unzip -q chrome-linux64.zip
+        sudo mv chrome-linux64 /opt/chrome
+        sudo ln -s /opt/chrome/chrome /usr/local/bin/chrome
         
-        # Install ChromeDriver
-        wget -q https://chromedriver.storage.googleapis.com/LATEST_RELEASE_$CHROME_MAJOR_VERSION -O chromedriver-version.txt
-        CHROMEDRIVER_VERSION=$(cat chromedriver-version.txt)
-        echo "Installing ChromeDriver version: $CHROMEDRIVER_VERSION"
-        
-        wget -q https://chromedriver.storage.googleapis.com/$CHROMEDRIVER_VERSION/chromedriver_linux64.zip
-        unzip chromedriver_linux64.zip
-        sudo mv chromedriver /usr/local/bin/
+        # Download and install ChromeDriver
+        echo "Installing ChromeDriver $CHROME_VERSION..."
+        wget -q "https://edgedl.me.gvt1.com/edgedl/chrome/chrome-for-testing/$CHROME_VERSION/linux64/chromedriver-linux64.zip"
+        unzip -q chromedriver-linux64.zip
+        sudo mv chromedriver-linux64/chromedriver /usr/local/bin/
         sudo chmod +x /usr/local/bin/chromedriver
         
         # Verify installations
-        echo "Chrome version: $(google-chrome --version)"
+        echo "Chrome version: $(/opt/chrome/chrome --version)"
         echo "ChromeDriver version: $(chromedriver --version)"
         
     - name: Create appsettings.json
@@ -86,7 +84,8 @@ jobs:
     - name: Run tests
       working-directory: MoGYSD.Selenium
       env:
-        PATH: ${{ env.PATH }}:/usr/local/bin
+        PATH: ${{ env.PATH }}:/opt/chrome:/usr/local/bin
+        CHROME_PATH: /opt/chrome/chrome
         CHROMEWEBDRIVER: /usr/local/bin
       run: |
         echo "Running tests with:"
