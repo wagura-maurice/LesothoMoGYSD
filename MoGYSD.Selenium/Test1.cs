@@ -6,7 +6,7 @@ namespace MoGYSD.Selenium.Tests
 {
     [TestClass]
     public class Test1 : TestBase
-{
+    {
     [TestMethod]
     public void Admin_Can_Login_Successfully()
     {
@@ -38,4 +38,4 @@ namespace MoGYSD.Selenium.Tests
         }
     }
 }
-
+}
