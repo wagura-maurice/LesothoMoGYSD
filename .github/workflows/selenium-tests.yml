@@ -3,36 +3,40 @@ name: Selenium UI Tests
 on:
   push:
     branches: [ "main" ]
+    paths:
+      - 'MoGYSD.Selenium/**'
+      - '.github/workflows/selenium-tests.yml'
   pull_request:
     branches: [ "main" ]
+    paths:
+      - 'MoGYSD.Selenium/**'
+      - '.github/workflows/selenium-tests.yml'
 
 env:
   DOTNET_VERSION: '9.0.x'
-  NODE_VERSION: '20.x'
+  CHROME_VERSION: 'latest'
 
 jobs:
   test:
+    name: Run Selenium Tests
     runs-on: ubuntu-latest
+    timeout-minutes: 30
 
     steps:
-    - uses: actions/checkout@v3
+    - name: Checkout code
+      uses: actions/checkout@v4
     
     - name: Setup .NET
-      uses: actions/setup-dotnet@v3
+      uses: actions/setup-dotnet@v4
       with:
         dotnet-version: ${{ env.DOTNET_VERSION }}
-        
-    - name: Setup Chrome
-      uses: browser-actions/setup-chromedriver@v1
-      with:
-        # Using the latest stable Chrome version
-        chrome-version: 'latest'
+        cache: true
       
     - name: Install Chrome
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y google-chrome-stable
-
+      uses: browser-actions/setup-chrome@v1
+      with:
+        chrome-version: ${{ env.CHROME_VERSION }}
+      
     - name: Create appsettings.json
       run: |
         mkdir -p MoGYSD.Selenium
@@ -46,26 +50,52 @@ jobs:
           }
         }
         EOF
+        
+    - name: Setup ChromeDriver
+      uses: nanasess/setup-chromedriver@v2
+      with:
+        # Optional: ensure the installed ChromeDriver version matches the installed Chrome
+        # This step handles the ChromeDriver setup automatically
+        matching-chromedriver-version: true
 
-    - name: Restore dependencies
+    - name: Install dependencies
       working-directory: MoGYSD.Selenium
       run: dotnet restore
       
     - name: Build
       working-directory: MoGYSD.Selenium
-      run: dotnet build --no-restore
+      run: dotnet build --no-restore --configuration Release
       
-    - name: Test
+    - name: Test with logging
       working-directory: MoGYSD.Selenium
-      run: dotnet test --no-build --verbosity normal --logger "console;verbosity=detailed" --collect:"XPlat Code Coverage"
+      run: |
+        mkdir -p TestResults
+        dotnet test --no-build --configuration Release \
+          --logger "console;verbosity=detailed" \
+          --logger "trx;LogFileName=test-results.trx" \
+          --results-directory TestResults \
+          --collect:"XPlat Code Coverage"
       env:
-        CHROMEWEBDRIVER: /usr/local/share/chromedriver-linux64
+        # Required for Chrome to find ChromeDriver
         PATH: ${{ env.PATH }}:/usr/local/share/chromedriver-linux64
+        # Required for Chrome to run in container
+        CHROMEWEBDRIVER: /usr/local/share/chromedriver-linux64
       
     - name: Upload test results
       if: always()
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: test-results
-        path: MoGYSD.Selenium/TestResults/
-        retention-days: 5
+        path: |
+          MoGYSD.Selenium/TestResults/**/*.trx
+          MoGYSD.Selenium/TestResults/**/*.cobertura.xml
+          MoGYSD.Selenium/TestResults/**/coverage.json
+        retention-days: 7
+      
+    - name: Upload screenshots on failure
+      if: failure()
+      uses: actions/upload-artifact@v4
+      with:
+        name: test-screenshots
+        path: MoGYSD.Selenium/TestResults/**/Screenshots/*
+        retention-days: 7
