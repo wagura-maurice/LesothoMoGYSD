@@ -81,6 +81,9 @@ jobs:
 
     # Chrome and ChromeDriver are now installed in the previous step
       
+    - name: Install which command
+      run: sudo apt-get update && sudo apt-get install -y which
+
     - name: Run tests
       working-directory: MoGYSD.Selenium
       env:
@@ -88,10 +91,18 @@ jobs:
         CHROME_PATH: /opt/chrome/chrome
         CHROMEWEBDRIVER: /usr/local/bin
       run: |
-        echo "Running tests with:"
-        echo "Chrome path: $(which google-chrome)"
-        echo "ChromeDriver path: $(which chromedriver)"
-        dotnet test --no-build --verbosity normal --configuration Release --logger "GitHubActions;displayName=Test {DisplayName} ({FullyQualifiedName})"
+        echo "=== Environment ==="
+        echo "PATH: $PATH"
+        echo "CHROME_PATH: $CHROME_PATH"
+        echo "CHROMEWEBDRIVER: $CHROMEWEBDRIVER"
+        echo "=== Binaries ==="
+        ls -la /opt/chrome/chrome
+        ls -la /usr/local/bin/chromedriver
+        echo "=== Versions ==="
+        /opt/chrome/chrome --version
+        chromedriver --version
+        echo "=== Running Tests ==="
+        dotnet test --no-build --verbosity normal --configuration Release --logger "console;verbosity=normal"
       
     - name: Upload test results
       if: always()
