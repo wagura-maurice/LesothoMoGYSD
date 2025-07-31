@@ -86,9 +86,15 @@ jobs:
         sudo apt-get update
         sudo apt-get install -y coreutils procps
         
-    - name: Run tests
+    - name: Install additional dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y xvfb libxss1 libnss3 libasound2 libgbm1 libgtk-3-0
+        
+    - name: Run tests with xvfb
       working-directory: MoGYSD.Selenium
       env:
+        DISPLAY: :99
         PATH: /usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/opt/chrome:/usr/local/bin
         CHROME_PATH: /opt/chrome/chrome
         CHROMEWEBDRIVER: /usr/local/bin
@@ -98,10 +104,18 @@ jobs:
         echo "CHROME_PATH: $CHROME_PATH"
         echo "CHROMEWEBDRIVER: $CHROMEWEBDRIVER"
         
+        # Start Xvfb
+        Xvfb :99 -screen 0 1920x1080x24 &
+        
+        echo "=== System Dependencies ==="
+        ldd --version
+        dpkg -l | grep -E 'libxss1|libnss3|libasound2|libgbm1|libgtk-3-0'
+        
         echo "=== Chrome Version ==="
         if [ -f "$CHROME_PATH" ]; then
           $CHROME_PATH --version
           ls -la $CHROME_PATH
+          ldd $CHROME_PATH || true
         else
           echo "Chrome not found at $CHROME_PATH"
         fi
@@ -110,12 +124,42 @@ jobs:
         if command -v chromedriver &> /dev/null; then
           chromedriver --version
           which chromedriver
+          ldd $(which chromedriver) || true
         else
           echo "ChromeDriver not found in PATH"
         fi
         
         echo "=== Running Tests ==="
-        dotnet test --no-build --verbosity normal --configuration Release --logger "console;verbosity=normal"
+        set -x  # Enable debug output
+        export DOTNET_CLI_TELEMETRY_OPTOUT=1
+        export DOTNET_NOLOGO=true
+        
+        # Run tests with detailed logging
+        dotnet test --no-build \
+          --configuration Release \
+          --logger "console;verbosity=detailed" \
+          --blame-hang \
+          --blame-hang-timeout 5m \
+          --diag test_logs.txt \
+          -- RunConfiguration.DotNetTestManagerDebug=true \
+             RunConfiguration.DebugType=portable \
+             RunConfiguration.TargetPlatform=x64 \
+             RunConfiguration.TargetArchitecture=x64
+        
+        # Print test logs if tests fail
+        if [ $? -ne 0 ]; then
+          echo "=== Test Execution Failed ==="
+          echo "=== Test Logs ==="
+          cat test_logs.txt || true
+          
+          # Try to get process list
+          echo "=== Running Processes ==="
+          ps aux || true
+          
+          # Check for Chrome processes
+          echo "=== Chrome Processes ==="
+          pgrep -a chrome || true
+        fi
       
     - name: Upload test results
       if: always()
