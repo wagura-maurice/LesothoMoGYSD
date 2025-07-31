@@ -89,7 +89,18 @@ jobs:
     - name: Install additional dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y xvfb libxss1 libnss3 libasound2 libgbm1 libgtk-3-0
+        # Install individual packages with fallback for Ubuntu 24.04
+        sudo apt-get install -y xvfb libxss1 libnss3 libgbm1 libgtk-3-0
+        # Try to install libasound2 or fallback to libasound2t64
+        sudo apt-get install -y libasound2 || sudo apt-get install -y libasound2t64 || true
+        # Install other common dependencies
+        sudo apt-get install -y libx11-xcb1 libxcomposite1 libxdamage1 libxext6 \
+                               libxfixes3 libxrandr2 libxrender1 libxtst6 \
+                               libatk-bridge2.0-0 libatk1.0-0 libcups2 \
+                               libdrm2 libxkbcommon0 libxshmfence1 \
+                               libxcb-dri3-0 libxcb1 libxcb-randr0 \
+                               libxcb-xfixes0 libxcb-xinerama0 libxcb-xtest0 \
+                               libxcb-shm0 libxcb-dri2-0
         
     - name: Run tests with xvfb
       working-directory: MoGYSD.Selenium
