@@ -1,0 +1,71 @@
+name: Selenium UI Tests
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+env:
+  DOTNET_VERSION: '9.0.x'
+  NODE_VERSION: '20.x'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v3
+      with:
+        dotnet-version: ${{ env.DOTNET_VERSION }}
+        
+    - name: Setup Chrome
+      uses: browser-actions/setup-chromedriver@v1
+      with:
+        # Using the latest stable Chrome version
+        chrome-version: 'latest'
+      
+    - name: Install Chrome
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y google-chrome-stable
+
+    - name: Create appsettings.json
+      run: |
+        mkdir -p MoGYSD.Selenium
+        cat > MoGYSD.Selenium/appsettings.json << 'EOF'
+        {
+          "AppSettings": {
+            "BaseUrl": "${{ secrets.APP_BASE_URL }}",
+            "AdminUsername": "${{ secrets.ADMIN_USERNAME }}",
+            "AdminPassword": "${{ secrets.ADMIN_PASSWORD }}",
+            "Headless": "true"
+          }
+        }
+        EOF
+
+    - name: Restore dependencies
+      working-directory: MoGYSD.Selenium
+      run: dotnet restore
+      
+    - name: Build
+      working-directory: MoGYSD.Selenium
+      run: dotnet build --no-restore
+      
+    - name: Test
+      working-directory: MoGYSD.Selenium
+      run: dotnet test --no-build --verbosity normal --logger "console;verbosity=detailed" --collect:"XPlat Code Coverage"
+      env:
+        CHROMEWEBDRIVER: /usr/local/share/chromedriver-linux64
+        PATH: ${{ env.PATH }}:/usr/local/share/chromedriver-linux64
+      
+    - name: Upload test results
+      if: always()
+      uses: actions/upload-artifact@v3
+      with:
+        name: test-results
+        path: MoGYSD.Selenium/TestResults/
+        retention-days: 5
