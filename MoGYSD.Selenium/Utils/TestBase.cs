@@ -34,14 +34,23 @@ namespace MoGYSD.Selenium.Utils
             options.AddArgument("--disable-gpu");
             options.AddArgument("--disable-extensions");
             options.AddArgument("--disable-notifications");
+            options.AddArgument("--remote-debugging-port=9222");
+            options.AddArgument("--disable-software-rasterizer");
+            options.AddArgument("--disable-features=VizDisplayCompositor");
+            options.AddArgument("--disable-blink-features=AutomationControlled");
 
             if (bool.Parse(Configuration["AppSettings:Headless"] ?? "true"))
             {
                 options.AddArgument("--headless=new");
                 options.AddArgument("--window-size=1920,1080");
             }
-            
-            Driver = new ChromeDriver(options);
+
+            // Set up ChromeDriver service
+            var service = ChromeDriverService.CreateDefaultService();
+            service.HideCommandPromptWindow = true;
+
+            Driver = new ChromeDriver(service, options);
+            Driver.Manage().Timeouts().PageLoad = TimeSpan.FromSeconds(30);
             Driver.Manage().Timeouts().ImplicitWait = TimeSpan.FromSeconds(10);
         }
 
@@ -60,21 +69,14 @@ namespace MoGYSD.Selenium.Utils
 
         public TestContext? TestContext { get; set; }
 
-        protected void TakeScreenshot(string testName)
+        protected void TakeScreenshot(string fileName)
         {
             try
             {
                 var screenshot = ((ITakesScreenshot)Driver).GetScreenshot();
-                var fileName = $"{DateTime.Now:yyyyMMddHHmmss}_{testName}.png";
-                var directory = Path.Combine(AppContext.BaseDirectory, "Screenshots");
-                Directory.CreateDirectory(directory);
-                var filePath = Path.Combine(directory, fileName);
-screenshot.SaveAsFile(filePath);
-                
-                if (TestContext != null)
-                {
-                    TestContext.AddResultFile(filePath);
-                }
+                var filePath = Path.Combine(TestContext.TestRunResultsDirectory, $"{fileName}_{DateTime.Now:yyyyMMddHHmmss}.png");
+                screenshot.SaveAsFile(filePath);
+                TestContext.AddResultFile(filePath);
             }
             catch (Exception ex)
             {
