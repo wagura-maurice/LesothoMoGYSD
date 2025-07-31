@@ -28,13 +28,65 @@ Blazor Server was selected because of:
 
 ## 🗂️ Project Structure
 
+### Solution Projects
+
+#### 1. MoGYSD.Business
+- **Core Purpose**: Contains the business logic and domain models
+- **Key Responsibilities**:
+  - Business rules and validations
+  - Domain entities and models
+  - Business workflows and processes
+  - Interfaces for services
+  - Data access abstractions
+
+#### 2. MoGYSD.Services
+- **Core Purpose**: Implements application services and infrastructure
+- **Key Responsibilities**:
+  - Service layer implementations
+  - Cross-cutting concerns (logging, caching, etc.)
+  - External service integrations
+  - Email services
+  - File handling (PDF/Excel exports)
+  - Repository pattern implementation
+
+#### 3. MoGYSD.ViewModels
+- **Core Purpose**: Data transfer objects between UI and business logic
+- **Key Responsibilities**:
+  - View-specific data models
+  - Data validation attributes
+  - Data transformation (mapping to/from domain models)
+  - API request/response models
+  - Organized by feature/module
+
+#### 4. MoGYSD.Web
+- **Core Purpose**: User interface and API layer
+- **Key Responsibilities**:
+  - Blazor Server UI components
+  - API controllers
+  - Authentication/authorization
+  - Request/response handling
+  - Dependency injection configuration
+  - Client-side validation
+  - UI state management
+
+### How They Work Together:
+1. **Web** receives HTTP requests
+2. **ViewModels** validate and structure the incoming data
+3. **Business** processes the request using business rules
+4. **Services** handle data access and external integrations
+5. The response flows back through the layers to the UI
+
+---
+
+### Directory Structure
+
 ```plaintext
 📦 MISSA-NISSA
-├── 📁 Business
-├── 📁 Services
-├── 📁 ViewModels
-└── 📁 Web
----
+├── 📁 MoGYSD.Business     # Business logic and domain models
+├── 📁 MoGYSD.Services     # Application services and infrastructure
+├── 📁 MoGYSD.ViewModels   # Data transfer objects and validation
+└── 📁 MoGYSD.Web          # Web UI and API layer
+```
 
 ---
 
