@@ -17,16 +17,33 @@ namespace MoGYSD.Selenium.Pages
             BaseUrl = baseUrl.TrimEnd('/');
             Wait = new WebDriverWait(driver, TimeSpan.FromSeconds(10));
         }
-
+        
         protected void WaitForPageLoad()
         {
+            // Wait for document.readyState
             Wait.Until(driver => 
                 ((IJavaScriptExecutor)driver).ExecuteScript("return document.readyState").Equals("complete"));
+            
+            // Additional wait for jQuery if it's used
+            try 
+            {
+                Wait.Until(driver => (bool)((IJavaScriptExecutor)driver)
+                    .ExecuteScript("return (window.jQuery != null) && (jQuery.active === 0)"));
+            }
+            catch (Exception)
+            {
+                // jQuery not available, continue
+            }
         }
 
-        protected void WaitForElement(By by)
+        protected IWebElement WaitForElement(By by, int timeoutInSeconds = 10)
         {
-            Wait.Until(ExpectedConditions.ElementIsVisible(by));
+            var wait = new WebDriverWait(Driver, TimeSpan.FromSeconds(timeoutInSeconds));
+            return wait.Until(driver => 
+            {
+                var element = driver.FindElement(by);
+                return (element != null && element.Displayed && element.Enabled) ? element : null;
+            });
         }
     }
 }

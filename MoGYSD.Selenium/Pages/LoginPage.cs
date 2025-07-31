@@ -22,10 +22,16 @@ namespace MoGYSD.Selenium.Pages
 
         public void Login(string username, string password)
         {
-            WaitForElement(_usernameField);
-            Driver.FindElement(_usernameField).SendKeys(username);
-            Driver.FindElement(_passwordField).SendKeys(password);
-            Driver.FindElement(_loginButton).Click();
+            var usernameField = WaitForElement(_usernameField);
+            var passwordField = WaitForElement(_passwordField);
+            var loginButton = WaitForElement(_loginButton);
+            
+            usernameField.Clear();
+            usernameField.SendKeys(username);
+            passwordField.Clear();
+            passwordField.SendKeys(password);
+            loginButton.Click();
+            
             WaitForPageLoad();
         }
 
