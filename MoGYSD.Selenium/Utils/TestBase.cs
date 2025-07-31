@@ -29,29 +29,90 @@ namespace MoGYSD.Selenium.Utils
             // new DriverManager().SetUpDriver(new ChromeConfig());
             // In TestBase.cs constructor, update the Chrome options setup:
             var options = new ChromeOptions();
+            
+            // Basic arguments
             options.AddArgument("--no-sandbox");
             options.AddArgument("--disable-dev-shm-usage");
             options.AddArgument("--disable-gpu");
             options.AddArgument("--disable-extensions");
             options.AddArgument("--disable-notifications");
-            options.AddArgument("--remote-debugging-port=9222");
+            options.AddArgument("--remote-debugging-port=0"); // Use random port
             options.AddArgument("--disable-software-rasterizer");
             options.AddArgument("--disable-features=VizDisplayCompositor");
             options.AddArgument("--disable-blink-features=AutomationControlled");
+            options.AddArgument("--disable-background-networking");
+            options.AddArgument("--disable-background-timer-throttling");
+            options.AddArgument("--disable-backgrounding-occluded-windows");
+            options.AddArgument("--disable-breakpad");
+            options.AddArgument("--disable-client-side-phishing-detection");
+            options.AddArgument("--disable-default-apps");
+            options.AddArgument("--disable-hang-monitor");
+            options.AddArgument("--disable-popup-blocking");
+            options.AddArgument("--disable-prompt-on-repost");
+            options.AddArgument("--disable-sync");
+            options.AddArgument("--disable-web-resources");
+            options.AddArgument("--enable-automation");
+            options.AddArgument("--metrics-recording-only");
+            options.AddArgument("--no-first-run");
+            options.AddArgument("--password-store=basic");
+            options.AddArgument("--use-mock-keychain");
+            options.AddArgument("--single-process");
+            options.AddArgument("--disable-renderer-backgrounding");
+            options.AddArgument("--disable-renderer-throttling");
+            options.AddArgument("--remote-allow-origins=*");
 
+            // Headless mode configuration
             if (bool.Parse(Configuration["AppSettings:Headless"] ?? "true"))
             {
                 options.AddArgument("--headless=new");
                 options.AddArgument("--window-size=1920,1080");
+                options.AddArgument("--disable-gpu-sandbox");
+                options.AddArgument("--no-zygote");
             }
 
             // Set up ChromeDriver service
             var service = ChromeDriverService.CreateDefaultService();
             service.HideCommandPromptWindow = true;
+            service.EnableVerboseLogging = true;
+            service.EnableAppendLog = true;
 
-            Driver = new ChromeDriver(service, options);
-            Driver.Manage().Timeouts().PageLoad = TimeSpan.FromSeconds(30);
-            Driver.Manage().Timeouts().ImplicitWait = TimeSpan.FromSeconds(10);
+            try
+            {
+                // Initialize ChromeDriver with retry logic
+                int maxRetries = 3;
+                int retryCount = 0;
+                bool success = false;
+
+                while (!success && retryCount < maxRetries)
+                {
+                    try
+                    {
+                        Driver = new ChromeDriver(service, options);
+                        success = true;
+                    }
+                    catch (WebDriverException ex) when (ex.Message.Contains("session not created") && retryCount < maxRetries - 1)
+                    {
+                        retryCount++;
+                        Console.WriteLine($"WebDriver initialization failed, retry {retryCount}/{maxRetries}");
+                        Thread.Sleep(1000); // Wait before retry
+                    }
+                }
+
+                if (!success)
+                {
+                    throw new InvalidOperationException("Failed to initialize ChromeDriver after multiple attempts");
+                }
+
+                // Configure timeouts
+                Driver.Manage().Timeouts().PageLoad = TimeSpan.FromSeconds(60);
+                Driver.Manage().Timeouts().ImplicitWait = TimeSpan.FromSeconds(10);
+                Driver.Manage().Window.Maximize();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error initializing WebDriver: {ex}");
+                throw;
+            }
         }
 
         public void Dispose()
