@@ -31,11 +31,16 @@ jobs:
       with:
         dotnet-version: ${{ env.DOTNET_VERSION }}
       
-    - name: Install Chrome
+    - name: Install Chrome and ChromeDriver
       uses: browser-actions/setup-chrome@v1
       with:
-        chrome-version: ${{ env.CHROME_VERSION }}
-      
+        chrome-version: 'latest-stable'
+    
+    - name: Verify Chrome installation
+      run: |
+        google-chrome --version
+        chromedriver --version
+        
     - name: Create appsettings.json
       run: |
         mkdir -p MoGYSD.Selenium
@@ -56,8 +61,10 @@ jobs:
         dotnet restore --no-cache
         dotnet build --no-restore --configuration Release
 
-    - name: Set up Chrome
-      uses: browser-actions/setup-chrome@v1
+    - name: Set Chrome binary path
+      run: |
+        echo "CHROME_PATH=$(which google-chrome)" >> $GITHUB_ENV
+        echo "CHROMEDRIVER_PATH=$(which chromedriver)" >> $GITHUB_ENV
       with:
         chrome-version: 'latest'
         
@@ -73,7 +80,14 @@ jobs:
       
     - name: Run tests
       working-directory: MoGYSD.Selenium
-      run: dotnet test --no-build --configuration Release --verbosity normal --logger "console;verbosity=detailed"
+      env:
+        CHROME_PATH: ${{ env.CHROME_PATH }}
+        CHROMEDRIVER_PATH: ${{ env.CHROMEDRIVER_PATH }}
+      run: |
+        echo "Running tests with:"
+        echo "Chrome path: $CHROME_PATH"
+        echo "ChromeDriver path: $CHROMEDRIVER_PATH"
+        dotnet test --no-build --verbosity normal --configuration Release --logger "GitHubActions;displayName=Test {DisplayName} ({FullyQualifiedName})"
       env:
         PATH: ${{ env.PATH }}:/usr/local/share/chromedriver-linux64
         CHROMEWEBDRIVER: /usr/local/share/chromedriver-linux64
