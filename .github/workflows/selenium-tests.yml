@@ -2,12 +2,12 @@ name: Selenium UI Tests
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "master" ]
     paths:
       - 'MoGYSD.Selenium/**'
       - '.github/workflows/selenium-tests.yml'
   pull_request:
-    branches: [ "main" ]
+    branches: [ "master" ]
     paths:
       - 'MoGYSD.Selenium/**'
       - '.github/workflows/selenium-tests.yml'
