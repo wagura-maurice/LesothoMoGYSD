@@ -22,16 +22,18 @@ namespace MoGYSD.Selenium.Utils
                 .Build();
 
             // Setup WebDriver
-            new DriverManager().SetUpDriver(new ChromeConfig());
+            // new DriverManager().SetUpDriver(new ChromeConfig());
+            // In TestBase.cs constructor, update the Chrome options setup:
             var options = new ChromeOptions();
-            options.AddArgument("--start-maximized");
+            options.AddArgument("--no-sandbox");
+            options.AddArgument("--disable-dev-shm-usage");
+            options.AddArgument("--disable-gpu");
             options.AddArgument("--disable-extensions");
             options.AddArgument("--disable-notifications");
-            
-            if (bool.Parse(Configuration["AppSettings:Headless"] ?? "false"))
+
+            if (bool.Parse(Configuration["AppSettings:Headless"] ?? "true"))
             {
                 options.AddArgument("--headless=new");
-                options.AddArgument("--disable-gpu");
                 options.AddArgument("--window-size=1920,1080");
             }
             
