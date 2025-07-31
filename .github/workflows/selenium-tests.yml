@@ -32,14 +32,34 @@ jobs:
         dotnet-version: ${{ env.DOTNET_VERSION }}
       
     - name: Install Chrome and ChromeDriver
-      uses: browser-actions/setup-chrome@v1
-      with:
-        chrome-version: '114.0.5735.198'
-    
-    - name: Verify Chrome installation
       run: |
-        google-chrome --version
-        chromedriver --version
+        # Install Chrome from official Google repository
+        wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | sudo apt-key add -
+        echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" | sudo tee /etc/apt/sources.list.d/google-chrome.list
+        sudo apt-get update
+        sudo apt-get install -y google-chrome-stable
+        
+        # Get installed Chrome version
+        CHROME_VERSION=$(google-chrome --version | grep -oP '\d+\.\d+\.\d+(\.\d+)?' | head -1)
+        echo "Installed Chrome version: $CHROME_VERSION"
+        
+        # Install ChromeDriver that matches the Chrome version
+        CHROME_MAJOR_VERSION=$(echo $CHROME_VERSION | cut -d. -f1)
+        echo "Chrome major version: $CHROME_MAJOR_VERSION"
+        
+        # Install ChromeDriver
+        wget -q https://chromedriver.storage.googleapis.com/LATEST_RELEASE_$CHROME_MAJOR_VERSION -O chromedriver-version.txt
+        CHROMEDRIVER_VERSION=$(cat chromedriver-version.txt)
+        echo "Installing ChromeDriver version: $CHROMEDRIVER_VERSION"
+        
+        wget -q https://chromedriver.storage.googleapis.com/$CHROMEDRIVER_VERSION/chromedriver_linux64.zip
+        unzip chromedriver_linux64.zip
+        sudo mv chromedriver /usr/local/bin/
+        sudo chmod +x /usr/local/bin/chromedriver
+        
+        # Verify installations
+        echo "Chrome version: $(google-chrome --version)"
+        echo "ChromeDriver version: $(chromedriver --version)"
         
     - name: Create appsettings.json
       run: |
@@ -61,28 +81,7 @@ jobs:
         dotnet restore --no-cache
         dotnet build --no-restore --configuration Release
 
-    - name: Install ChromeDriver
-      run: |
-        # Install ChromeDriver that matches the installed Chrome version
-        CHROME_VERSION=$(google-chrome-stable --version | grep -oP '(\d+\.\d+\.\d+\.\d+)')
-        echo "Chrome version: $CHROME_VERSION"
-        CHROME_MAJOR_VERSION=$(echo $CHROME_VERSION | cut -d. -f1)
-        echo "Chrome major version: $CHROME_MAJOR_VERSION"
-        
-        # Download and install ChromeDriver using WebDriverManager
-        sudo apt-get update
-        sudo apt-get install -y default-jre
-        wget https://github.com/SeleniumHQ/selenium/releases/download/selenium-4.10.0/selenium-server-4.10.0.jar
-        java -jar selenium-server-4.10.0.jar --version
-        
-        # Also install the traditional way as fallback
-        CHROMEDRIVER_VERSION=$(curl -s "https://chromedriver.storage.googleapis.com/LATEST_RELEASE_$CHROME_MAJOR_VERSION")
-        echo "ChromeDriver version: $CHROMEDRIVER_VERSION"
-        wget -q "https://chromedriver.storage.googleapis.com/$CHROMEDRIVER_VERSION/chromedriver_linux64.zip"
-        unzip chromedriver_linux64.zip
-        sudo mv chromedriver /usr/local/bin/
-        sudo chmod +x /usr/local/bin/chromedriver
-        chromedriver --version
+    # Chrome and ChromeDriver are now installed in the previous step
       
     - name: Run tests
       working-directory: MoGYSD.Selenium
