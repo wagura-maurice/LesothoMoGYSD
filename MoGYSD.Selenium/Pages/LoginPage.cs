@@ -2,14 +2,19 @@
 using OpenQA.Selenium;
 using OpenQA.Selenium.Support.UI;
 using SeleniumExtras.WaitHelpers;
+using System;
+using System.Threading;
 
 namespace MoGYSD.Selenium.Pages
 {
     public class LoginPage : BasePage
     {
-        private readonly By _usernameField = By.Id("username");
-        private readonly By _passwordField = By.Id("password");
-        private readonly By _loginButton = By.CssSelector("button[type='submit'], input[type='submit'], #login-button");
+        // Form elements from Login.razor
+        private readonly By _systemSelect = By.Id("optionSelect");
+        private readonly By _emailField = By.Id("Input.Email");
+        private readonly By _passwordField = By.Id("Input.Password");
+        private readonly By _captchaField = By.Id("Input.Captcha");
+        private readonly By _loginButton = By.CssSelector("button[type='submit']");
         private readonly By _errorMessage = By.CssSelector(".error-message, .alert-danger, .text-danger, [role='alert']");
         private readonly By _pageTitle = By.CssSelector("h1, h2, h3, .login-title");
 
@@ -52,25 +57,36 @@ namespace MoGYSD.Selenium.Pages
             }
         }
 
-        public void Login(string username, string password)
+        public void Login(string email, string password, string captcha = "7544", string system = "MISSA")
         {
             try
             {
-                Console.WriteLine($"Attempting login with username: {username}");
+                Console.WriteLine($"Attempting login with system: {system}, email: {email}");
                 
-                // Wait for and interact with username field
-                var usernameField = WaitForElement(_usernameField, 10);
-                Console.WriteLine("Found username field");
-                usernameField.Clear();
-                usernameField.SendKeys(username);
+                // Select system from dropdown
+                var systemSelect = new SelectElement(WaitForElement(_systemSelect, 10));
+                Console.WriteLine("Found system dropdown");
+                systemSelect.SelectByValue(system);
                 
-                // Wait for and interact with password field
+                // Fill in email
+                var emailField = WaitForElement(_emailField, 10);
+                Console.WriteLine("Found email field");
+                emailField.Clear();
+                emailField.SendKeys(email);
+                
+                // Fill in password
                 var passwordField = WaitForElement(_passwordField, 10);
                 Console.WriteLine("Found password field");
                 passwordField.Clear();
                 passwordField.SendKeys(password);
                 
-                // Wait for and click login button
+                // Fill in captcha
+                var captchaField = WaitForElement(_captchaField, 10);
+                Console.WriteLine("Found captcha field");
+                captchaField.Clear();
+                captchaField.SendKeys(captcha);
+                
+                // Click login button
                 var loginButton = WaitForElement(_loginButton, 10);
                 Console.WriteLine("Found login button");
                 
