@@ -16,7 +16,7 @@ namespace MoGYSD.Selenium.Utils
         protected IWebDriver Driver { get; private set; } = null!;
         protected IConfiguration Configuration { get; } = null!;
         protected string BaseUrl => Configuration["AppSettings:BaseUrl"] ?? throw new InvalidOperationException("BaseUrl is not configured in appsettings.json");
-        public TestContext? TestContext { get; set; }
+        public TestContext? TestContext { get; set; } = new TestContext();
 
         protected TestBase()
         {
@@ -89,20 +89,40 @@ namespace MoGYSD.Selenium.Utils
             service.HideCommandPromptWindow = true;
             service.EnableVerboseLogging = true;
             
-            // Use a default log directory if TestContext is not available yet
-            string logDirectory = TestContext?.TestRunResultsDirectory ?? 
-                                Path.Combine(Directory.GetCurrentDirectory(), "TestResults");
-            Directory.CreateDirectory(logDirectory);
-            
-            service.LogPath = Path.Combine(logDirectory, "chromedriver.log");
-            service.EnableAppendLog = true;
+            // Set up logging directory
+            string logDirectory;
+            try
+            {
+                logDirectory = TestContext?.TestRunResultsDirectory ?? 
+                             Path.Combine(Directory.GetCurrentDirectory(), "TestResults");
+                Directory.CreateDirectory(logDirectory);
+                
+                service.LogPath = Path.Combine(logDirectory, $"chromedriver_{DateTime.Now:yyyyMMddHHmmss}.log");
+                service.EnableAppendLog = false; // Use separate log files for each test run
+                Console.WriteLine($"ChromeDriver log will be written to: {service.LogPath}");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Warning: Could not set up logging directory: {ex.Message}");
+                service.LogPath = Path.Combine(Path.GetTempPath(), $"chromedriver_{Guid.NewGuid()}.log");
+                service.EnableAppendLog = false;
+            }
             
             // Add environment variables if needed
-            var envVars = new System.Collections.Generic.Dictionary<string, object>
+            try {
+                Environment.SetEnvironmentVariable("DISPLAY", ":99");
+                Environment.SetEnvironmentVariable("DBUS_SESSION_BUS_ADDRESS", "/dev/null");
+                
+                // Additional environment variables for Chrome stability
+                Environment.SetEnvironmentVariable("CHROME_DRIVER_LOG_LEVEL", "INFO");
+                Environment.SetEnvironmentVariable("CHROME_DRIVER_LOG_PATH", service.LogPath);
+                
+                Console.WriteLine("Environment variables set for ChromeDriver");
+            }
+            catch (Exception ex)
             {
-                ["DISPLAY"] = ":99",
-                ["DBUS_SESSION_BUS_ADDRESS"] = "/dev/null"
-            };
+                Console.WriteLine($"Warning: Could not set environment variables: {ex.Message}");
+            }
 
             try
             {
