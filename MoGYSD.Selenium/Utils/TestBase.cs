@@ -18,9 +18,9 @@ namespace MoGYSD.Selenium.Utils
         protected string BaseUrl => Configuration["AppSettings:BaseUrl"] ?? throw new InvalidOperationException("BaseUrl is not configured in appsettings.json");
         public TestContext? TestContext { get; set; }
 
-        public TestBase(TestContext testContext = null)
+        protected TestBase()
         {
-            TestContext = testContext;
+            // TestContext will be set by MSTest after constructor but before test methods
             // Setup configuration
             Configuration = new ConfigurationBuilder()
                 .AddJsonFile("appsettings.json")
@@ -88,7 +88,13 @@ namespace MoGYSD.Selenium.Utils
             var service = ChromeDriverService.CreateDefaultService();
             service.HideCommandPromptWindow = true;
             service.EnableVerboseLogging = true;
-            service.LogPath = Path.Combine(TestContext.TestRunResultsDirectory, "chromedriver.log");
+            
+            // Use a default log directory if TestContext is not available yet
+            string logDirectory = TestContext?.TestRunResultsDirectory ?? 
+                                Path.Combine(Directory.GetCurrentDirectory(), "TestResults");
+            Directory.CreateDirectory(logDirectory);
+            
+            service.LogPath = Path.Combine(logDirectory, "chromedriver.log");
             service.EnableAppendLog = true;
             
             // Add environment variables if needed
