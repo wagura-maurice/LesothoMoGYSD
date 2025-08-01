@@ -20,7 +20,7 @@ namespace MoGYSD.Selenium.Pages
 
         public void Navigate()
         {
-            var loginUrl = $"{BaseUrl.TrimEnd('/')}/login";
+            var loginUrl = $"{BaseUrl.TrimEnd('/')}/Account/Login";
             Console.WriteLine($"Navigating to: {loginUrl}");
             
             try
