@@ -20,7 +20,7 @@ namespace MoGYSD.Selenium.Utils
 
         public TestBase(TestContext testContext = null)
         {
-            TestContext = testContext ?? TestContext.CurrentContext;
+            TestContext = testContext;
             // Setup configuration
             Configuration = new ConfigurationBuilder()
                 .AddJsonFile("appsettings.json")
