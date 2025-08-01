@@ -63,52 +63,112 @@ namespace MoGYSD.Selenium.Pages
             {
                 Console.WriteLine($"Attempting login with system: {system}, email: {email}");
                 
-                // Select system from dropdown
-                var systemSelect = new SelectElement(WaitForElement(_systemSelect, 10));
-                Console.WriteLine("Found system dropdown");
-                systemSelect.SelectByValue(system);
+                // Wait for page to be fully interactive
+                WaitForPageLoad();
                 
-                // Fill in email
-                var emailField = WaitForElement(_emailField, 10);
-                Console.WriteLine("Found email field");
-                emailField.Clear();
-                emailField.SendKeys(email);
-                
-                // Fill in password
-                var passwordField = WaitForElement(_passwordField, 10);
-                Console.WriteLine("Found password field");
-                passwordField.Clear();
-                passwordField.SendKeys(password);
-                
-                // Fill in captcha
-                var captchaField = WaitForElement(_captchaField, 10);
-                Console.WriteLine("Found captcha field");
-                captchaField.Clear();
-                captchaField.SendKeys(captcha);
-                
-                // Click login button
-                var loginButton = WaitForElement(_loginButton, 10);
-                Console.WriteLine("Found login button");
-                
-                // Scroll to element and click using JavaScript
-                ((IJavaScriptExecutor)Driver).ExecuteScript("arguments[0].scrollIntoView(true);", loginButton);
-                Thread.Sleep(500); // Small delay for any animations
-                
-                // Try clicking with JavaScript if regular click fails
+                // Wait for and select system from dropdown
                 try
                 {
-                    loginButton.Click();
+                    var systemElement = WaitForElement(_systemSelect, 15);
+                    Console.WriteLine("Found system dropdown");
+                    var systemSelect = new SelectElement(systemElement);
+                    systemSelect.SelectByValue(system);
+                    Console.WriteLine($"Selected system: {system}");
                 }
-                catch
+                catch (Exception ex)
                 {
-                    ((IJavaScriptExecutor)Driver).ExecuteScript("arguments[0].click();", loginButton);
+                    throw new Exception($"Failed to select system '{system}': {ex.Message}", ex);
                 }
                 
-                Console.WriteLine("Login button clicked, waiting for page load...");
-                WaitForPageLoad(20); // Give more time for login to complete
+                // Fill in email
+                try
+                {
+                    var emailElement = WaitForElement(_emailField, 10);
+                    Console.WriteLine("Found email field");
+                    emailElement.Clear();
+                    emailElement.SendKeys(email);
+                }
+                catch (Exception ex)
+                {
+                    throw new Exception($"Failed to enter email: {ex.Message}", ex);
+                }
+                
+                // Fill in password
+                try
+                {
+                    var passwordElement = WaitForElement(_passwordField, 10);
+                    Console.WriteLine("Found password field");
+                    passwordElement.Clear();
+                    passwordElement.SendKeys(password);
+                }
+                catch (Exception ex)
+                {
+                    throw new Exception($"Failed to enter password: {ex.Message}", ex);
+                }
+                
+                // Fill in captcha
+                try
+                {
+                    var captchaElement = WaitForElement(_captchaField, 10);
+                    Console.WriteLine("Found captcha field");
+                    captchaElement.Clear();
+                    captchaElement.SendKeys(captcha);
+                }
+                catch (Exception ex)
+                {
+                    throw new Exception($"Failed to enter captcha: {ex.Message}", ex);
+                }
+                
+                // Click login button
+                try
+                {
+                    var loginButton = WaitForElement(_loginButton, 10);
+                    Console.WriteLine("Found login button");
+                    
+                    // Scroll to element
+                    ((IJavaScriptExecutor)Driver).ExecuteScript(
+                        "arguments[0].scrollIntoView({behavior: 'smooth', block: 'center', inline: 'nearest'}});", 
+                        loginButton);
+                    
+                    // Wait for element to be clickable
+                    var wait = new WebDriverWait(Driver, TimeSpan.FromSeconds(10));
+                    wait.Until(SeleniumExtras.WaitHelpers.ExpectedConditions.ElementToBeClickable(_loginButton));
+                    
+                    // Try direct click first, then fall back to JavaScript
+                    try
+                    {
+                        loginButton.Click();
+                    }
+                    catch
+                    {
+                        ((IJavaScriptExecutor)Driver).ExecuteScript("arguments[0].click();", loginButton);
+                    }
+                    
+                    Console.WriteLine("Login button clicked, waiting for page load...");
+                    
+                    // Wait for navigation to complete
+                    WaitForPageLoad(30);
+                }
+                catch (Exception ex)
+                {
+                    throw new Exception($"Failed to click login button: {ex.Message}", ex);
+                }
             }
             catch (Exception ex)
             {
+                // Take screenshot on error
+                try
+                {
+                    var screenshot = ((ITakesScreenshot)Driver).GetScreenshot();
+                    var screenshotPath = Path.Combine(Path.GetTempPath(), $"login_error_{DateTime.Now:yyyyMMddHHmmss}.png");
+                    screenshot.SaveAsFile(screenshotPath);
+                    Console.WriteLine($"Screenshot saved to: {screenshotPath}");
+                }
+                catch (Exception screenshotEx)
+                {
+                    Console.WriteLine($"Failed to take screenshot: {screenshotEx.Message}");
+                }
+                
                 Console.WriteLine($"Error during login: {ex}");
                 throw;
             }

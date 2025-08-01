@@ -10,7 +10,7 @@ namespace MoGYSD.Selenium.Pages
         protected readonly IWebDriver Driver;
         protected readonly WebDriverWait Wait;
         protected readonly string BaseUrl;
-        protected TestContext TestContext { get; set; }
+        protected TestContext TestContext { get; set; } = new TestContext(); // Initialize with default to prevent null reference
 
         protected BasePage(IWebDriver driver, string baseUrl)
         {
@@ -92,20 +92,54 @@ namespace MoGYSD.Selenium.Pages
                 // Small delay to ensure scrolling is complete
                 Thread.Sleep(200);
                 
-                // Take a screenshot for debugging
-                var screenshot = ((ITakesScreenshot)Driver).GetScreenshot();
-                var screenshotPath = Path.Combine(TestContext.TestRunResultsDirectory, $"screenshot_{DateTime.Now:yyyyMMddHHmmss}.png");
-                screenshot.SaveAsFile(screenshotPath);
-                TestContext.AddResultFile(screenshotPath);
+                // Take a screenshot for debugging if TestContext is available
+                try
+                {
+                    var screenshot = ((ITakesScreenshot)Driver).GetScreenshot();
+                    if (TestContext?.TestRunResultsDirectory != null)
+                    {
+                        var screenshotPath = Path.Combine(TestContext.TestRunResultsDirectory, $"screenshot_{DateTime.Now:yyyyMMddHHmmss}.png");
+                        screenshot.SaveAsFile(screenshotPath);
+                        TestContext.AddResultFile(screenshotPath);
+                    }
+                    else
+                    {
+                        // Fallback for when running outside of test context
+                        var tempPath = Path.Combine(Path.GetTempPath(), $"screenshot_{DateTime.Now:yyyyMMddHHmmss}.png");
+                        screenshot.SaveAsFile(tempPath);
+                        Console.WriteLine($"Screenshot saved to: {tempPath}");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Error taking screenshot: {ex.Message}");
+                }
                 
                 return element;
             }
             catch (WebDriverTimeoutException ex)
             {
                 // Log the current page source for debugging
-                var pageSourcePath = Path.Combine(TestContext.TestRunResultsDirectory, $"pagesource_{DateTime.Now:yyyyMMddHHmmss}.html");
-                File.WriteAllText(pageSourcePath, Driver.PageSource);
-                TestContext.AddResultFile(pageSourcePath);
+                try
+                {
+                    if (TestContext?.TestRunResultsDirectory != null)
+                    {
+                        var pageSourcePath = Path.Combine(TestContext.TestRunResultsDirectory, $"pagesource_{DateTime.Now:yyyyMMddHHmmss}.html");
+                        File.WriteAllText(pageSourcePath, Driver.PageSource);
+                        TestContext.AddResultFile(pageSourcePath);
+                    }
+                    else
+                    {
+                        // Fallback for when running outside of test context
+                        var tempPath = Path.Combine(Path.GetTempPath(), $"pagesource_{DateTime.Now:yyyyMMddHHmmss}.html");
+                        File.WriteAllText(tempPath, Driver.PageSource);
+                        Console.WriteLine($"Page source saved to: {tempPath}");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Error saving page source: {ex.Message}");
+                }
                 
                 throw new WebDriverTimeoutException($"Element not found: {by}. Page title: {Driver.Title}", ex);
             }
