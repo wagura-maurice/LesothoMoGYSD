@@ -86,4 +86,5 @@ namespace MoGYSD.Selenium.Tests
             var dashboardPage = new DashboardPage(Driver, BaseUrl);
             Assert.IsTrue(dashboardPage.IsDashboardDisplayed(), "Dashboard was not displayed after login with NISSA system");
         }
+    }
 }
