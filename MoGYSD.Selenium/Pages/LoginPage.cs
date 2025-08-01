@@ -126,9 +126,18 @@ namespace MoGYSD.Selenium.Pages
                     Console.WriteLine("Found login button");
                     
                     // Scroll to element
-                    ((IJavaScriptExecutor)Driver).ExecuteScript(
-                        "arguments[0].scrollIntoView({behavior: 'smooth', block: 'center', inline: 'nearest'}});", 
-                        loginButton);
+                    try
+                    {
+                        ((IJavaScriptExecutor)Driver).ExecuteScript(
+                            "arguments[0].scrollIntoView({behavior: 'smooth', block: 'center', inline: 'nearest'}});", 
+                            loginButton);
+                    }
+                    catch (Exception scrollEx)
+                    {
+                        Console.WriteLine($"Warning: Could not scroll to element: {scrollEx.Message}");
+                        // Fallback to simple scroll
+                        ((IJavaScriptExecutor)Driver).ExecuteScript("arguments[0].scrollIntoView(true);", loginButton);
+                    }
                     
                     // Wait for element to be clickable
                     var wait = new WebDriverWait(Driver, TimeSpan.FromSeconds(10));
