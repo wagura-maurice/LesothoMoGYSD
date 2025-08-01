@@ -10,7 +10,7 @@ namespace MoGYSD.Selenium.Pages
         protected readonly IWebDriver Driver;
         protected readonly WebDriverWait Wait;
         protected readonly string BaseUrl;
-        protected TestContext TestContext { get; set; } = new TestContext(); // Initialize with default to prevent null reference
+        protected TestContext? TestContext { get; set; }
 
         protected BasePage(IWebDriver driver, string baseUrl)
         {
@@ -110,9 +110,9 @@ namespace MoGYSD.Selenium.Pages
                         Console.WriteLine($"Screenshot saved to: {tempPath}");
                     }
                 }
-                catch (Exception ex)
+                catch (Exception screenshotError)
                 {
-                    Console.WriteLine($"Error taking screenshot: {ex.Message}");
+                    Console.WriteLine($"Failed to take screenshot: {screenshotError.Message}");
                 }
                 
                 return element;
