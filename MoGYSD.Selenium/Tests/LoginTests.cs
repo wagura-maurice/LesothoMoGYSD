@@ -10,7 +10,7 @@ namespace MoGYSD.Selenium.Tests
     [TestCategory("Login")]
     public class LoginTests : TestBase
     {
-        private LoginPage _loginPage;
+        private LoginPage _loginPage = null!; // Initialized in TestInitialize
 
         [TestInitialize]
         public void TestInitialize()
