@@ -136,9 +136,9 @@ namespace MoGYSD.Selenium.Pages
                         Console.WriteLine($"Page source saved to: {tempPath}");
                     }
                 }
-                catch (Exception ex)
+                catch (Exception pageSourceError)
                 {
-                    Console.WriteLine($"Error saving page source: {ex.Message}");
+                    Console.WriteLine($"Error saving page source: {pageSourceError.Message}");
                 }
                 
                 throw new WebDriverTimeoutException($"Element not found: {by}. Page title: {Driver.Title}", ex);
