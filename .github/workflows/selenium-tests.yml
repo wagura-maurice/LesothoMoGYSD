@@ -66,8 +66,10 @@ jobs:
         {
           "AppSettings": {
             "BaseUrl": "${{ secrets.APP_BASE_URL }}",
+            "AdminSystem": "${{ secrets.ADMIN_SYSTEM || 'MISSA' }}",
             "AdminUsername": "${{ secrets.ADMIN_USERNAME }}",
             "AdminPassword": "${{ secrets.ADMIN_PASSWORD }}",
+            "AdminCaptcha": "${{ secrets.ADMIN_CAPTCHA || '7544' }}",
             "Headless": "true"
           }
         }
@@ -107,6 +109,13 @@ jobs:
       env:
         DISPLAY: :99
         PATH: /usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/opt/chrome:/usr/local/bin
+        # Set environment variables for test execution
+        APPSETTINGS_BASEURL: ${{ secrets.APP_BASE_URL }}
+        APPSETTINGS_ADMINSYSTEM: ${{ secrets.ADMIN_SYSTEM || 'MISSA' }}
+        APPSETTINGS_ADMINUSERNAME: ${{ secrets.ADMIN_USERNAME }}
+        APPSETTINGS_ADMINPASSWORD: ${{ secrets.ADMIN_PASSWORD }}
+        APPSETTINGS_ADMINCAPTCHA: ${{ secrets.ADMIN_CAPTCHA || '7544' }}
+        APPSETTINGS_HEADLESS: "true"
         CHROME_PATH: /opt/chrome/chrome
         CHROMEWEBDRIVER: /usr/local/bin
       run: |
