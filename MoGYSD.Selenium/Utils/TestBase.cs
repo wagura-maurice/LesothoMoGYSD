@@ -16,7 +16,7 @@ namespace MoGYSD.Selenium.Utils
         protected IWebDriver Driver { get; private set; } = null!;
         protected IConfiguration Configuration { get; } = null!;
         protected string BaseUrl => Configuration["AppSettings:BaseUrl"] ?? throw new InvalidOperationException("BaseUrl is not configured in appsettings.json");
-        protected TestContext TestContext { get; set; } = null!;
+        public TestContext? TestContext { get; set; }
 
         public TestBase(TestContext testContext = null)
         {
@@ -174,7 +174,6 @@ namespace MoGYSD.Selenium.Utils
             }
         }
 
-        public TestContext? TestContext { get; set; }
 
         protected void TakeScreenshot(string fileName)
         {
